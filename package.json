@@ -1,0 +1,29 @@
+{
+  "name": "image_cleaner",
+  "version": "1.0.0",
+  "main": "src/main/main.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+    
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kazukiti8/Image_Cleaner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kazukiti8/Image_Cleaner/issues"
+  },
+  "homepage": "https://github.com/kazukiti8/Image_Cleaner#readme",
+  "description": "",
+  "devDependencies": {
+    "electron": "^36.3.2"
+  }
+}

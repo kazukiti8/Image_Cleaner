@@ -1,0 +1,69 @@
+/* 基本的なスタイルや、Tailwind CSSでカバーしきれないカスタムスタイルを記述 */
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    overflow: hidden; /* メインボディのスクロールを禁止し、各ペインで管理 */
+}
+
+#app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%; /* 親の高さに追従 */
+}
+
+/* タブのアクティブ状態 */
+.tab-active {
+    border-bottom-color: #3b82f6 !important; /* blue-500 */
+    color: #3b82f6 !important;
+    font-weight: 500; /* Medium */
+}
+
+/* 上向きの影 (フッター用) */
+.shadow-upward {
+  box-shadow: 0 -4px 6px -1px rgb(0 0 0 / 0.1), 0 -2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* リストアイテム選択時のハイライト */
+.list-panel tbody tr.bg-sky-100 {
+    background-color: #e0f2fe; /* Tailwind sky-100 */
+}
+.list-panel tbody tr:hover:not(.bg-sky-100) { /* 選択されてない行のホバー */
+    background-color: #f1f5f9; /* Tailwind slate-100 */
+}
+/* 類似画像の推奨ペア行のホバー (選択されてない場合) */
+.list-panel tbody tr.bg-yellow-50:hover:not(.bg-sky-100) {
+    background-color: #fef9c3; /* Tailwind yellow-100 */
+}
+
+
+/* Range SliderのThumbのスタイル (モックアップより) */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #3b82f6; /* blue-500 */
+    cursor: pointer;
+    border-radius: 50%;
+    margin-top: -6px; /* thumbの位置調整 */
+}
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #3b82f6; /* blue-500 */
+    cursor: pointer;
+    border-radius: 50%;
+    border: none;
+}
+
+/* テーブルヘッダーのソートインジケーター用 */
+.sort-indicator {
+    display: inline-block;
+    margin-left: 4px;
+    color: #9ca3af; /* gray-400 */
+}
+
+/* 必要に応じて、コンポーネントごとのCSSファイルを作成し、ここで @import するなども検討 */
