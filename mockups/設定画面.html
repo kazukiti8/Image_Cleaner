@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>設定画面 - 画像整理アプリ モックアップ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal-content {
+            max-width: 600px;
+            min-height: 420px; /* アイコン追加等で若干高さを調整 */
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-white rounded-lg shadow-xl modal-content w-full flex flex-col">
+        <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-slate-800">設定</h2>
+            </div>
+
+        <div class="p-6 flex-grow overflow-y-auto space-y-6">
+            <section class="space-y-6">
+                <h3 class="text-md font-semibold text-slate-700 border-b pb-2 mb-4">スキャン設定</h3>
+                <div class="flex items-center">
+                    <input id="scanSubfolders" name="scanSubfolders" type="checkbox" checked class="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500">
+                    <label for="scanSubfolders" class="ml-2 block text-sm text-slate-700">サブフォルダを常にスキャン対象に含める</label>
+                </div>
+            </section>
+
+            <hr class="my-6 border-slate-200">
+
+            <section class="space-y-6">
+                <h3 class="text-md font-semibold text-slate-700 border-b pb-2 mb-4">整理操作設定</h3>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700">「削除」ボタンのデフォルト動作</label>
+                    <fieldset class="mt-2">
+                        <legend class="sr-only">削除動作</legend>
+                        <div class="space-y-2">
+                            <div class="flex items-center">
+                                <input id="deleteToRecycleBin" name="deleteOperation" type="radio" checked value="recycleBin" class="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500">
+                                <label for="deleteToRecycleBin" class="ml-2 block text-sm text-slate-700">ゴミ箱へ移動</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input id="deletePermanently" name="deleteOperation" type="radio" value="permanently" class="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500">
+                                <label for="deletePermanently" class="ml-2 block text-sm text-slate-700">直接完全に削除 (警告あり)</label>
+                            </div>
+                        </div>
+                    </fieldset>
+                </div>
+            </section>
+
+            <hr class="my-6 border-slate-200">
+
+            <section class="space-y-6">
+                <h3 class="text-md font-semibold text-slate-700 border-b pb-2 mb-4">ログ設定</h3>
+                 <div>
+                    <label for="logLevel" class="block text-sm font-medium text-slate-700">ログレベル</label>
+                    <select id="logLevel" name="logLevel" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                        <option value="error">エラーのみ</option>
+                        <option value="normal" selected>通常 (エラーと主要な操作)</option>
+                        <option value="debug">詳細 (デバッグ用)</option>
+                    </select>
+                </div>
+                 <div>
+                    <label for="logFilePath" class="block text-sm font-medium text-slate-700">ログファイルの場所</label>
+                    <div class="mt-1 flex rounded-md shadow-sm">
+                        <input type="text" name="logFilePath" id="logFilePath" readonly value="C:\Users\YourName\AppData\Local\ImageCleanupAssistant\logs" class="focus:ring-blue-500 focus:border-blue-500 block w-full rounded-none rounded-l-md sm:text-sm border-slate-300 bg-slate-100 p-2 cursor-not-allowed">
+                        <button type="button" id="changeLogPathButton" class="-ml-px relative inline-flex items-center space-x-2 px-3 py-2 border border-slate-300 text-sm font-medium rounded-r-md text-slate-700 bg-slate-50 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" class="w-4 h-4 text-slate-500">
+                                <path d="M0 0h24v24H0V0z" fill="none"/><path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm0 12H4V6h5.17l2 2H20v10z"/>
+                            </svg>
+                            <span>変更...</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-3 rounded-b-lg">
+            <button id="cancelButton" class="flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" class="w-4 h-4 mr-1 -ml-1">
+                    <path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+                </svg>
+                キャンセル
+            </button>
+            <button id="applyButton" class="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" class="w-4 h-4 mr-1 -ml-1">
+                    <path d="M0 0h24v24H0V0z" fill="none"/><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm2 16H5V5h11.17L19 7.83V19zm-7-7c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm3-8H5v5h14V5h-4z"/>
+                </svg>
+                適用
+            </button>
+            <button id="okButton" class="flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" class="w-4 h-4 mr-1 -ml-1">
+                    <path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-2-9.59L6.41 12 5 13.41 9.59 18 19 8.41 17.59 7 9.59 15.01z"/>
+                </svg>
+                OK
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const scanSubfoldersCheckbox = document.getElementById('scanSubfolders');
+        const deleteOperationRadios = document.getElementsByName('deleteOperation');
+        const logLevelSelect = document.getElementById('logLevel');
+        const logFilePathInput = document.getElementById('logFilePath');
+        const changeLogPathButton = document.getElementById('changeLogPathButton');
+
+        const applyButton = document.getElementById('applyButton');
+        const okButton = document.getElementById('okButton');
+        const cancelButton = document.getElementById('cancelButton');
+
+        // Function to gather current settings
+        function getCurrentSettings() {
+            let deleteOperation = '';
+            for (const radio of deleteOperationRadios) {
+                if (radio.checked) {
+                    deleteOperation = radio.value;
+                    break;
+                }
+            }
+            return {
+                scanSubfolders: scanSubfoldersCheckbox.checked,
+                deleteOperation: deleteOperation,
+                logLevel: logLevelSelect.value,
+                logFilePath: logFilePathInput.value
+            };
+        }
+
+        // Event listener for "適用" button
+        applyButton.addEventListener('click', () => {
+            const settings = getCurrentSettings();
+            console.log('適用ボタンが押されました。現在の設定:', settings);
+            // 代わりにカスタムメッセージ表示などを検討
+        });
+
+        // Event listener for "OK" button
+        okButton.addEventListener('click', () => {
+            const settings = getCurrentSettings();
+            console.log('OKボタンが押されました。現在の設定:', settings);
+        });
+
+        // Event listener for "キャンセル" button
+        cancelButton.addEventListener('click', () => {
+            console.log('キャンセルボタンが押されました。');
+        });
+
+        // 「ログファイルの場所」の「変更...」ボタンのダミー処理
+        changeLogPathButton.addEventListener('click', () => {
+            console.log('「ログファイルの場所を変更」ボタンが押されました。');
+            // ここでフォルダ選択ダイアログを開く処理を実装
+            // 例: const newPath = window.electronAPI.openFolderDialog();
+            // if (newPath) { logFilePathInput.value = newPath; }
+        });
+    </script>
+
+</body>
+</html>

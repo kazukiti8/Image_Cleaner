@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像整理アプリ モックアップ - エラータブ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c4c4c4;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+        .tab-active {
+            border-bottom-color: #3b82f6 !important; /* blue-500 */
+            color: #3b82f6 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+    <div class="flex flex-col h-screen">
+
+        <div class="bg-white p-3 shadow flex items-center space-x-4 border-b border-slate-200">
+            <div class="flex-grow">
+                <label for="targetFolder" class="text-sm font-medium text-slate-700">対象フォルダ:</label>
+                <button id="targetFolder" class="ml-1 px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors" title="スキャン対象のフォルダを選択します">フォルダを選択...</button>
+                <span class="ml-2 text-sm text-slate-600 truncate" title="C:\Users\YourName\Pictures\TargetFolder">選択中: C:\Users\YourName\Pictures\TargetFolder</span>
+
+                <label for="outputFolder" class="ml-4 text-sm font-medium text-slate-700">移動先フォルダ:</label>
+                <button id="outputFolder" class="ml-1 px-3 py-1.5 text-sm bg-slate-500 hover:bg-slate-600 text-white rounded-md shadow-sm transition-colors" title="画像の移動先フォルダを選択します">フォルダを選択...</button>
+                <span class="ml-2 text-sm text-slate-600 truncate" title="C:\Users\YourName\Pictures\Cleaned">選択中: C:\Users\YourName\Pictures\Cleaned</span>
+            </div>
+            <button class="px-4 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md shadow-sm transition-colors" title="対象フォルダのスキャンを開始します">スキャン開始</button>
+            <button title="設定" class="p-1.5 rounded-md hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-800">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 l-3.84,0c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.03c-0.59,0.24-1.13,0.57-1.62,0.96l-2.39-0.96c-0.22-0.08-0.47,0-0.59,0.22 l-1.92,3.32c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.02,11.36,4,11.68,4,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.22 c0.04,0.24,0.24,0.41,0.48,0.41l3.84,0c0.24,0,0.43-0.17,0.47,0.41l0.36-2.22c0.59-0.24,1.13-0.57,1.62-0.96l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.11-0.2,0.06-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex-grow flex p-3 space-x-3 overflow-hidden">
+            <div class="w-1/4 bg-white p-3 rounded-lg shadow flex flex-col space-y-2 overflow-y-auto">
+                <div class="flex-grow bg-slate-200 rounded flex items-center justify-center text-slate-500 text-sm min-h-[400px]">
+                    エラー対象ファイル情報<br>(プレビューなし)
+                </div>
+                <div class="text-xs text-center text-slate-500 pt-2">
+                    エラー内容をリストで確認してください
+                </div>
+            </div>
+
+            <div class="w-1/2 bg-white rounded-lg shadow flex flex-col overflow-hidden">
+                <div class="flex border-b border-slate-200 px-2 pt-2">
+                    <button class="py-2 px-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">ブレ画像 (102)</button>
+                    <button class="py-2 px-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">類似画像 (45)</button>
+                    <button class="tab-active py-2 px-4 text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">エラー (3)</button>
+                </div>
+                <div class="flex-grow overflow-x-auto overflow-y-auto p-1">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 tracking-wider w-10"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 tracking-wider" title="ファイル名でソート">ファイル名
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 inline-block ml-1 text-slate-400 hover:text-slate-600 cursor-pointer">
+                                        <path d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+                                    </svg>
+                                </th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 tracking-wider" title="エラー内容でソート">エラー内容</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 tracking-wider" title="ファイルパスでソート">パス</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200">
+                            <tr class="hover:bg-slate-100">
+                                <td class="px-3 py-2 whitespace-nowrap"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></td>
+                                <td class="px-3 py-2 whitespace-nowrap text-slate-700" title="corrupted_image.jpg">corrupted_image.jpg</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-red-600">
+                                    <span class="inline-flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-5 h-5 mr-1 text-red-500">
+                                            <path d="M0 0h24v24H0V0z" fill="none"/>
+                                            <path d="M21 5v11.59l-3-3.01-4 4.01-4-4-4 4-3-3.01V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2zm-3 14H6V3H4v18h14v-2h3v-7.42l-3-2.99zM19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6V5h12v14zm-4.01-6.71L11.5 15.59l-2.01-2.01L6.5 17h11l-3.51-4.71z"/>
+                                        </svg>
+                                        ファイルが破損しています
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap text-slate-500 truncate max-w-xs" title="C:\Users\YourName\Pictures\Problematic\corrupted_image.jpg">C:\...\corrupted_image.jpg</td>
+                            </tr>
+                             <tr class="bg-sky-50 hover:bg-slate-100"> <td class="px-3 py-2 whitespace-nowrap"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4" checked></td>
+                                <td class="px-3 py-2 whitespace-nowrap text-slate-700" title="unsupported_format.webp">unsupported_format.webp</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-orange-600">
+                                    <span class="inline-flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4 mr-1"> <path d="M0 0h24v24H0V0z" fill="none"/><path d="M11 18h2v-2h-2v2zm1-16C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-2.21 0-4 1.79-4 4h2c0-1.1.9-2 2-2s2 .9 2 2c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5 0-2.21-1.79-4-4-4z"/>
+                                        </svg>
+                                        非対応のファイル形式です
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap text-slate-500 truncate max-w-xs" title="C:\Users\YourName\Pictures\Downloads\unsupported_format.webp">C:\...\unsupported_format.webp</td>
+                            </tr>
+                            <tr class="hover:bg-slate-100">
+                                <td class="px-3 py-2 whitespace-nowrap"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></td>
+                                <td class="px-3 py-2 whitespace-nowrap text-slate-700" title="access_denied.png">access_denied.png</td>
+                                <td class="px-3 py-2 whitespace-nowrap text-red-600">
+                                    <span class="inline-flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 mr-1">
+                                           <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1s3.1 1.39 3.1 3.1v2z"/>
+                                        </svg>
+                                        アクセス権がありません
+                                    </span>
+                                </td>
+                                <td class="px-3 py-2 whitespace-nowrap text-slate-500 truncate max-w-xs" title="C:\Program Files\Restricted\access_denied.png">C:\...\access_denied.png</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="w-1/4 bg-white p-3 rounded-lg shadow flex flex-col space-y-4 overflow-y-auto">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-2">選択操作</h3>
+                    <div class="flex space-x-2">
+                        <button class="flex-1 px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">全件選択</button>
+                        <button class="flex-1 px-3 py-1.5 text-xs bg-slate-400 hover:bg-slate-500 text-white rounded-md shadow-sm transition-colors">選択解除</button>
+                    </div>
+                     <button class="mt-2 w-full flex items-center justify-center px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded-md shadow-sm transition-colors" title="エラーログをファイルに保存します">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4 mr-1"> <path d="M0 0h24v24H0V0z" fill="none"/>
+                            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                        </svg>
+                        エラーログをエクスポート...
+                    </button>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-2">フィルター条件 (エラー)</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label for="errorTypeFilter" class="block text-xs font-medium text-slate-600">エラーの種類:</label>
+                            <select id="errorTypeFilter" class="mt-1 block w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">すべて表示</option>
+                                <option value="corrupted">ファイル破損</option>
+                                <option value="unsupported">非対応形式</option>
+                                <option value="access_denied">アクセス権なし</option>
+                            </select>
+                        </div>
+                        <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors" title="現在のフィルター条件を適用します">適用</button>
+                        <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors" title="フィルター条件を初期状態に戻します">リセット</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-3 shadow-upward border-t border-slate-200 flex items-center justify-between">
+            <div class="text-sm text-slate-600">
+                選択中のアイテム: <span class="font-semibold text-slate-800">1件</span> (エラーリスト)
+            </div>
+            <div class="flex space-x-2">
+                <button class="flex items-center px-4 py-1.5 text-sm bg-slate-500 hover:bg-slate-600 text-white rounded-md shadow-sm transition-colors" title="選択したエラー項目をリストから無視します">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                        <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75C21.27 9.12 17.5 4 12 4c-1.4 0-2.73.25-3.98.7L9.65 6.35C10.37 6.13 11.17 6 12 6zm-1.05 5.05L12 11l.95.95-1.09 1.09L13 14.17l1.09-1.09.95.95-2.05 2.05-2.05-2.05.95-.95 1.09 1.09zm-4.01-7.32L4.22 2.01 3 3.23l2.09 2.09C4.07 6.43 3.09 7.69 2.35 9c1.52 2.87 4.35 5 7.65 5 1.06 0 2.07-.21 3-.58l2.88 2.88 1.23-1.23-1.73-1.73-8.24-8.24zm7.75 10.27c-.73.32-1.5.5-2.3.5-3.27 0-6.06-2.09-7.62-4.94.62-1.12 1.44-2.11 2.43-2.91l1.41 1.41C9.63 10.74 9 11.77 9 13c0 1.66 1.34 3 3 3 .69 0 1.32-.24 1.82-.62l1.44 1.44z"/>
+                    </svg>
+                    選択を無視
+                </button>
+                <button class="flex items-center px-4 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors" title="選択したエラー項目を再スキャンします">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                        <path d="M0 0h24v24H0V0z" fill="none"/>
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8.5h2V10l3-3-3-3v1.5H9V7h4v2h-2v7z"/>
+                    </svg>
+                    再スキャン試行
+                </button>
+            </div>
+        </div>
+
+        <footer class="bg-slate-700 text-white text-xs px-3 py-1.5 flex justify-between items-center">
+            <div>スキャン完了 (ブレ: 102, 類似: 45, エラー: 3)</div>
+            <div>バージョン 0.1.0 (仮)</div>
+        </footer>
+    </div>
+</body>
+</html>
