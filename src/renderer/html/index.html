@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' file: data:; script-src 'self';">
-    <title>イメージクリーンアップアシスタント</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' app-file: data:; script-src 'self';">    <title>イメージクリーンアップアシスタント</title>
     <link rel="stylesheet" href="../css/tailwind.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/style.css">
@@ -36,12 +35,12 @@
             <div class="flex-grow">
                 <div class="flex items-center mb-1 sm:mb-0">
                     <label for="targetFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap mr-1">対象フォルダ:</label>
-                    <button id="selectTargetFolderBtn" class="px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">選択...</button>
+                    <button id="selectTargetFolderBtn" class="px-3 py-1.5 text-sm bg-white text-blue-600 border border-blue-500 rounded-md shadow-sm hover:bg-blue-50 transition-colors flex-shrink-0">選択...</button>
                     <span id="targetFolderPath" class="ml-2 text-sm text-slate-600 truncate" title="選択されていません">選択されていません</span>
                 </div>
                 <div class="flex items-center mt-1">
-                    <label for="outputFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap mr-1">移動先フォルダ:</label>
-                    <button id="selectOutputFolderBtn" class="px-3 py-1.5 text-sm bg-slate-500 hover:bg-slate-600 text-white rounded-md shadow-sm transition-colors">選択...</button>
+                    <label for="outputFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap mr-1">移動フォルダ:</label>
+                    <button id="selectOutputFolderBtn" class="px-3 py-1.5 text-sm bg-white text-slate-600 border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 transition-colors flex-shrink-0">選択...</button>
                     <span id="outputFolderPath" class="ml-2 text-sm text-slate-600 truncate" title="選択されていません">選択されていません</span>
                 </div>
             </div>
@@ -78,13 +77,8 @@
                     </div>
                     <input type="range" id="zoomSlider" min="10" max="300" value="100" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
                     <div class="flex items-center justify-center space-x-2">
-                        <button id="zoomOutBtn" class="p-1 rounded hover:bg-slate-200" title="縮小 (Ctrl + -)">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M7 11v2h10v-2H7zm5-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
-                        </button>
                         <input type="number" id="zoomInput" min="10" max="300" value="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-center">
-                        <button id="zoomInBtn" class="p-1 rounded hover:bg-slate-200" title="拡大 (Ctrl + +)">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
-                        </button>
+
                     </div>
                 </div>
             </div>
@@ -150,10 +144,8 @@
                 <div>
                     <h3 class="text-sm font-semibold text-slate-700 mb-2">選択操作</h3>
                     <div class="flex space-x-2">
-                        <button id="selectAllBtn" class="flex-1 px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">全件選択</button>
-                        <button id="deselectAllBtn" class="flex-1 px-3 py-1.5 text-xs bg-slate-400 hover:bg-slate-500 text-white rounded-md shadow-sm transition-colors">選択解除</button>
-                    </div>
-                    <button id="exportErrorLogBtn" class="mt-2 w-full flex items-center justify-center px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded-md shadow-sm transition-colors hidden" title="エラーログをファイルに保存します">
+                        <button id="selectAllBtn" class="flex-1 px-3 py-1.5 text-xs bg-white text-blue-600 border border-blue-500 rounded-md shadow-sm hover:bg-blue-50 transition-colors">全件選択</button>
+                        <button id="deselectAllBtn" class="flex-1 px-3 py-1.5 text-xs bg-white text-slate-500 border border-slate-400 rounded-md shadow-sm hover:bg-slate-100 transition-colors">選択解除</button>                    <button id="exportErrorLogBtn" class="mt-2 w-full flex items-center justify-center px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded-md shadow-sm transition-colors hidden" title="エラーログをファイルに保存します">
                         <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4 mr-1"> <path d="M0 0h24v24H0V0z" fill="none"/>
                             <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
                         </svg>
@@ -169,9 +161,7 @@
                             <span>-</span>
                             <input type="number" id="blurScoreMax" step="1" min="0" max="100" value="100" class="w-20 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                         </div>
-                        <input type="range" id="blurScoreSlider" min="0" max="100" value="80" step="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-1 accent-blue-500">
-                    </div>
-                    <button id="applyFilterBlurryBtn" class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">適用</button>
+                    </div>                    <button id="applyFilterBlurryBtn" class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">適用</button>
                     <button id="resetFilterBlurryBtn" class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">リセット</button>
                 </div>
                 <div id="filter-similar-container" class="filter-panel-content space-y-3 hidden">
@@ -183,8 +173,7 @@
                             <span>-</span>
                             <input type="number" id="similarityMax" step="1" min="0" max="100" value="100" class="w-20 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                         </div>
-                        <input type="range" id="similaritySlider" min="0" max="100" value="90" step="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-1 accent-blue-500">
-                    </div>
+                    </div>                    
                     <button id="applyFilterSimilarBtn" class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">適用</button>
                     <button id="resetFilterSimilarBtn" class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">リセット</button>
                 </div>

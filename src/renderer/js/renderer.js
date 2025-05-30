@@ -52,12 +52,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const deselectAllBtn = document.getElementById('deselectAllBtn');
     const blurScoreMinInput = document.getElementById('blurScoreMin');
     const blurScoreMaxInput = document.getElementById('blurScoreMax');
-    const blurScoreSlider = document.getElementById('blurScoreSlider');
     const applyFilterBlurryBtn = document.getElementById('applyFilterBlurryBtn');
     const resetFilterBlurryBtn = document.getElementById('resetFilterBlurryBtn');
     const similarityMinInput = document.getElementById('similarityMin');
     const similarityMaxInput = document.getElementById('similarityMax');
-    const similaritySlider = document.getElementById('similaritySlider');
     const applyFilterSimilarBtn = document.getElementById('applyFilterSimilarBtn');
     const resetFilterSimilarBtn = document.getElementById('resetFilterSimilarBtn');
     const errorTypeFilterSelect = document.getElementById('errorTypeFilter');
@@ -522,11 +520,9 @@ window.addEventListener('DOMContentLoaded', () => {
     function resetAndApplyFilters() {
         if (blurScoreMinInput) blurScoreMinInput.value = 0;
         if (blurScoreMaxInput) blurScoreMaxInput.value = 100;
-        if (blurScoreSlider) blurScoreSlider.value = 0; 
         
         if (similarityMinInput) similarityMinInput.value = 0;
         if (similarityMaxInput) similarityMaxInput.value = 100;
-        if (similaritySlider) similaritySlider.value = 0;
 
         if (errorTypeFilterSelect) errorTypeFilterSelect.value = "";
         applyFilters();
