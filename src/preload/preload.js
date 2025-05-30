@@ -5,12 +5,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // フォルダ選択ダイアログを開く
     openDirectoryDialog: () => ipcRenderer.invoke('dialog:openDirectory'),
 
-    // 設定ウィンドウを開くようメインプロセスに通知する
+    // 設定ウィンドウを開く
     openSettingsWindow: () => ipcRenderer.send('open-settings-window'),
 
-    // (以下、他のAPIも必要に応じて追加)
-    // Pythonスクリプト実行をリクエストする関数 (例)
-    // executePython: (scriptName, args) => ipcRenderer.invoke('execute-python-script', scriptName, args),
+    // Pythonによるスキャン実行を要求
+    executeScan: (folderPath) => ipcRenderer.invoke('execute-scan', folderPath),
+    
+    // ファイルパスを安全な画像ソースに変換するよう要求
+    convertFileSrc: (filePath) => ipcRenderer.invoke('convert-file-src', filePath)
 });
 
 console.log('Preload script for main window loaded.');

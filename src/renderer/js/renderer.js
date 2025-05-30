@@ -1,7 +1,6 @@
 // レンダラープロセスのメインスクリプト
 console.log('Renderer script loaded.');
 
-// DOMContentLoaded イベントを待ってからDOM操作を行う
 window.addEventListener('DOMContentLoaded', () => {
     console.log('DOM fully loaded and parsed');
 
@@ -14,7 +13,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const selectTargetFolderBtn = document.getElementById('selectTargetFolderBtn');
     const selectOutputFolderBtn = document.getElementById('selectOutputFolderBtn');
     const startScanBtn = document.getElementById('startScanBtn');
-    const settingsBtn = document.getElementById('settingsBtn'); // 設定ボタンの参照
+    const settingsBtn = document.getElementById('settingsBtn');
 
     // --- タブ関連 ---
     const tabButtons = document.querySelectorAll('.tab-button');
@@ -26,11 +25,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
     // --- プレビュー関連 ---
-    const previewImageContainer = document.getElementById('preview-image-container');
     const previewImage1 = document.getElementById('previewImage1');
     const previewImage2 = document.getElementById('previewImage2');
     const previewPlaceholderText = document.getElementById('preview-placeholder-text');
-    // 画像情報表示用span
     const infoFilename = document.getElementById('info-filename');
     const infoFilepath = document.getElementById('info-filepath');
     const infoResolution = document.getElementById('info-resolution');
@@ -53,33 +50,30 @@ window.addEventListener('DOMContentLoaded', () => {
     // --- 右ペイン ---
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deselectAllBtn = document.getElementById('deselectAllBtn');
-    // フィルターボタン (ブレ画像)
+    // ブレ画像フィルター
     const blurScoreMinInput = document.getElementById('blurScoreMin');
     const blurScoreMaxInput = document.getElementById('blurScoreMax');
-    const blurScoreSlider = document.getElementById('blurScoreSlider');
+    const blurScoreSlider = document.getElementById('blurScoreSlider'); // HTMLには単一スライダーしかないため、min/maxとは直接連動しない
     const applyFilterBlurryBtn = document.getElementById('applyFilterBlurryBtn');
     const resetFilterBlurryBtn = document.getElementById('resetFilterBlurryBtn');
-    // フィルターボタン (類似画像)
+    // 類似画像フィルター
     const similarityMinInput = document.getElementById('similarityMin');
     const similarityMaxInput = document.getElementById('similarityMax');
-    const similaritySlider = document.getElementById('similaritySlider');
+    const similaritySlider = document.getElementById('similaritySlider'); // 同上
     const applyFilterSimilarBtn = document.getElementById('applyFilterSimilarBtn');
     const resetFilterSimilarBtn = document.getElementById('resetFilterSimilarBtn');
-    // フィルターボタン (エラー)
+    // エラーフィルター
     const errorTypeFilterSelect = document.getElementById('errorTypeFilter');
     const applyFilterErrorsBtn = document.getElementById('applyFilterErrorsBtn');
     const resetFilterErrorsBtn = document.getElementById('resetFilterErrorsBtn');
 
 
     // --- フッターアクションボタン ---
-    const selectionInfoSpan = document.getElementById('selection-info');
     const selectedItemsCountSpan = document.getElementById('selected-items-count');
     const selectedItemsSizeSpan = document.getElementById('selected-items-size');
-    // ブレ・類似画像用
     const btnTrash = document.getElementById('btn-trash');
     const btnDeletePermanently = document.getElementById('btn-delete-permanently');
     const btnMove = document.getElementById('btn-move');
-    // エラー用
     const btnIgnoreError = document.getElementById('btn-ignore-error');
     const btnRetryScanError = document.getElementById('btn-retry-scan-error');
 
@@ -89,9 +83,15 @@ window.addEventListener('DOMContentLoaded', () => {
     const errorTbody = document.getElementById('error-files-tbody');
 
     // --- 初期状態 ---
-    let currentTab = 'blurry'; // 'blurry', 'similar', 'errors'
+    let currentTab = 'blurry';
     let selectedTargetFolder = null;
     let selectedOutputFolder = null;
+    let originalScanResults = { // 元のスキャン結果を保持
+        blurryImages: [],
+        similarImagePairs: [],
+        errorFiles: []
+    };
+    // filteredScanResults は applyFilters 関数内で都度生成・更新するので、ここでは不要
 
     // --- 関数 ---
     function updateStatus(message, isError = false) {
@@ -125,18 +125,32 @@ window.addEventListener('DOMContentLoaded', () => {
             selectAllBtn.textContent = "全件選択";
             deselectAllBtn.textContent = "選択解除";
         }
+        resetAndApplyFilters(); // タブ切り替え時にフィルターをリセットして全件表示
         updateSelectionInfo();
+        displayPreview(null);
         console.log(`Switched to ${tabId} tab.`);
+    }
+    
+    function clearAllTablesAndResults() {
+        blurryTbody.innerHTML = '';
+        similarTbody.innerHTML = '';
+        errorTbody.innerHTML = '';
+        document.getElementById('count-blurry').textContent = 0;
+        document.getElementById('count-similar').textContent = 0;
+        document.getElementById('count-errors').textContent = 0;
+        originalScanResults = { blurryImages: [], similarImagePairs: [], errorFiles: [] };
+        // filteredScanResults は applyFilters で再生成されるのでここでは不要
+        displayPreview(null);
+        updateSelectionInfo();
     }
 
     function updateSelectionInfo() {
         let count = 0;
-        let size = 0; // MB
+        let size = 0;
         const activeTbody = document.querySelector(`.list-panel:not(.hidden) tbody`);
         if (activeTbody) {
-            const checkedCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox:checked, input[type="checkbox"].pair-checkbox:checked');
-
             if (currentTab === 'blurry' || currentTab === 'errors') {
+                const checkedCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox:checked');
                 count = checkedCheckboxes.length;
                 checkedCheckboxes.forEach(cb => {
                     const row = cb.closest('tr');
@@ -146,9 +160,11 @@ window.addEventListener('DOMContentLoaded', () => {
                 });
             } else if (currentTab === 'similar') {
                 let fileCountInPairs = 0;
-                 checkedCheckboxes.forEach(pairCheckbox => {
+                let pairCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].pair-checkbox:checked');
+                
+                pairCheckboxes.forEach(pairCheckbox => {
                     const row = pairCheckbox.closest('tr');
-                    if (row && pairCheckbox.checked) {
+                    if (row) {
                         const file1Cb = row.querySelector('.file1-checkbox');
                         const file2Cb = row.querySelector('.file2-checkbox');
                         if (file1Cb && file1Cb.checked) {
@@ -167,10 +183,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
         selectedItemsCountSpan.textContent = `${count}件`;
         selectedItemsSizeSpan.textContent = `${size.toFixed(1)} MB`;
-
         const hasSelection = count > 0;
         const isMoveActionPossible = hasSelection && selectedOutputFolder !== null;
-
 
         if (currentTab === 'errors') {
             btnIgnoreError.disabled = !hasSelection;
@@ -187,18 +201,103 @@ window.addEventListener('DOMContentLoaded', () => {
         if (!fromSlider) zoomSlider.value = val;
         if (!fromInput) zoomInput.value = val;
         zoomValueDisplay.textContent = val;
-
         const scale = val / 100;
-        if (previewImage1.src && !previewImage1.classList.contains('hidden') && previewImage1.src !== 'https://placehold.co/1x1/transparent/transparent') {
+        if (previewImage1.src && previewImage1.src.startsWith('app-file://')) {
             previewImage1.style.transform = `scale(${scale})`;
         }
-        if (previewImage2.src && !previewImage2.classList.contains('hidden') && previewImage2.src !== 'https://placehold.co/1x1/transparent/transparent') {
+        if (previewImage2.src && previewImage2.src.startsWith('app-file://')) {
             previewImage2.style.transform = `scale(${scale})`;
         }
-        console.log(`Zoom set to: ${val}%`);
     }
 
+    async function displayPreview(item, type) {
+        previewImage1.classList.add('hidden');
+        previewImage2.classList.add('hidden');
+        previewPlaceholderText.classList.remove('hidden');
+        infoBlurScoreContainer.classList.add('hidden');
+        infoSimilarityContainer.classList.add('hidden');
+        previewImage1.src = '';
+        previewImage2.src = '';
+        previewImage1.style.transform = 'scale(1)';
+        previewImage2.style.transform = 'scale(1)';
+        updateZoom(100);
 
+        if (!item) {
+            previewPlaceholderText.textContent = '画像を選択するとここにプレビューが表示されます';
+            infoFilename.textContent = '-';
+            infoFilepath.textContent = '-';
+            infoResolution.textContent = '-';
+            infoFilesize.textContent = '-';
+            infoDatetime.textContent = '-';
+            return;
+        }
+
+        if (type === 'blurry') {
+            previewPlaceholderText.classList.add('hidden');
+            try {
+                const imageSrc = await window.electronAPI.convertFileSrc(item.path);
+                if (imageSrc) {
+                    previewImage1.src = imageSrc;
+                    previewImage1.classList.remove('hidden');
+                } else {
+                    previewPlaceholderText.textContent = 'プレビューを読み込めません';
+                    previewPlaceholderText.classList.remove('hidden');
+                }
+            } catch (e) {
+                previewPlaceholderText.textContent = 'プレビュー読み込みエラー';
+                previewPlaceholderText.classList.remove('hidden');
+                console.error(`Error loading preview for ${item.path}:`, e);
+            }
+            infoFilename.textContent = item.filename;
+            infoFilepath.textContent = item.path;
+            infoFilepath.title = item.path;
+            infoResolution.textContent = item.resolution;
+            infoFilesize.textContent = `${item.size} MB`;
+            infoDatetime.textContent = item.takenDate;
+            infoBlurScore.textContent = item.blurScore;
+            infoBlurScoreContainer.classList.remove('hidden');
+        } else if (type === 'similar') {
+            previewPlaceholderText.classList.add('hidden');
+            try {
+                const [imageSrc1, imageSrc2] = await Promise.all([
+                    window.electronAPI.convertFileSrc(item.path1),
+                    window.electronAPI.convertFileSrc(item.path2)
+                ]);
+                if (imageSrc1) {
+                    previewImage1.src = imageSrc1;
+                    previewImage1.classList.remove('hidden');
+                }
+                if (imageSrc2) {
+                    previewImage2.src = imageSrc2;
+                    previewImage2.classList.remove('hidden');
+                }
+                if (previewImage1.classList.contains('hidden') && previewImage2.classList.contains('hidden')) {
+                    previewPlaceholderText.textContent = 'プレビューを読み込めません';
+                    previewPlaceholderText.classList.remove('hidden');
+                }
+            } catch (e) {
+                 previewPlaceholderText.textContent = 'プレビュー読み込みエラー';
+                 previewPlaceholderText.classList.remove('hidden');
+                 console.error(`Error loading similar previews:`, e);
+            }
+            infoFilename.textContent = `${item.filename1} vs ${item.filename2}`;
+            infoFilepath.textContent = `(左) ${item.path1} (右) ${item.path2}`;
+            infoResolution.textContent = `(左) ${item.resolution1} (右) ${item.resolution2}`;
+            infoSimilarity.textContent = `${item.similarity}%`;
+            infoSimilarityContainer.classList.remove('hidden');
+            infoFilesize.textContent = `(左) ${item.size1 || '-'}MB (右) ${item.size2 || '-'}MB`;
+            infoDatetime.textContent = '-';
+        } else if (type === 'error') {
+            previewPlaceholderText.textContent = `エラー: ${item.errorMessage}`;
+            infoFilename.textContent = item.filename;
+            infoFilepath.textContent = item.filepath;
+            infoFilepath.title = item.filepath;
+            infoResolution.textContent = '-';
+            infoFilesize.textContent = item.size ? `${item.size} MB` : '-';
+            infoDatetime.textContent = '-';
+        }
+    }
+    
     // --- イベントリスナー ---
     if (selectTargetFolderBtn) {
         selectTargetFolderBtn.addEventListener('click', async () => {
@@ -211,6 +310,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     targetFolderPathSpan.title = folderPath;
                     updateStatus(`対象フォルダ選択: ${folderPath}`);
                     startScanBtn.disabled = false;
+                    clearAllTablesAndResults();
                 } else {
                     updateStatus('対象フォルダ選択がキャンセルされました。');
                     if (!selectedTargetFolder) {
@@ -246,378 +346,312 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (startScanBtn) {
-        startScanBtn.addEventListener('click', () => {
+        startScanBtn.addEventListener('click', async () => {
             if (!selectedTargetFolder) {
                 updateStatus('スキャンを開始する前に対象フォルダを選択してください。', true);
                 return;
             }
-            updateStatus(`スキャン開始: ${selectedTargetFolder}`);
+            clearAllTablesAndResults();
+            updateStatus(`スキャン中: ${selectedTargetFolder}`);
             startScanBtn.disabled = true;
             startScanBtn.textContent = 'スキャン中...';
 
-            console.warn("開発用: ダミーデータを2秒後に表示します。実際のPython連携に置き換えてください。");
-            setTimeout(() => {
-                if (currentTab === 'blurry') populateBlurryTable(dummyBlurryImages);
-                else if (currentTab === 'similar') populateSimilarTable(dummySimilarImages);
-                else if (currentTab === 'errors') populateErrorTable(dummyErrorFiles);
-                updateStatus('スキャン完了 (ダミー)', false);
+            try {
+                if (window.electronAPI && typeof window.electronAPI.executeScan === 'function') {
+                    const results = await window.electronAPI.executeScan(selectedTargetFolder);
+                    console.log('Scan results received:', results);
+                    originalScanResults = results || { blurryImages: [], similarImagePairs: [], errorFiles: [] };
+                    resetAndApplyFilters(); // スキャン後、フィルターをリセットして全件表示
+                    updateStatus('スキャン完了', false);
+                } else { 
+                    throw new Error('executeScan API is not available.');
+                }
+            } catch (error) {
+                console.error('スキャン実行エラー:', error);
+                updateStatus(`スキャンエラー: ${error.message || '不明なエラー'}`, true);
+                originalScanResults = { blurryImages: [], similarImagePairs: [], errorFiles: [] };
+                populateErrorTable([{id: 'scan_err', filename: 'スキャンエラー', errorMessage: error.message || 'Pythonスクリプトの実行に失敗しました。', filepath: selectedTargetFolder}]);
+            } finally {
                 startScanBtn.disabled = false;
                 startScanBtn.textContent = 'スキャン開始';
-            }, 2000);
+            }
         });
         startScanBtn.disabled = true;
     }
 
-    // 設定ボタンのイベントリスナー
     if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
-            console.log('設定ボタンがクリックされました。メインプロセスに通知します。');
+            console.log('設定ボタンクリック');
             if (window.electronAPI && typeof window.electronAPI.openSettingsWindow === 'function') {
                 window.electronAPI.openSettingsWindow();
             } else {
-                console.error('electronAPI.openSettingsWindow is not available. Check preload script.');
-                updateStatus('設定画面を開けませんでした。preload.jsを確認してください。', true);
+                console.error('electronAPI.openSettingsWindow is not available.');
+                updateStatus('設定画面を開けませんでした。', true);
             }
         });
     }
-
-
+    
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const tabId = button.id.replace('tab-', '');
             switchTab(tabId);
         });
     });
-
+    
+    // (ズームコントロールのイベントリスナーは変更なし)
     zoomSlider.addEventListener('input', (e) => updateZoom(e.target.value, true, false));
     zoomInput.addEventListener('change', (e) => updateZoom(e.target.value, false, true));
-    zoomInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') updateZoom(e.target.value, false, true);
-    });
+    zoomInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') updateZoom(e.target.value, false, true); });
     zoomInBtn.addEventListener('click', () => updateZoom(parseInt(zoomInput.value, 10) + 10));
     zoomOutBtn.addEventListener('click', () => updateZoom(parseInt(zoomInput.value, 10) - 10));
     resetZoomBtn.addEventListener('click', () => {
         updateZoom(100);
-        if (previewImage1.src && !previewImage1.classList.contains('hidden') && previewImage1.src !== 'https://placehold.co/1x1/transparent/transparent') {
-             previewImage1.style.transform = 'scale(1)';
-        }
-        if (previewImage2.src && !previewImage2.classList.contains('hidden') && previewImage2.src !== 'https://placehold.co/1x1/transparent/transparent') {
-            previewImage2.style.transform = 'scale(1)';
-        }
+        if (previewImage1.src && previewImage1.src.startsWith('app-file://')) previewImage1.style.transform = 'scale(1)';
+        if (previewImage2.src && previewImage2.src.startsWith('app-file://')) previewImage2.style.transform = 'scale(1)';
     });
 
 
-    selectAllBtn.addEventListener('click', () => {
-        const activeTbody = document.querySelector(`.list-panel:not(.hidden) tbody`);
-        const headerCheckboxId = `selectAll${currentTab === 'similar' ? 'Pairs-similar' : ('-' + currentTab)}`;
-        const headerCheckbox = document.getElementById(headerCheckboxId);
-
-
-        if (activeTbody) {
-            const checkboxesToSelect = currentTab === 'similar' ?
-                activeTbody.querySelectorAll('input[type="checkbox"].pair-checkbox') :
-                activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox');
-
-            checkboxesToSelect.forEach(cb => cb.checked = true);
-            if (headerCheckbox) headerCheckbox.checked = true;
-
-            if(currentTab === 'similar'){
-                 activeTbody.querySelectorAll('input[type="checkbox"].file1-checkbox, input[type="checkbox"].file2-checkbox').forEach(cb => cb.checked = true);
-                 const headerFile1Cb = document.getElementById('selectAllFile1-similar');
-                 const headerFile2Cb = document.getElementById('selectAllFile2-similar');
-                 if(headerFile1Cb) headerFile1Cb.checked = true;
-                 if(headerFile2Cb) headerFile2Cb.checked = true;
-            }
-        }
-        updateSelectionInfo();
-    });
-
-    deselectAllBtn.addEventListener('click', () => {
-        const activeTbody = document.querySelector(`.list-panel:not(.hidden) tbody`);
-        const headerCheckboxId = `selectAll${currentTab === 'similar' ? 'Pairs-similar' : ('-' + currentTab)}`;
-        const headerCheckbox = document.getElementById(headerCheckboxId);
-
-        if (activeTbody) {
-             const checkboxesToDeselect = currentTab === 'similar' ?
-                activeTbody.querySelectorAll('input[type="checkbox"].pair-checkbox') :
-                activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox');
-
-            checkboxesToDeselect.forEach(cb => cb.checked = false);
-            if (headerCheckbox) headerCheckbox.checked = false;
-
-            if(currentTab === 'similar'){
-                 activeTbody.querySelectorAll('input[type="checkbox"].file1-checkbox, input[type="checkbox"].file2-checkbox').forEach(cb => cb.checked = false);
-                 const headerFile1Cb = document.getElementById('selectAllFile1-similar');
-                 const headerFile2Cb = document.getElementById('selectAllFile2-similar');
-                 if(headerFile1Cb) headerFile1Cb.checked = false;
-                 if(headerFile2Cb) headerFile2Cb.checked = false;
-            }
-        }
-        updateSelectionInfo();
-    });
-
-    function setupSelectAllHeaderCheckbox(tbodyId, headerCheckboxId, itemCheckboxClass) {
-        const headerCheckbox = document.getElementById(headerCheckboxId);
-        const tbody = document.getElementById(tbodyId);
-        if (headerCheckbox && tbody) {
-            headerCheckbox.addEventListener('change', (e) => {
-                tbody.querySelectorAll(`input[type="checkbox"].${itemCheckboxClass}`).forEach(cb => {
-                    cb.checked = e.target.checked;
-                });
-                if (headerCheckboxId === 'selectAllPairs-similar' && itemCheckboxClass === 'pair-checkbox') {
-                    const file1HeaderCb = document.getElementById('selectAllFile1-similar');
-                    const file2HeaderCb = document.getElementById('selectAllFile2-similar');
-                    if (file1HeaderCb) file1HeaderCb.checked = e.target.checked;
-                    if (file2HeaderCb) file2HeaderCb.checked = e.target.checked;
-                    tbody.querySelectorAll('input[type="checkbox"].file1-checkbox, input[type="checkbox"].file2-checkbox').forEach(cb => {
-                        cb.checked = e.target.checked;
-                    });
-                }
-                updateSelectionInfo();
-            });
-        }
+    // --- フィルター関連の関数とイベントリスナー ---
+    function getBlurryFilterValues() {
+        const min = parseInt(blurScoreMinInput.value, 10);
+        const max = parseInt(blurScoreMaxInput.value, 10);
+        return { 
+            minScore: isNaN(min) || min < 0 ? 0 : min > 100 ? 100 : min, 
+            maxScore: isNaN(max) || max < 0 ? 0 : max > 100 ? 100 : max 
+        };
     }
-    setupSelectAllHeaderCheckbox('blurry-images-tbody', 'selectAll-blurry', 'item-checkbox');
-    setupSelectAllHeaderCheckbox('similar-images-tbody', 'selectAllPairs-similar', 'pair-checkbox');
-    setupSelectAllHeaderCheckbox('similar-images-tbody', 'selectAllFile1-similar', 'file1-checkbox');
-    setupSelectAllHeaderCheckbox('similar-images-tbody', 'selectAllFile2-similar', 'file2-checkbox');
-    setupSelectAllHeaderCheckbox('error-files-tbody', 'selectAll-errors', 'item-checkbox');
 
+    function getSimilarFilterValues() {
+        const min = parseInt(similarityMinInput.value, 10);
+        const max = parseInt(similarityMaxInput.value, 10);
+        return { 
+            minSimilarity: isNaN(min) || min < 0 ? 0 : min > 100 ? 100 : min, 
+            maxSimilarity: isNaN(max) || max < 0 ? 0 : max > 100 ? 100 : max
+        };
+    }
 
-    btnTrash.addEventListener('click', () => {
-        console.log('ゴミ箱へボタンクリック');
-    });
-    btnDeletePermanently.addEventListener('click', () => {
-        console.log('完全に削除ボタンクリック');
-    });
-    btnMove.addEventListener('click', () => {
-        console.log('移動...ボタンクリック');
-    });
-    btnIgnoreError.addEventListener('click', () => console.log('選択を無視'));
-    btnRetryScanError.addEventListener('click', () => console.log('再スキャン試行'));
+    function getErrorFilterValues() {
+        return { errorType: errorTypeFilterSelect.value };
+    }
 
-
-    const dummyBlurryImages = [
-        { id: 'b1', filename: 'IMG_001.jpg', size: 2.5, modifiedDate: '2024/05/01', takenDate: '2024/04/30', resolution: '1920x1080', blurScore: 95, path: '/path/to/IMG_001.jpg' },
-        { id: 'b2', filename: 'photo_002_blurry.png', size: 1.8, modifiedDate: '2024/05/02', takenDate: '2024/05/01', resolution: '1024x768', blurScore: 78, path: '/path/to/photo_002_blurry.png' },
-        { id: 'b3', filename: 'capture_003.jpeg', size: 3.1, modifiedDate: '2024/05/03', takenDate: '2024/05/02', resolution: '2048x1536', blurScore: 98, path: '/path/to/capture_003.jpeg' },
-    ];
-
-    const dummySimilarImages = [
-        { id: 's1', filename1: 'GroupA_img1.jpg', resolution1: '1920x1080', path1: '/path/to/GroupA_img1.jpg', size1: 2.1, filename2: 'GroupA_img2.jpg', resolution2: '1920x1080', path2: '/path/to/GroupA_img2.jpg', size2: 2.2, similarity: 98, recommended: 'file1' },
-        { id: 's2', filename1: 'IMG_005_original.png', resolution1: '2048x1536', path1: '/path/to/IMG_005_original.png', size1: 3.5, filename2: 'IMG_005_resized.png', resolution2: '1024x768', path2: '/path/to/IMG_005_resized.png', size2: 0.8, similarity: 92, recommended: 'file1' },
-        { id: 's3', filename1: 'Photo_A.jpeg', resolution1: '3000x2000', path1: '/path/to/Photo_A.jpeg', size1: 4.0, filename2: 'Photo_A_copy.jpeg', resolution2: '3000x2000', path2: '/path/to/Photo_A_copy.jpeg', size2: 4.0, similarity: 100, recommended: 'file2' },
-    ];
-
-    const dummyErrorFiles = [
-        { id: 'e1', filename: 'corrupted_image.jpg', errorMessage: 'ファイルが破損しています', filepath: 'C:\\...\\corrupted_image.jpg', errorType: 'corrupted', size: 0.5 },
-        { id: 'e2', filename: 'unsupported_format.webp', errorMessage: '非対応のファイル形式です', filepath: 'C:\\...\\unsupported_format.webp', errorType: 'unsupported', size: 1.2 },
-        { id: 'e3', filename: 'access_denied.png', errorMessage: 'アクセス権がありません', filepath: 'C:\\...\\access_denied.png', errorType: 'access_denied', size: 0.1 },
-    ];
-
-    function displayPreview(item, type) {
-        previewImage1.classList.add('hidden');
-        previewImage2.classList.add('hidden');
-        previewPlaceholderText.classList.add('hidden');
-        infoBlurScoreContainer.classList.add('hidden');
-        infoSimilarityContainer.classList.add('hidden');
-        previewImage1.src = 'https://placehold.co/1x1/transparent/transparent';
-        previewImage2.src = 'https://placehold.co/1x1/transparent/transparent';
-        previewImage1.style.transform = 'scale(1)';
-        previewImage2.style.transform = 'scale(1)';
-        updateZoom(100);
-
-
-        if (!item) {
-            previewPlaceholderText.textContent = '画像を選択するとここにプレビューが表示されます';
-            previewPlaceholderText.classList.remove('hidden');
-            infoFilename.textContent = '-';
-            infoFilepath.textContent = '-';
-            infoResolution.textContent = '-';
-            infoFilesize.textContent = '-';
-            infoDatetime.textContent = '-';
+    function applyFilters() {
+        console.log(`Applying filters for tab: ${currentTab}`);
+        if (!originalScanResults) {
+            console.warn("originalScanResults is not available for filtering.");
             return;
         }
 
-        if (type === 'blurry') {
-            previewImage1.src = `https://placehold.co/400x300/e2e8f0/94a3b8?text=${item.filename.substring(0,20)}`;
-            previewImage1.classList.remove('hidden');
-            previewPlaceholderText.classList.add('hidden');
+        let filteredItems = [];
 
-            infoFilename.textContent = item.filename;
-            infoFilepath.textContent = item.path;
-            infoFilepath.title = item.path;
-            infoResolution.textContent = item.resolution;
-            infoFilesize.textContent = `${item.size} MB`;
-            infoDatetime.textContent = item.takenDate;
-            infoBlurScore.textContent = item.blurScore;
-            infoBlurScoreContainer.classList.remove('hidden');
-        } else if (type === 'similar') {
-            previewImage1.src = `https://placehold.co/300x200/e2e8f0/94a3b8?text=${item.filename1.substring(0,15)}`;
-            previewImage2.src = `https://placehold.co/300x200/e2e8f0/94a3b8?text=${item.filename2.substring(0,15)}`;
-            previewImage1.classList.remove('hidden');
-            previewImage2.classList.remove('hidden');
-            previewPlaceholderText.classList.add('hidden');
-
-            infoFilename.textContent = `${item.filename1} vs ${item.filename2}`;
-            infoFilepath.textContent = `(左) ${item.path1} (右) ${item.path2}`;
-            infoResolution.textContent = `(左) ${item.resolution1} (右) ${item.resolution2}`;
-            infoSimilarity.textContent = `${item.similarity}%`;
-            infoSimilarityContainer.classList.remove('hidden');
-            infoFilesize.textContent = `(左) ${item.size1 || '-'}MB (右) ${item.size2 || '-'}MB`;
-            infoDatetime.textContent = '-';
-        } else if (type === 'error') {
-            previewPlaceholderText.textContent = `エラー: ${item.errorMessage}`;
-            previewPlaceholderText.classList.remove('hidden');
-            infoFilename.textContent = item.filename;
-            infoFilepath.textContent = item.filepath;
-            infoFilepath.title = item.filepath;
-            infoResolution.textContent = '-';
-            infoFilesize.textContent = item.size ? `${item.size} MB` : '-';
-            infoDatetime.textContent = '-';
+        if (currentTab === 'blurry') {
+            const { minScore, maxScore } = getBlurryFilterValues();
+            filteredItems = (originalScanResults.blurryImages || []).filter(img => 
+                img.blurScore >= minScore && img.blurScore <= maxScore
+            );
+            populateBlurryTable(filteredItems);
+        } else if (currentTab === 'similar') {
+            const { minSimilarity, maxSimilarity } = getSimilarFilterValues();
+            filteredItems = (originalScanResults.similarImagePairs || []).filter(pair =>
+                pair.similarity >= minSimilarity && pair.similarity <= maxSimilarity
+            );
+            populateSimilarTable(filteredItems);
+        } else if (currentTab === 'errors') {
+            const { errorType } = getErrorFilterValues();
+            if (errorType) {
+                filteredItems = (originalScanResults.errorFiles || []).filter(err =>
+                    err.errorType === errorType
+                );
+            } else {
+                filteredItems = [...(originalScanResults.errorFiles || [])];
+            }
+            populateErrorTable(filteredItems);
         }
+        updateSelectionInfo();
+        displayPreview(null); // フィルター適用後はプレビューをリセット
+    }
+
+    function resetAndApplyFilters() {
+        // UIの値をデフォルトに戻す
+        if (blurScoreMinInput) blurScoreMinInput.value = 0;
+        if (blurScoreMaxInput) blurScoreMaxInput.value = 100;
+        if (blurScoreSlider) blurScoreSlider.value = 0; // 単一スライダーの例 (最小値に合わせるなど)
+        
+        if (similarityMinInput) similarityMinInput.value = 0;
+        if (similarityMaxInput) similarityMaxInput.value = 100;
+        if (similaritySlider) similaritySlider.value = 0; // 単一スライダーの例
+
+        if (errorTypeFilterSelect) errorTypeFilterSelect.value = "";
+
+        // フィルターを適用して全件表示に戻す
+        applyFilters();
+    }
+
+    if(applyFilterBlurryBtn) applyFilterBlurryBtn.addEventListener('click', applyFilters);
+    if(applyFilterSimilarBtn) applyFilterSimilarBtn.addEventListener('click', applyFilters);
+    if(applyFilterErrorsBtn) applyFilterErrorsBtn.addEventListener('click', applyFilters);
+
+    if(resetFilterBlurryBtn) resetFilterBlurryBtn.addEventListener('click', resetAndApplyFilters);
+    if(resetFilterSimilarBtn) resetFilterSimilarBtn.addEventListener('click', resetAndApplyFilters);
+    if(resetFilterErrorsBtn) resetFilterErrorsBtn.addEventListener('click', resetAndApplyFilters);
+    
+    // スライダーと数値入力の同期 (基本的な単方向同期の例)
+    // ブレ画像スコア
+    if(blurScoreMinInput && blurScoreSlider) { // 単一スライダーを最小値と同期
+        blurScoreMinInput.addEventListener('input', () => {
+            let minVal = parseInt(blurScoreMinInput.value, 10);
+            let maxVal = parseInt(blurScoreMaxInput.value, 10);
+            if (isNaN(minVal)) minVal = 0;
+            if (isNaN(maxVal)) maxVal = 100;
+            if (minVal > maxVal) blurScoreMaxInput.value = minVal; // 最小値が最大値を超えないように
+            if (minVal < 0) blurScoreMinInput.value = 0;
+            if (minVal > 100) blurScoreMinInput.value = 100;
+            // blurScoreSlider.value = blurScoreMinInput.value; // 単一スライダーの場合
+        });
+        // blurScoreSlider.addEventListener('input', () => { // 単一スライダーの場合
+        //     blurScoreMinInput.value = blurScoreSlider.value;
+        // });
+    }
+    if(blurScoreMaxInput) {
+         blurScoreMaxInput.addEventListener('input', () => {
+            let minVal = parseInt(blurScoreMinInput.value, 10);
+            let maxVal = parseInt(blurScoreMaxInput.value, 10);
+            if (isNaN(minVal)) minVal = 0;
+            if (isNaN(maxVal)) maxVal = 100;
+            if (maxVal < minVal) blurScoreMinInput.value = maxVal; // 最大値が最小値を下回らないように
+            if (maxVal < 0) blurScoreMaxInput.value = 0;
+            if (maxVal > 100) blurScoreMaxInput.value = 100;
+         });
+    }
+
+    // 類似度
+    if(similarityMinInput && similaritySlider) {
+        similarityMinInput.addEventListener('input', () => {
+            let minVal = parseInt(similarityMinInput.value, 10);
+            let maxVal = parseInt(similarityMaxInput.value, 10);
+            if (isNaN(minVal)) minVal = 0;
+            if (isNaN(maxVal)) maxVal = 100;
+            if (minVal > maxVal) similarityMaxInput.value = minVal;
+            if (minVal < 0) similarityMinInput.value = 0;
+            if (minVal > 100) similarityMinInput.value = 100;
+            // similaritySlider.value = similarityMinInput.value;
+        });
+        // similaritySlider.addEventListener('input', () => {
+        //     similarityMinInput.value = similaritySlider.value;
+        // });
+    }
+     if(similarityMaxInput) {
+         similarityMaxInput.addEventListener('input', () => {
+            let minVal = parseInt(similarityMinInput.value, 10);
+            let maxVal = parseInt(similarityMaxInput.value, 10);
+            if (isNaN(minVal)) minVal = 0;
+            if (isNaN(maxVal)) maxVal = 100;
+            if (maxVal < minVal) similarityMinInput.value = maxVal;
+            if (maxVal < 0) similarityMaxInput.value = 0;
+            if (maxVal > 100) similarityMaxInput.value = 100;
+         });
     }
 
 
-    function populateBlurryTable(images) {
-        blurryTbody.innerHTML = '';
-        images.forEach(item => {
-            const row = blurryTbody.insertRow();
-            row.className = 'hover:bg-slate-50 cursor-pointer';
-            row.dataset.id = item.id;
-            row.dataset.sizeMb = item.size;
+    // --- テーブル描画関数 ---
+    function populateTable(tbody, items, itemType, createRowFn) {
+        tbody.innerHTML = '';
+        if (!items || items.length === 0) {
+            const row = tbody.insertRow();
+            const cell = row.insertCell();
+            cell.colSpan = 10;
+            cell.textContent = '対象のアイテムは見つかりませんでした。';
+            cell.className = 'text-center text-slate-500 py-8';
+            return;
+        }
 
-            row.insertCell().innerHTML = `<input type="checkbox" data-id="${item.id}" class="item-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4 ml-3">`;
-            row.insertCell().textContent = item.filename;
-            row.insertCell().textContent = `${item.size} MB`;
-            const modDateCell = row.insertCell();
-            modDateCell.textContent = item.modifiedDate;
-            modDateCell.className = 'hidden md:table-cell';
-            const takenDateCell = row.insertCell();
-            takenDateCell.textContent = item.takenDate;
-            takenDateCell.className = 'hidden lg:table-cell';
-            const resCell = row.insertCell();
-            resCell.textContent = item.resolution;
-            resCell.className = 'hidden lg:table-cell';
-            const scoreCell = row.insertCell();
-            scoreCell.textContent = item.blurScore;
-            scoreCell.className = `font-medium ${item.blurScore > 90 ? 'text-red-600' : item.blurScore > 70 ? 'text-orange-500' : 'text-yellow-500'}`;
-
+        items.forEach(item => {
+            const row = createRowFn(item);
             row.addEventListener('click', (e) => {
                 if (e.target.type !== 'checkbox') {
-                    blurryTbody.querySelectorAll('tr.bg-sky-100').forEach(r => r.classList.remove('bg-sky-100'));
+                    tbody.querySelectorAll('tr.bg-sky-100').forEach(r => r.classList.remove('bg-sky-100'));
                     row.classList.add('bg-sky-100');
-                    displayPreview(item, 'blurry');
+                    displayPreview(item, itemType);
                 }
             });
-            row.querySelector('.item-checkbox').addEventListener('change', updateSelectionInfo);
-        });
-        document.getElementById('count-blurry').textContent = images.length;
-        updateSelectionInfo();
-    }
-
-    function populateSimilarTable(imagePairs) {
-        similarTbody.innerHTML = '';
-        imagePairs.forEach(pair => {
-            const row = similarTbody.insertRow();
-            row.className = `hover:bg-slate-50 cursor-pointer ${pair.recommended ? 'bg-yellow-50 hover:bg-yellow-100' : ''}`;
-            row.dataset.pairId = pair.id;
-            row.dataset.size1Mb = pair.size1;
-            row.dataset.size2Mb = pair.size2;
-
-
-            row.insertCell().innerHTML = `<input type="checkbox" data-pair-id="${pair.id}" class="pair-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4 ml-3">`;
-            row.insertCell().innerHTML = `<input type="checkbox" data-file-id="${pair.id}-f1" class="file1-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4 ml-3" ${pair.recommended === 'file2' ? 'checked' : ''}>`;
-            const fn1Cell = row.insertCell();
-            fn1Cell.innerHTML = `${pair.recommended === 'file1' ? '<span title="アプリによる推奨" class="text-amber-500 mr-1">★</span>' : ''}${pair.filename1}`;
-            const res1Cell = row.insertCell();
-            res1Cell.textContent = pair.resolution1;
-            res1Cell.className = 'hidden md:table-cell';
-            row.insertCell().innerHTML = `<input type="checkbox" data-file-id="${pair.id}-f2" class="file2-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4 ml-3" ${pair.recommended === 'file1' || !pair.recommended ? 'checked' : ''}>`;
-            const fn2Cell = row.insertCell();
-            fn2Cell.innerHTML = `${pair.recommended === 'file2' ? '<span title="アプリによる推奨" class="text-amber-500 mr-1">★</span>' : ''}${pair.filename2}`;
-            const res2Cell = row.insertCell();
-            res2Cell.textContent = pair.resolution2;
-            res2Cell.className = 'hidden md:table-cell';
-            const simCell = row.insertCell();
-            simCell.textContent = `${pair.similarity}%`;
-            simCell.className = `font-medium ${pair.similarity > 95 ? 'text-green-700' : pair.similarity > 85 ? 'text-green-600' : 'text-green-500'}`;
-
-            row.addEventListener('click', (e) => {
-                 if (e.target.type !== 'checkbox') {
-                    similarTbody.querySelectorAll('tr.bg-sky-100').forEach(r => r.classList.remove('bg-sky-100'));
-                    row.classList.add('bg-sky-100');
-                    displayPreview(pair, 'similar');
-                }
-            });
-            row.querySelectorAll('.pair-checkbox, .file1-checkbox, .file2-checkbox').forEach(cb => {
+            row.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                 cb.addEventListener('change', updateSelectionInfo);
             });
+            tbody.appendChild(row);
         });
+        updateSelectionInfo();
+    }
+    
+    function createBlurryRow(item) {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50 cursor-pointer';
+        row.dataset.id = item.id;
+        row.dataset.sizeMb = item.size;
+        row.innerHTML = `
+            <td class="px-3 py-2"><input type="checkbox" data-id="${item.id}" class="item-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4"></td>
+            <td class="px-3 py-2 whitespace-nowrap">${item.filename}</td>
+            <td class="px-3 py-2 whitespace-nowrap">${item.size} MB</td>
+            <td class="px-3 py-2 whitespace-nowrap hidden md:table-cell">${item.modifiedDate}</td>
+            <td class="px-3 py-2 whitespace-nowrap hidden lg:table-cell">${item.takenDate}</td>
+            <td class="px-3 py-2 whitespace-nowrap hidden lg:table-cell">${item.resolution}</td>
+            <td class="px-3 py-2 whitespace-nowrap font-medium ${item.blurScore > 90 ? 'text-red-600' : item.blurScore > 70 ? 'text-orange-500' : 'text-yellow-500'}">${item.blurScore}</td>
+        `;
+        return row;
+    }
+    
+    function createSimilarRow(pair) {
+        const row = document.createElement('tr');
+        row.className = `hover:bg-slate-50 cursor-pointer ${pair.recommended ? 'bg-yellow-50 hover:bg-yellow-100' : ''}`;
+        row.dataset.pairId = pair.id;
+        row.dataset.size1Mb = pair.size1;
+        row.dataset.size2Mb = pair.size2;
+        const recommendedIcon1 = pair.recommended === 'file1' ? '<span title="アプリによる推奨" class="text-amber-500 mr-1">★</span>' : '';
+        const recommendedIcon2 = pair.recommended === 'file2' ? '<span title="アプリによる推奨" class="text-amber-500 mr-1">★</span>' : '';
+        const file1Checked = pair.recommended === 'file2' ? 'checked' : '';
+        const file2Checked = pair.recommended === 'file1' || !pair.recommended ? 'checked' : '';
+
+        row.innerHTML = `
+            <td class="px-3 py-2"><input type="checkbox" data-pair-id="${pair.id}" class="pair-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4"></td>
+            <td class="px-3 py-2"><input type="checkbox" data-file-id="${pair.id}-f1" class="file1-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4" ${file1Checked}></td>
+            <td class="px-3 py-2 whitespace-nowrap">${recommendedIcon1}${pair.filename1}</td>
+            <td class="px-3 py-2 whitespace-nowrap hidden md:table-cell">${pair.resolution1}</td>
+            <td class="px-3 py-2"><input type="checkbox" data-file-id="${pair.id}-f2" class="file2-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4" ${file2Checked}></td>
+            <td class="px-3 py-2 whitespace-nowrap">${recommendedIcon2}${pair.filename2}</td>
+            <td class="px-3 py-2 whitespace-nowrap hidden md:table-cell">${pair.resolution2}</td>
+            <td class="px-3 py-2 whitespace-nowrap font-medium ${pair.similarity > 95 ? 'text-green-700' : pair.similarity > 85 ? 'text-green-600' : 'text-green-500'}">${pair.similarity}%</td>
+        `;
+        return row;
+    }
+
+    function createErrorRow(error) {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50 cursor-pointer';
+        row.dataset.id = error.id;
+        row.dataset.sizeMb = error.size || 0;
+        const errorColor = error.errorType === 'corrupted' || error.errorType === 'access_denied' ? 'text-red-600' : 'text-orange-600';
+        row.innerHTML = `
+            <td class="px-3 py-2"><input type="checkbox" data-id="${error.id}" class="item-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4"></td>
+            <td class="px-3 py-2 whitespace-nowrap">${error.filename}</td>
+            <td class="px-3 py-2 whitespace-nowrap ${errorColor}">${error.errorMessage}</td>
+            <td class="px-3 py-2 whitespace-nowrap text-slate-500 truncate max-w-xs" title="${error.filepath}">${error.filepath}</td>
+        `;
+        return row;
+    }
+    
+    function populateBlurryTable(images) {
+        populateTable(blurryTbody, images, 'blurry', createBlurryRow);
+        document.getElementById('count-blurry').textContent = images.length;
+    }
+    function populateSimilarTable(imagePairs) {
+        populateTable(similarTbody, imagePairs, 'similar', createSimilarRow);
         document.getElementById('count-similar').textContent = imagePairs.length;
-        updateSelectionInfo();
     }
-
     function populateErrorTable(errors) {
-        errorTbody.innerHTML = '';
-        errors.forEach(error => {
-            const row = errorTbody.insertRow();
-            row.className = 'hover:bg-slate-50 cursor-pointer';
-            row.dataset.id = error.id;
-            row.dataset.sizeMb = error.size || 0;
-
-
-            row.insertCell().innerHTML = `<input type="checkbox" data-id="${error.id}" class="item-checkbox rounded border-slate-300 text-blue-600 shadow-sm h-4 w-4 ml-3">`;
-            row.insertCell().textContent = error.filename;
-            const errorMsgCell = row.insertCell();
-            errorMsgCell.textContent = error.errorMessage;
-            errorMsgCell.className = error.errorType === 'corrupted' || error.errorType === 'access_denied' ? 'text-red-600' : 'text-orange-600';
-            const pathCell = row.insertCell();
-            pathCell.textContent = error.filepath;
-            pathCell.className = 'truncate max-w-xs';
-            pathCell.title = error.filepath;
-
-            row.addEventListener('click', (e) => {
-                 if (e.target.type !== 'checkbox') {
-                    errorTbody.querySelectorAll('tr.bg-sky-100').forEach(r => r.classList.remove('bg-sky-100'));
-                    row.classList.add('bg-sky-100');
-                    displayPreview(error, 'error');
-                }
-            });
-            row.querySelector('.item-checkbox').addEventListener('change', updateSelectionInfo);
-        });
+        populateTable(errorTbody, errors, 'error', createErrorRow);
         document.getElementById('count-errors').textContent = errors.length;
-        updateSelectionInfo();
     }
 
+    // --- 初期化処理 ---
     switchTab('blurry');
-
-    document.querySelectorAll('#center-pane thead th[data-sort-key]').forEach(th => {
-        th.addEventListener('click', () => {
-            const sortKey = th.dataset.sortKey;
-            const currentSortDir = th.dataset.sortDir || 'none';
-            let nextSortDir;
-
-            document.querySelectorAll('#center-pane thead th[data-sort-key]').forEach(otherTh => {
-                if (otherTh !== th) {
-                    otherTh.dataset.sortDir = 'none';
-                    otherTh.querySelector('.sort-indicator').textContent = '';
-                }
-            });
-
-            if (currentSortDir === 'asc') {
-                nextSortDir = 'desc';
-                th.querySelector('.sort-indicator').textContent = '▼';
-            } else {
-                nextSortDir = 'asc';
-                th.querySelector('.sort-indicator').textContent = '▲';
-            }
-            th.dataset.sortDir = nextSortDir;
-
-            console.log(`Sorting by ${sortKey} in ${nextSortDir} order for tab ${currentTab}`);
-        });
-    });
-
     updateSelectionInfo();
     updateZoom(100);
     displayPreview(null, null);
