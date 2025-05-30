@@ -3,9 +3,25 @@ const fs = require('fs').promises;
 const path = require('path');
 
 class FileOperations {
+    constructor() {
+        this.logManager = null;
+    }
+
+    setLogManager(logManager) {
+        this.logManager = logManager;
+    }
     async performOperation(actionType, paths, destination = null) {
         if (!paths || paths.length === 0) {
             return { successCount: 0, errors: [{ path: 'N/A', reason: '対象ファイルがありません。' }] };
+        }
+
+        // 操作開始をログに記録
+        if (this.logManager) {
+            await this.logManager.info('FILE_OPERATION', `Starting ${actionType} operation on ${paths.length} files`, {
+                actionType,
+                pathCount: paths.length,
+                destination
+            });
         }
 
         let operationPromise;
@@ -19,16 +35,36 @@ class FileOperations {
                 break;
             case 'move':
                 if (!destination) {
-                    return { successCount: 0, errors: [{ path: 'N/A', reason: '移動先フォルダが指定されていません。' }] };
+                    const error = { successCount: 0, errors: [{ path: 'N/A', reason: '移動先フォルダが指定されていません。' }] };
+                    if (this.logManager) {
+                        await this.logManager.error('FILE_OPERATION', 'Move operation failed: no destination specified');
+                    }
+                    return error;
                 }
                 operationPromise = this._moveFiles(paths, destination);
                 break;
             default:
-                return { successCount: 0, errors: [{ path: 'N/A', reason: `未定義の操作です: ${actionType}` }] };
+                const error = { successCount: 0, errors: [{ path: 'N/A', reason: `未定義の操作です: ${actionType}` }] };
+                if (this.logManager) {
+                    await this.logManager.error('FILE_OPERATION', `Unknown operation type: ${actionType}`);
+                }
+                return error;
         }
 
         const results = await operationPromise;
-        return this._processResults(results, paths);
+        const processedResults = this._processResults(results, paths);
+        
+        // 操作結果をログに記録
+        if (this.logManager) {
+            await this.logManager.info('FILE_OPERATION', `Completed ${actionType} operation`, {
+                actionType,
+                successCount: processedResults.successCount,
+                errorCount: processedResults.errors.length,
+                errors: processedResults.errors
+            });
+        }
+        
+        return processedResults;
     }
 
     async _trashFiles(paths) {

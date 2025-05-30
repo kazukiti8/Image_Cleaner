@@ -691,21 +691,82 @@ window.addEventListener('DOMContentLoaded', () => {
                 updateStatus("操作対象のアイテムが選択されていません。", true);
                 return;
             }
-            console.log(`${selectedPaths.length}件のエラーを無視します (実際の処理は未実装)`);
+            
+            // エラーファイルをoriginalScanResultsから削除
+            const originalResults = tableManager.getOriginalScanResults();
+            if (originalResults.errorFiles) {
+                originalResults.errorFiles = originalResults.errorFiles.filter(
+                    errorFile => !selectedPaths.includes(errorFile.filepath)
+                );
+            }
+            
+            // UIを更新
+            filterManager.applyFilters();
+            selectionManager.updateSelectionInfo();
+            
             updateStatus(`${selectedPaths.length}件のエラーを無視しました。`);
-            // TODO: 選択されたエラーアイテムを originalScanResults.errorFiles から削除し、refreshUIafterFileOperation のような関数でUI更新
         });
     }
     if (btnRetryScanError) {
-        btnRetryScanError.addEventListener('click', () => {
+        btnRetryScanError.addEventListener('click', async () => {
             const selectedPaths = getSelectedFilePaths();
-             if (selectedPaths.length === 0) {
+            if (selectedPaths.length === 0) {
                 updateStatus("操作対象のアイテムが選択されていません。", true);
                 return;
             }
-            console.log(`${selectedPaths.length}件のエラーを再スキャン試行します (実際の処理は未実装)`);
-            updateStatus(`${selectedPaths.length}件のエラーの再スキャンを試行します。`);
-            // TODO: 選択されたエラーアイテムに対して再スキャン処理を試みる
+            
+            updateStatus(`${selectedPaths.length}件のエラーファイルを再スキャン中...`);
+            
+            try {
+                const rescanResults = await window.electronAPI.rescanFiles(selectedPaths);
+                const originalResults = tableManager.getOriginalScanResults();
+                
+                // エラーファイルリストから再スキャン対象を削除
+                if (originalResults.errorFiles) {
+                    originalResults.errorFiles = originalResults.errorFiles.filter(
+                        errorFile => !selectedPaths.includes(errorFile.filepath)
+                    );
+                }
+                
+                // 再スキャン結果をoriginalScanResultsに統合
+                if (rescanResults.blurryImages) {
+                    originalResults.blurryImages = (originalResults.blurryImages || []).concat(rescanResults.blurryImages);
+                }
+                if (rescanResults.similarImagePairs) {
+                    originalResults.similarImagePairs = (originalResults.similarImagePairs || []).concat(rescanResults.similarImagePairs);
+                }
+                if (rescanResults.errorFiles) {
+                    originalResults.errorFiles = originalResults.errorFiles.concat(rescanResults.errorFiles);
+                }
+                
+                // UIを更新
+                filterManager.applyFilters();
+                selectionManager.updateSelectionInfo();
+                
+                updateStatus(`${selectedPaths.length}件のファイルの再スキャンが完了しました。`);
+            } catch (error) {
+                console.error('再スキャンエラー:', error);
+                updateStatus(`再スキャンエラー: ${error.message}`, true);
+            }
+        });
+    }
+
+    // エラーログエクスポートボタンのイベントリスナー
+    if (exportErrorLogBtn) {
+        exportErrorLogBtn.addEventListener('click', async () => {
+            try {
+                updateStatus('エラーログをエクスポート中...');
+                const result = await window.electronAPI.exportErrorLogs();
+                
+                if (result.success) {
+                    updateStatus(`${result.message} (${result.logCount}件のログ)`);
+                } else {
+                    updateStatus(result.message, true);
+                }
+            } catch (error) {
+                console.error('エラーログエクスポートエラー:', error);
+                updateStatus(`エラーログのエクスポートに失敗しました: ${error.message}`, true);
+            }
         });
     }
 

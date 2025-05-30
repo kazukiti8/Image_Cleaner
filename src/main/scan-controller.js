@@ -7,6 +7,11 @@ const { FILE_PATHS, PYTHON_PATHS } = require('./utils/constants');
 class ScanController {
     constructor(settingsManager) {
         this.settingsManager = settingsManager;
+        this.logManager = null;
+    }
+
+    setLogManager(logManager) {
+        this.logManager = logManager;
     }
 
     async executeScan(folderPath) {
@@ -50,6 +55,65 @@ class ScanController {
                 console.error('Failed to start Python process:', err);
                 reject(new Error(`Pythonプロセスの開始に失敗しました: ${err.message}`));
             });
+        });
+    }
+
+    async rescanFiles(filePaths) {
+        return new Promise(async (resolve, reject) => {
+            const currentSettings = await this.settingsManager.loadSettings();
+            const { pythonExecutable, scriptPath } = this._getPythonPaths();
+            
+            console.log(`Rescanning files: ${filePaths.join(', ')}`);
+            
+            // ファイルパスを一時ファイルに書き込み、Pythonスクリプトに渡す
+            const fs = require('fs');
+            const tempFilePath = path.join(require('os').tmpdir(), `rescan_${Date.now()}.json`);
+            
+            try {
+                fs.writeFileSync(tempFilePath, JSON.stringify({ filePaths }));
+                
+                const pyProc = spawn(pythonExecutable, [scriptPath, '--rescan', tempFilePath]);
+                let resultData = '';
+                let errorData = '';
+                
+                pyProc.stdout.on('data', (data) => { 
+                    resultData += data.toString(); 
+                });
+                
+                pyProc.stderr.on('data', (data) => { 
+                    errorData += data.toString(); 
+                    console.error(`Python stderr: ${data}`); 
+                });
+                
+                pyProc.on('close', (code) => {
+                    // 一時ファイルを削除
+                    try {
+                        fs.unlinkSync(tempFilePath);
+                    } catch (e) {
+                        console.warn('Failed to delete temp file:', e);
+                    }
+                    
+                    console.log(`Python rescan script exited with code ${code}`);
+                    if (code === 0) {
+                        try { 
+                            resolve(JSON.parse(resultData)); 
+                        } catch (e) { 
+                            console.error('Failed to parse Python rescan output:', e);
+                            console.error('Raw output from Python:', resultData);
+                            reject(new Error('Pythonスクリプトの出力解析に失敗しました。'));
+                        }
+                    } else {
+                        reject(new Error(`再スキャンに失敗しました (終了コード: ${code}): ${errorData}`));
+                    }
+                });
+                
+                pyProc.on('error', (err) => { 
+                    console.error('Failed to start Python rescan process:', err);
+                    reject(new Error(`再スキャンプロセスの開始に失敗しました: ${err.message}`));
+                });
+            } catch (err) {
+                reject(new Error(`一時ファイルの作成に失敗しました: ${err.message}`));
+            }
         });
     }
 

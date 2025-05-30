@@ -1,11 +1,12 @@
 const { ipcMain, dialog, BrowserWindow } = require('electron');
 
 class IPCHandlers {
-    constructor(windowManager, settingsManager, scanController, fileOperations) {
+    constructor(windowManager, settingsManager, scanController, fileOperations, logManager) {
         this.windowManager = windowManager;
         this.settingsManager = settingsManager;
         this.scanController = scanController;
         this.fileOperations = fileOperations;
+        this.logManager = logManager;
     }
 
     setupHandlers() {
@@ -15,6 +16,7 @@ class IPCHandlers {
         this._setupScanHandlers();
         this._setupFileOperationHandlers();
         this._setupConfirmationHandlers();
+        this._setupLogHandlers();
     }
 
     _setupDialogHandlers() {
@@ -72,6 +74,10 @@ class IPCHandlers {
         ipcMain.handle('execute-scan', async (event, folderPath) => {
             return await this.scanController.executeScan(folderPath);
         });
+
+        ipcMain.handle('rescan-files', async (event, filePaths) => {
+            return await this.scanController.rescanFiles(filePaths);
+        });
     }
 
     _setupFileOperationHandlers() {
@@ -105,6 +111,71 @@ class IPCHandlers {
                 };
                 ipcMain.once('dialog-response', listener);
             });
+        });
+    }
+
+    _setupLogHandlers() {
+        ipcMain.handle('export-error-logs', async (event) => {
+            try {
+                const errorLogs = await this.logManager.getErrorLogs(30); // 30日分のエラーログ
+                
+                const mainWindow = this.windowManager.getMainWindow();
+                if (!mainWindow) {
+                    throw new Error('Main window not found');
+                }
+                
+                const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+                    title: 'エラーログをエクスポート',
+                    defaultPath: `error-logs-${new Date().toISOString().split('T')[0]}.json`,
+                    filters: [
+                        { name: 'JSON Files', extensions: ['json'] },
+                        { name: 'CSV Files', extensions: ['csv'] },
+                        { name: 'All Files', extensions: ['*'] }
+                    ]
+                });
+                
+                if (canceled || !filePath) {
+                    return { success: false, message: 'エクスポートがキャンセルされました。' };
+                }
+                
+                const fs = require('fs').promises;
+                const path = require('path');
+                const ext = path.extname(filePath).toLowerCase();
+                
+                if (ext === '.csv') {
+                    // CSV形式でエクスポート
+                    const csvHeader = 'Timestamp,Level,Category,Message,Data\n';
+                    const csvRows = errorLogs.map(log => {
+                        const data = log.data ? JSON.stringify(log.data).replace(/"/g, '""') : '';
+                        return `"${log.timestamp}","${log.level}","${log.category}","${log.message.replace(/"/g, '""')}","${data}"`;
+                    }).join('\n');
+                    
+                    await fs.writeFile(filePath, csvHeader + csvRows, 'utf8');
+                } else {
+                    // JSON形式でエクスポート
+                    await fs.writeFile(filePath, JSON.stringify(errorLogs, null, 2), 'utf8');
+                }
+                
+                await this.logManager.info('LOG_EXPORT', `Error logs exported to: ${filePath}`, {
+                    filePath,
+                    logCount: errorLogs.length,
+                    format: ext
+                });
+                
+                return { 
+                    success: true, 
+                    message: `エラーログが ${filePath} にエクスポートされました。`,
+                    logCount: errorLogs.length 
+                };
+                
+            } catch (error) {
+                console.error('Error exporting logs:', error);
+                await this.logManager.error('LOG_EXPORT', 'Failed to export error logs', { error: error.message });
+                return { 
+                    success: false, 
+                    message: `エラーログのエクスポートに失敗しました: ${error.message}` 
+                };
+            }
         });
     }
 }
