@@ -1,41 +1,36 @@
 // Electronのモジュール
-const { app, BrowserWindow, ipcMain, dialog, net, protocol } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, net, protocol, shell } = require('electron');
 const path = require('path');
-const fs = require('fs');
+const fs_sync = require('fs'); // 同期的なファイル操作用 (existsSyncなど)
+const fs = require('fs').promises; // Promiseベースの非同期ファイル操作用
 const { spawn } = require('child_process');
 
-// メインウィンドウと設定ウィンドウをグローバル参照で保持
 let mainWindow;
 let settingsWindow;
+let confirmationWindow;
 
-// 設定ファイルのパス関連の変数は app.whenReady() 内で初期化
 let settingsDirectory;
 let settingsFilePath;
-let defaultLogFilePath; // defaultLogFilePathも同様
+let defaultLogFilePath;
 
-// デフォルト設定値を取得する関数
-// app.getPath() を使用するため、appがreadyになった後に呼び出す必要がある
 const getDefaultSettings = () => {
-    if (!defaultLogFilePath) { // app.getPath('logs')が使える状態になってから設定
-        defaultLogFilePath = path.join(app.getPath('logs'), 'app.log');
-    }
+    const logPath = defaultLogFilePath || path.join(app.getPath('userData'), 'logs', 'app.log');
     return {
         scanSubfolders: true,
         deleteOperation: 'recycleBin',
         logLevel: 'normal',
-        logFilePath: defaultLogFilePath
+        logFilePath: logPath
     };
 };
 
-// --- 設定の読み込み関数 ---
-function loadAppSettings() {
+async function loadAppSettings() {
     if (!settingsFilePath) {
         console.warn("loadAppSettings called before settingsFilePath is initialized.");
-        return getDefaultSettings(); // app.getPathが使える状態のデフォルトを返す
+        return getDefaultSettings();
     }
     try {
-        if (fs.existsSync(settingsFilePath)) {
-            const settingsData = fs.readFileSync(settingsFilePath, 'utf-8');
+        if (fs_sync.existsSync(settingsFilePath)) { // 同期版を使用
+            const settingsData = await fs.readFile(settingsFilePath, 'utf-8');
             const loadedSettings = JSON.parse(settingsData);
             return { ...getDefaultSettings(), ...loadedSettings };
         } else {
@@ -48,19 +43,19 @@ function loadAppSettings() {
     }
 }
 
-// --- 設定の保存関数 ---
-function saveAppSettings(settingsToSave) {
+async function saveAppSettings(settingsToSave) {
     if (!settingsDirectory || !settingsFilePath) {
         console.error("saveAppSettings called before settingsDirectory or settingsFilePath is initialized.");
         return { success: false, error: "Settings path not initialized." };
     }
     try {
-        if (!fs.existsSync(settingsDirectory)) {
-            fs.mkdirSync(settingsDirectory, { recursive: true });
+        // fs.mkdir は fs.promises.mkdir を使うので await を使用
+        if (!fs_sync.existsSync(settingsDirectory)) { // ディレクトリ存在確認は同期で良い場合もある
+            await fs.mkdir(settingsDirectory, { recursive: true });
         }
-        const currentSettings = loadAppSettings();
+        const currentSettings = await loadAppSettings();
         const newSettings = { ...currentSettings, ...settingsToSave };
-        fs.writeFileSync(settingsFilePath, JSON.stringify(newSettings, null, 2));
+        await fs.writeFile(settingsFilePath, JSON.stringify(newSettings, null, 2));
         console.log('Settings saved to:', settingsFilePath);
         return { success: true, path: settingsFilePath, settings: newSettings };
     } catch (error) {
@@ -72,21 +67,14 @@ function saveAppSettings(settingsToSave) {
 
 function createMainWindow() {
     mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 750,
-        minWidth: 800,
-        minHeight: 600,
+        width: 1000, height: 750, minWidth: 800, minHeight: 600,
         webPreferences: {
             preload: path.join(__dirname, '../preload/preload.js'),
-            contextIsolation: true,
-            nodeIntegration: false,
+            contextIsolation: true, nodeIntegration: false,
         }
     });
     mainWindow.loadFile(path.join(__dirname, '../renderer/html/index.html'));
-    // mainWindow.webContents.openDevTools();
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
+    mainWindow.on('closed', () => { mainWindow = null; });
 }
 
 function createSettingsWindow() {
@@ -94,8 +82,9 @@ function createSettingsWindow() {
         settingsWindow.focus();
         return;
     }
-    const currentMainWindowPosition = mainWindow ? mainWindow.getPosition() : [0,0];
-    const currentMainWindowSize = mainWindow ? mainWindow.getSize() : [800,600];
+    const parentPos = mainWindow ? mainWindow.getPosition() : [0, 0];
+    const parentSize = mainWindow ? mainWindow.getSize() : [800, 600];
+
     settingsWindow = new BrowserWindow({
         width: 620,
         height: 550,
@@ -105,6 +94,11 @@ function createSettingsWindow() {
         parent: mainWindow,
         modal: true,
         show: false,
+        frame: false, 
+        transparent: true, 
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
         webPreferences: {
             preload: path.join(__dirname, '../preload/preloadSettings.js'),
             contextIsolation: true,
@@ -112,9 +106,10 @@ function createSettingsWindow() {
             devTools: true
         },
         autoHideMenuBar: true,
-        x: currentMainWindowPosition[0] + Math.floor((currentMainWindowSize[0] - 620) / 2),
-        y: currentMainWindowPosition[1] + Math.floor((currentMainWindowSize[1] - 550) / 2),
+        x: parentPos[0] + Math.floor((parentSize[0] - 620) / 2),
+        y: parentPos[1] + Math.floor((parentSize[1] - 550) / 2),
     });
+
     settingsWindow.loadFile(path.join(__dirname, '../renderer/html/settings.html'));
     settingsWindow.once('ready-to-show', () => {
         settingsWindow.show();
@@ -124,37 +119,70 @@ function createSettingsWindow() {
     });
 }
 
-// appの準備ができてから各種初期化とリスナー登録を行う
-app.whenReady().then(() => {
-    // app.getPathを使用する変数をここで初期化
+function createConfirmationDialog(parentWindow, dialogData) {
+    if (confirmationWindow) {
+        confirmationWindow.focus();
+        return;
+    }
+    const parentPos = parentWindow.getPosition();
+    const parentSize = parentWindow.getSize();
+
+    confirmationWindow = new BrowserWindow({
+        width: 500,
+        height: 280,
+        minWidth: 450,
+        minHeight: 220,
+        title: dialogData.title || '確認',
+        parent: parentWindow,
+        modal: true,
+        show: false,
+        frame: false, 
+        transparent: true, 
+        resizable: false,
+        maximizable: false,
+        minimizable: false,
+        webPreferences: {
+            preload: path.join(__dirname, '../preload/preloadConfirmationDialog.js'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            devTools: true
+        },
+        autoHideMenuBar: true,
+        x: parentPos[0] + Math.floor((parentSize[0] - 500) / 2),
+        y: parentPos[1] + Math.floor((parentSize[1] - 280) / 2),
+    });
+
+    confirmationWindow.loadFile(path.join(__dirname, '../renderer/html/confirmationDialog.html'));
+
+    confirmationWindow.once('ready-to-show', () => {
+        confirmationWindow.show();
+        confirmationWindow.webContents.send('dialog-data', dialogData);
+    });
+
+    confirmationWindow.on('closed', () => {
+        confirmationWindow = null;
+    });
+}
+
+
+app.whenReady().then(async () => {
     settingsDirectory = app.getPath('userData');
     settingsFilePath = path.join(settingsDirectory, 'app-settings.json');
     defaultLogFilePath = path.join(app.getPath('logs'), 'app.log');
 
-    // カスタムプロトコルの登録
     protocol.handle('app-file', (request) => {
-        // 'app-file://' の後の部分を取得 (例: /D:/new/00013.jpg または /path/to/file.jpg)
         const urlPathPart = request.url.slice('app-file://'.length);
-        const decodedUrlPath = decodeURI(urlPathPart); // エンコードされた文字をデコード
-        console.log(`[DEBUG Main] Protocol 'app-file' received. Decoded URL path part: ${decodedUrlPath}`);
-
+        const decodedUrlPath = decodeURI(urlPathPart);
         let systemPath;
-        // Windowsの場合で、パスが '/X:/...' の形式になっているか確認
         if (process.platform === 'win32' && /^\/[a-zA-Z]:\//.test(decodedUrlPath)) {
-            systemPath = decodedUrlPath.substring(1); // 先頭のスラッシュを除去 -> D:/new/00013.jpg
+            systemPath = decodedUrlPath.substring(1); 
         } else if (process.platform !== 'win32' && decodedUrlPath.startsWith('/')) {
-            systemPath = decodedUrlPath; // POSIXパスはそのまま
+            systemPath = decodedUrlPath;
         } else {
             console.error(`[DEBUG Main] Invalid path format for app-file: ${decodedUrlPath}`);
             return new Response(null, { status: 400, statusText: 'Invalid path format for app-file protocol.' });
         }
-        
-        console.log(`[DEBUG Main] System path for fetching: ${systemPath}`);
-
-        // net.fetch は file:/// 形式のURLを期待する
-        const fileUrlToFetch = `file:///${systemPath.replace(/\\/g, '/')}`; // Windowsでもスラッシュに統一
-        
-        console.log(`[DEBUG Main] Attempting to fetch with finalFileUrl: ${fileUrlToFetch}`);
+        const fileUrlToFetch = `file:///${systemPath.replace(/\\/g, '/')}`; 
         return net.fetch(fileUrlToFetch)
             .catch(err => {
                 console.error(`[DEBUG Main] net.fetch error for ${fileUrlToFetch}:`, err);
@@ -163,29 +191,29 @@ app.whenReady().then(() => {
     });
 
     // --- IPCハンドラ ---
-    ipcMain.handle('dialog:openDirectory', async () => {
-        const { canceled, filePaths } = await dialog.showOpenDialog(mainWindow, {
+    ipcMain.handle('dialog:openDirectory', async (event) => {
+        const parentWindow = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+        if (!parentWindow) return null;
+        const { canceled, filePaths } = await dialog.showOpenDialog(parentWindow, {
             properties: ['openDirectory']
         });
         return canceled ? null : filePaths[0];
     });
 
     ipcMain.on('open-settings-window', () => {
-        createSettingsWindow();
-    });
-
-    ipcMain.on('close-settings-window', () => {
-        if (settingsWindow) {
-            settingsWindow.close();
+        if (mainWindow) {
+            createSettingsWindow();
         }
     });
 
-    ipcMain.handle('load-app-settings', () => {
-        return loadAppSettings();
+    ipcMain.on('close-settings-window', () => { 
+        if (settingsWindow) settingsWindow.close(); 
     });
 
-    ipcMain.handle('save-app-settings', (event, settings) => {
-        const result = saveAppSettings(settings);
+    ipcMain.handle('load-app-settings', async () => await loadAppSettings());
+
+    ipcMain.handle('save-app-settings', async (event, settings) => {
+        const result = await saveAppSettings(settings);
         if (result.success && mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.webContents.send('settings-updated', result.settings);
         }
@@ -201,25 +229,29 @@ app.whenReady().then(() => {
         return canceled ? null : filePaths[0];
     });
 
-    ipcMain.handle('execute-scan', async (event, folderPath) => {
-        return new Promise((resolve, reject) => {
+    ipcMain.handle('execute-scan', async (event, folderPath) => { // この行がエラーの出ていた112行目付近に相当
+        return new Promise(async (resolve, reject) => {
+            const currentSettings = await loadAppSettings();
+            const scanSubfoldersArg = currentSettings.scanSubfolders ? 'true' : 'false';
             let pythonExecutable = 'python';
             let scriptPath;
+
             if (app.isPackaged) {
                 scriptPath = path.join(process.resourcesPath, 'app.asar.unpacked', 'src', 'python', 'image_scanner.py');
             } else {
                 scriptPath = path.join(app.getAppPath(), 'src', 'python', 'image_scanner.py');
                 const venvPythonPathWin = path.join(app.getAppPath(), '.venv', 'Scripts', 'python.exe');
                 const venvPythonPathMacLinux = path.join(app.getAppPath(), '.venv', 'bin', 'python');
-                if (process.platform === 'win32' && fs.existsSync(venvPythonPathWin)) {
+                // ここで fs_sync.existsSync を使用
+                if (process.platform === 'win32' && fs_sync.existsSync(venvPythonPathWin)) {
                     pythonExecutable = venvPythonPathWin;
-                } else if ((process.platform === 'darwin' || process.platform === 'linux') && fs.existsSync(venvPythonPathMacLinux)) {
+                } else if ((process.platform === 'darwin' || process.platform === 'linux') && fs_sync.existsSync(venvPythonPathMacLinux)) {
                     pythonExecutable = venvPythonPathMacLinux;
                 }
             }
             
-            console.log(`Executing Python: ${pythonExecutable} ${scriptPath} with folder: ${folderPath}`);
-            const pyProc = spawn(pythonExecutable, [scriptPath, folderPath]);
+            console.log(`Executing Python: ${pythonExecutable} ${scriptPath} with folder: ${folderPath} and scanSubfolders: ${scanSubfoldersArg}`);
+            const pyProc = spawn(pythonExecutable, [scriptPath, folderPath, scanSubfoldersArg]);
             let resultData = '';
             let errorData = '';
             pyProc.stdout.on('data', (data) => { resultData += data.toString(); });
@@ -246,31 +278,119 @@ app.whenReady().then(() => {
 
     ipcMain.handle('convert-file-src', (event, filePath) => {
         console.log(`[DEBUG Main] IPC 'convert-file-src' called with raw filePath: ${filePath}`);
-        if (!filePath) {
+        if (!filePath) { // fs_sync.existsSync は filePath が null や undefined の場合にエラーになるため、先にチェック
             console.warn(`[DEBUG Main] convertFileSrc: filePath is null or undefined.`);
             return null;
         }
-        // Windowsパスの区切り文字をスラッシュに統一
+        // ここで fs_sync.existsSync を使用
+        if (!fs_sync.existsSync(filePath)) {
+            console.warn(`[DEBUG Main] convertFileSrc: File does not exist at path: ${filePath}`);
+            return null;
+        }
         let normalizedPath = filePath.replace(/\\/g, '/');
-        
-        // Windowsのドライブレター付き絶対パスの場合、先頭にスラッシュを追加して "URLパス" らしくする
-        // 例: D:/foo/bar -> /D:/foo/bar
         if (process.platform === 'win32' && /^[a-zA-Z]:\//.test(normalizedPath)) {
             normalizedPath = '/' + normalizedPath;
-        }
-        // POSIXパスで既にスラッシュで始まっている場合はそのまま、そうでなければ追加（相対パス対策だが、基本は絶対パスを期待）
-        else if (!normalizedPath.startsWith('/')) {
+        } else if (!normalizedPath.startsWith('/')) {
              normalizedPath = '/' + normalizedPath;
         }
-
-        // URIエンコード（#や?などの特殊文字対策）
         const encodedPath = encodeURI(normalizedPath)
             .replace(/#/g, '%23')
             .replace(/\?/g, '%3F');
-        
         const resultUrl = 'app-file://' + encodedPath;
         console.log(`[DEBUG Main] Returning URL for convertFileSrc: ${resultUrl}`);
         return resultUrl;
+    });
+
+    ipcMain.handle('show-confirmation-dialog', (event, data) => {
+        return new Promise((resolve) => {
+            const parentWin = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+            if (!parentWin) {
+                console.error("Parent window for confirmation dialog not found.");
+                resolve({ confirmed: false, error: "Parent window not found." });
+                return;
+            }
+            createConfirmationDialog(parentWin, data);
+            
+            const listener = (e, response) => {
+                if (confirmationWindow && !confirmationWindow.isDestroyed()) {
+                    confirmationWindow.close();
+                }
+                ipcMain.removeListener('dialog-response', listener);
+                resolve(response);
+            };
+            ipcMain.once('dialog-response', listener);
+        });
+    });
+
+    ipcMain.handle('perform-file-operation', async (event, { actionType, paths, destination }) => {
+        if (!paths || paths.length === 0) {
+            return { successCount: 0, errors: [{ path: 'N/A', reason: '対象ファイルがありません。' }] };
+        }
+
+        let operationPromise;
+        switch (actionType) {
+            case 'trash':
+                operationPromise = Promise.allSettled(
+                    paths.map(async (p) => {
+                        try {
+                            await shell.trashItem(p);
+                            return p;
+                        } catch (err) {
+                            console.error(`Error trashing item ${p}:`, err);
+                            throw err;
+                        }
+                    })
+                );
+                break;
+            case 'delete':
+                operationPromise = Promise.allSettled(
+                    paths.map(p => fs.unlink(p).then(() => p)) // fs は fs.promises を指す
+                );
+                break;
+            case 'move':
+                if (!destination) {
+                    return { successCount: 0, errors: [{ path: 'N/A', reason: '移動先フォルダが指定されていません。' }] };
+                }
+                await fs.mkdir(destination, { recursive: true });
+                operationPromise = Promise.allSettled(
+                    paths.map(async (p) => {
+                        const newPath = path.join(destination, path.basename(p));
+                        try {
+                            // fs.stat は fs.promises.stat を指す
+                            if (await fs.stat(newPath).then(() => true).catch(() => false)) {
+                                throw new Error(`移動先に同名のファイルが存在します: ${path.basename(p)}`);
+                            }
+                            await fs.rename(p, newPath); // fs.rename は fs.promises.rename を指す
+                            return p;
+                        } catch (err) {
+                            console.error(`Error moving item ${p} to ${newPath}:`, err);
+                            throw err;
+                        }
+                    })
+                );
+                break;
+            default:
+                return { successCount: 0, errors: [{ path: 'N/A', reason: `未定義の操作です: ${actionType}` }] };
+        }
+
+        const results = await operationPromise;
+        
+        const successFiles = [];
+        const errorFiles = [];
+
+        results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+                successFiles.push(result.value);
+            } else {
+                errorFiles.push({
+                    path: paths[index],
+                    reason: result.reason.message || '不明なエラー'
+                });
+            }
+        });
+        
+        console.log(`Operation: ${actionType}, Success: ${successFiles.length}, Failed: ${errorFiles.length}`);
+        return { successCount: successFiles.length, errors: errorFiles, successPaths: successFiles };
     });
 
     createMainWindow();

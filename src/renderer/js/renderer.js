@@ -50,19 +50,16 @@ window.addEventListener('DOMContentLoaded', () => {
     // --- 右ペイン ---
     const selectAllBtn = document.getElementById('selectAllBtn');
     const deselectAllBtn = document.getElementById('deselectAllBtn');
-    // ブレ画像フィルター
     const blurScoreMinInput = document.getElementById('blurScoreMin');
     const blurScoreMaxInput = document.getElementById('blurScoreMax');
-    const blurScoreSlider = document.getElementById('blurScoreSlider'); // HTMLには単一スライダーしかないため、min/maxとは直接連動しない
+    const blurScoreSlider = document.getElementById('blurScoreSlider');
     const applyFilterBlurryBtn = document.getElementById('applyFilterBlurryBtn');
     const resetFilterBlurryBtn = document.getElementById('resetFilterBlurryBtn');
-    // 類似画像フィルター
     const similarityMinInput = document.getElementById('similarityMin');
     const similarityMaxInput = document.getElementById('similarityMax');
-    const similaritySlider = document.getElementById('similaritySlider'); // 同上
+    const similaritySlider = document.getElementById('similaritySlider');
     const applyFilterSimilarBtn = document.getElementById('applyFilterSimilarBtn');
     const resetFilterSimilarBtn = document.getElementById('resetFilterSimilarBtn');
-    // エラーフィルター
     const errorTypeFilterSelect = document.getElementById('errorTypeFilter');
     const applyFilterErrorsBtn = document.getElementById('applyFilterErrorsBtn');
     const resetFilterErrorsBtn = document.getElementById('resetFilterErrorsBtn');
@@ -86,12 +83,11 @@ window.addEventListener('DOMContentLoaded', () => {
     let currentTab = 'blurry';
     let selectedTargetFolder = null;
     let selectedOutputFolder = null;
-    let originalScanResults = { // 元のスキャン結果を保持
+    let originalScanResults = { 
         blurryImages: [],
         similarImagePairs: [],
         errorFiles: []
     };
-    // filteredScanResults は applyFilters 関数内で都度生成・更新するので、ここでは不要
 
     // --- 関数 ---
     function updateStatus(message, isError = false) {
@@ -125,7 +121,7 @@ window.addEventListener('DOMContentLoaded', () => {
             selectAllBtn.textContent = "全件選択";
             deselectAllBtn.textContent = "選択解除";
         }
-        resetAndApplyFilters(); // タブ切り替え時にフィルターをリセットして全件表示
+        resetAndApplyFilters(); 
         updateSelectionInfo();
         displayPreview(null);
         console.log(`Switched to ${tabId} tab.`);
@@ -139,9 +135,70 @@ window.addEventListener('DOMContentLoaded', () => {
         document.getElementById('count-similar').textContent = 0;
         document.getElementById('count-errors').textContent = 0;
         originalScanResults = { blurryImages: [], similarImagePairs: [], errorFiles: [] };
-        // filteredScanResults は applyFilters で再生成されるのでここでは不要
         displayPreview(null);
         updateSelectionInfo();
+    }
+    
+    function getSelectedFilePaths() {
+        console.log('[DEBUG Renderer] getSelectedFilePaths called for tab:', currentTab); // ★デバッグログ
+        const activeTbody = document.querySelector(`.list-panel:not(.hidden) tbody`);
+        if (!activeTbody) {
+            console.log('[DEBUG Renderer] getSelectedFilePaths: No active tbody found.'); // ★デバッグログ
+            return [];
+        }
+        
+        const paths = new Set(); 
+
+        if (currentTab === 'blurry' || currentTab === 'errors') {
+            const checkedCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox:checked');
+            console.log(`[DEBUG Renderer] getSelectedFilePaths (${currentTab}): Found ${checkedCheckboxes.length} checked items.`); // ★デバッグログ
+            checkedCheckboxes.forEach(cb => {
+                const row = cb.closest('tr');
+                const itemId = row.dataset.id;
+                const item = (originalScanResults.blurryImages.find(i => i.id === itemId) || 
+                              originalScanResults.errorFiles.find(i => i.id === itemId));
+                if (item && item.path) {
+                    paths.add(item.path);
+                    console.log(`[DEBUG Renderer] Added path: ${item.path}`); // ★デバッグログ
+                } else if (item && item.filepath) { // エラーファイルはfilepathの場合がある
+                    paths.add(item.filepath);
+                    console.log(`[DEBUG Renderer] Added filepath: ${item.filepath}`); // ★デバッグログ
+                } else {
+                    console.warn(`[DEBUG Renderer] Could not find item or path for ID: ${itemId} in tab: ${currentTab}`); // ★デバッグログ
+                }
+            });
+        } else if (currentTab === 'similar') {
+            // 類似画像の場合、ペア選択ではなく、ファイル1またはファイル2のチェックボックスを見る
+            const file1Checkboxes = activeTbody.querySelectorAll('input[type="checkbox"].file1-checkbox:checked');
+            const file2Checkboxes = activeTbody.querySelectorAll('input[type="checkbox"].file2-checkbox:checked');
+            console.log(`[DEBUG Renderer] getSelectedFilePaths (similar): Found ${file1Checkboxes.length} file1 checked, ${file2Checkboxes.length} file2 checked.`); // ★デバッグログ
+
+            file1Checkboxes.forEach(cb => {
+                const row = cb.closest('tr');
+                const pairId = row.dataset.pairId;
+                const pair = originalScanResults.similarImagePairs.find(p => p.id === pairId);
+                if (pair && pair.path1) {
+                    paths.add(pair.path1);
+                    console.log(`[DEBUG Renderer] Added path1: ${pair.path1}`); // ★デバッグログ
+                } else {
+                     console.warn(`[DEBUG Renderer] Could not find pair or path1 for ID: ${pairId}`); // ★デバッグログ
+                }
+            });
+            file2Checkboxes.forEach(cb => {
+                const row = cb.closest('tr');
+                const pairId = row.dataset.pairId;
+                const pair = originalScanResults.similarImagePairs.find(p => p.id === pairId);
+                if (pair && pair.path2) {
+                    paths.add(pair.path2);
+                    console.log(`[DEBUG Renderer] Added path2: ${pair.path2}`); // ★デバッグログ
+                } else {
+                    console.warn(`[DEBUG Renderer] Could not find pair or path2 for ID: ${pairId}`); // ★デバッグログ
+                }
+            });
+        }
+        const finalPaths = Array.from(paths);
+        console.log('[DEBUG Renderer] getSelectedFilePaths returning:', finalPaths); // ★デバッグログ
+        return finalPaths;
     }
 
     function updateSelectionInfo() {
@@ -159,25 +216,18 @@ window.addEventListener('DOMContentLoaded', () => {
                     }
                 });
             } else if (currentTab === 'similar') {
-                let fileCountInPairs = 0;
-                let pairCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].pair-checkbox:checked');
-                
-                pairCheckboxes.forEach(pairCheckbox => {
-                    const row = pairCheckbox.closest('tr');
-                    if (row) {
-                        const file1Cb = row.querySelector('.file1-checkbox');
-                        const file2Cb = row.querySelector('.file2-checkbox');
-                        if (file1Cb && file1Cb.checked) {
-                            fileCountInPairs++;
-                            if(row.dataset.size1Mb) size += parseFloat(row.dataset.size1Mb);
-                        }
-                        if (file2Cb && file2Cb.checked) {
-                            fileCountInPairs++;
-                            if(row.dataset.size2Mb) size += parseFloat(row.dataset.size2Mb);
-                        }
-                    }
+                const file1Checked = activeTbody.querySelectorAll('input[type="checkbox"].file1-checkbox:checked');
+                const file2Checked = activeTbody.querySelectorAll('input[type="checkbox"].file2-checkbox:checked');
+                count = file1Checked.length + file2Checked.length;
+
+                file1Checked.forEach(cb => {
+                    const row = cb.closest('tr');
+                    if (row && row.dataset.size1Mb) size += parseFloat(row.dataset.size1Mb);
                 });
-                count = fileCountInPairs;
+                file2Checked.forEach(cb => {
+                    const row = cb.closest('tr');
+                    if (row && row.dataset.size2Mb) size += parseFloat(row.dataset.size2Mb);
+                });
             }
         }
 
@@ -361,7 +411,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     const results = await window.electronAPI.executeScan(selectedTargetFolder);
                     console.log('Scan results received:', results);
                     originalScanResults = results || { blurryImages: [], similarImagePairs: [], errorFiles: [] };
-                    resetAndApplyFilters(); // スキャン後、フィルターをリセットして全件表示
+                    resetAndApplyFilters();
                     updateStatus('スキャン完了', false);
                 } else { 
                     throw new Error('executeScan API is not available.');
@@ -394,11 +444,11 @@ window.addEventListener('DOMContentLoaded', () => {
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const tabId = button.id.replace('tab-', '');
+            console.log(`[DEBUG] Tab button clicked: ${button.id}, derived tabId: ${tabId}`);
             switchTab(tabId);
         });
     });
     
-    // (ズームコントロールのイベントリスナーは変更なし)
     zoomSlider.addEventListener('input', (e) => updateZoom(e.target.value, true, false));
     zoomInput.addEventListener('change', (e) => updateZoom(e.target.value, false, true));
     zoomInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') updateZoom(e.target.value, false, true); });
@@ -409,7 +459,6 @@ window.addEventListener('DOMContentLoaded', () => {
         if (previewImage1.src && previewImage1.src.startsWith('app-file://')) previewImage1.style.transform = 'scale(1)';
         if (previewImage2.src && previewImage2.src.startsWith('app-file://')) previewImage2.style.transform = 'scale(1)';
     });
-
 
     // --- フィルター関連の関数とイベントリスナー ---
     function getBlurryFilterValues() {
@@ -467,22 +516,19 @@ window.addEventListener('DOMContentLoaded', () => {
             populateErrorTable(filteredItems);
         }
         updateSelectionInfo();
-        displayPreview(null); // フィルター適用後はプレビューをリセット
+        displayPreview(null);
     }
 
     function resetAndApplyFilters() {
-        // UIの値をデフォルトに戻す
         if (blurScoreMinInput) blurScoreMinInput.value = 0;
         if (blurScoreMaxInput) blurScoreMaxInput.value = 100;
-        if (blurScoreSlider) blurScoreSlider.value = 0; // 単一スライダーの例 (最小値に合わせるなど)
+        if (blurScoreSlider) blurScoreSlider.value = 0; 
         
         if (similarityMinInput) similarityMinInput.value = 0;
         if (similarityMaxInput) similarityMaxInput.value = 100;
-        if (similaritySlider) similaritySlider.value = 0; // 単一スライダーの例
+        if (similaritySlider) similaritySlider.value = 0;
 
         if (errorTypeFilterSelect) errorTypeFilterSelect.value = "";
-
-        // フィルターを適用して全件表示に戻す
         applyFilters();
     }
 
@@ -494,22 +540,16 @@ window.addEventListener('DOMContentLoaded', () => {
     if(resetFilterSimilarBtn) resetFilterSimilarBtn.addEventListener('click', resetAndApplyFilters);
     if(resetFilterErrorsBtn) resetFilterErrorsBtn.addEventListener('click', resetAndApplyFilters);
     
-    // スライダーと数値入力の同期 (基本的な単方向同期の例)
-    // ブレ画像スコア
-    if(blurScoreMinInput && blurScoreSlider) { // 単一スライダーを最小値と同期
+    if (blurScoreMinInput && blurScoreSlider) {
         blurScoreMinInput.addEventListener('input', () => {
             let minVal = parseInt(blurScoreMinInput.value, 10);
             let maxVal = parseInt(blurScoreMaxInput.value, 10);
             if (isNaN(minVal)) minVal = 0;
             if (isNaN(maxVal)) maxVal = 100;
-            if (minVal > maxVal) blurScoreMaxInput.value = minVal; // 最小値が最大値を超えないように
+            if (minVal > maxVal) blurScoreMaxInput.value = minVal;
             if (minVal < 0) blurScoreMinInput.value = 0;
             if (minVal > 100) blurScoreMinInput.value = 100;
-            // blurScoreSlider.value = blurScoreMinInput.value; // 単一スライダーの場合
         });
-        // blurScoreSlider.addEventListener('input', () => { // 単一スライダーの場合
-        //     blurScoreMinInput.value = blurScoreSlider.value;
-        // });
     }
     if(blurScoreMaxInput) {
          blurScoreMaxInput.addEventListener('input', () => {
@@ -517,13 +557,11 @@ window.addEventListener('DOMContentLoaded', () => {
             let maxVal = parseInt(blurScoreMaxInput.value, 10);
             if (isNaN(minVal)) minVal = 0;
             if (isNaN(maxVal)) maxVal = 100;
-            if (maxVal < minVal) blurScoreMinInput.value = maxVal; // 最大値が最小値を下回らないように
+            if (maxVal < minVal) blurScoreMinInput.value = maxVal;
             if (maxVal < 0) blurScoreMaxInput.value = 0;
             if (maxVal > 100) blurScoreMaxInput.value = 100;
          });
     }
-
-    // 類似度
     if(similarityMinInput && similaritySlider) {
         similarityMinInput.addEventListener('input', () => {
             let minVal = parseInt(similarityMinInput.value, 10);
@@ -533,11 +571,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (minVal > maxVal) similarityMaxInput.value = minVal;
             if (minVal < 0) similarityMinInput.value = 0;
             if (minVal > 100) similarityMinInput.value = 100;
-            // similaritySlider.value = similarityMinInput.value;
         });
-        // similaritySlider.addEventListener('input', () => {
-        //     similarityMinInput.value = similaritySlider.value;
-        // });
     }
      if(similarityMaxInput) {
          similarityMaxInput.addEventListener('input', () => {
@@ -549,6 +583,156 @@ window.addEventListener('DOMContentLoaded', () => {
             if (maxVal < 0) similarityMaxInput.value = 0;
             if (maxVal > 100) similarityMaxInput.value = 100;
          });
+    }
+
+    // --- フッターアクションボタンのイベントリスナー ---
+    async function handleAction(actionType) {
+        console.log(`[DEBUG Renderer] handleAction called for type: ${actionType}`); // ★デバッグログ
+        const filePaths = getSelectedFilePaths();
+        const selectedCount = filePaths.length;
+        
+        console.log(`[DEBUG Renderer] Selected file paths for action:`, filePaths); // ★デバッグログ
+
+        let totalSizeMB = 0;
+        const activeTbody = document.querySelector(`.list-panel:not(.hidden) tbody`);
+        if (activeTbody) {
+            if (currentTab === 'blurry' || currentTab === 'errors') {
+                const checkedCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox:checked');
+                checkedCheckboxes.forEach(cb => {
+                    const row = cb.closest('tr');
+                    if (row && row.dataset.sizeMb) totalSizeMB += parseFloat(row.dataset.sizeMb);
+                });
+            } else if (currentTab === 'similar') {
+                 const file1Checked = activeTbody.querySelectorAll('input[type="checkbox"].file1-checkbox:checked');
+                 const file2Checked = activeTbody.querySelectorAll('input[type="checkbox"].file2-checkbox:checked');
+                 file1Checked.forEach(cb => { const row = cb.closest('tr'); if (row && row.dataset.size1Mb) totalSizeMB += parseFloat(row.dataset.size1Mb); });
+                 file2Checked.forEach(cb => { const row = cb.closest('tr'); if (row && row.dataset.size2Mb) totalSizeMB += parseFloat(row.dataset.size2Mb); });
+            }
+        }
+        console.log(`[DEBUG Renderer] Calculated totalSizeMB: ${totalSizeMB}`); // ★デバッグログ
+
+
+        if (selectedCount === 0) {
+            updateStatus("操作対象のアイテムが選択されていません。", true);
+            console.log('[DEBUG Renderer] No items selected for action.'); // ★デバッグログ
+            return;
+        }
+
+        let dialogData = {
+            type: actionType,
+            itemCount: selectedCount,
+            totalSizeMB: totalSizeMB.toFixed(1)
+        };
+
+        if (actionType === 'move') {
+            if (!selectedOutputFolder) {
+                updateStatus("移動先のフォルダが選択されていません。", true);
+                console.log('[DEBUG Renderer] Move action, but no output folder selected.'); // ★デバッグログ
+                return;
+            }
+            dialogData.moveToPath = selectedOutputFolder;
+        }
+
+        try {
+            if (window.electronAPI && typeof window.electronAPI.showConfirmationDialog === 'function') {
+                console.log(`[DEBUG Renderer] Showing confirmation dialog for action: ${actionType}`, dialogData);
+                const response = await window.electronAPI.showConfirmationDialog(dialogData);
+                console.log('[DEBUG Renderer] Dialog response:', response);
+
+                if (response && response.confirmed) {
+                    updateStatus(`${response.actionType} 操作を実行中...`);
+                    console.log(`[DEBUG Renderer] User confirmed action: ${response.actionType}. Paths:`, filePaths); // ★デバッグログ
+                    
+                    const operationResult = await window.electronAPI.performFileOperation({
+                        actionType: response.actionType,
+                        paths: filePaths,
+                        destination: actionType === 'move' ? selectedOutputFolder : undefined
+                    });
+                    
+                    console.log('[DEBUG Renderer] File operation result from main process:', operationResult); // ★デバッグログ
+                    if (operationResult.successCount > 0) {
+                        updateStatus(`${operationResult.successCount}件のファイルを${response.actionType}しました。`);
+                        refreshUIafterFileOperation(operationResult.successPaths);
+                    }
+                    if (operationResult.errors.length > 0) {
+                        const firstError = operationResult.errors[0];
+                        let errorMsg = `${operationResult.errors.length}件のエラー: ${firstError.path ? path.basename(firstError.path) : 'N/A'} - ${firstError.reason}`;
+                        if (operationResult.successCount > 0) {
+                             errorMsg = `${operationResult.successCount}件成功、` + errorMsg;
+                        }
+                        updateStatus(errorMsg, true);
+                        console.error('[DEBUG Renderer] File operation errors:', operationResult.errors);
+                    }
+                    if (operationResult.successCount === 0 && operationResult.errors.length === 0) {
+                        updateStatus('操作対象のファイルがありませんでした（既に処理済みなど）。');
+                    }
+
+                } else {
+                    updateStatus(`${actionType} 操作はキャンセルされました。`);
+                }
+            } else {
+                console.error('[DEBUG Renderer] showConfirmationDialog API is not available.');
+                updateStatus('確認ダイアログを開けませんでした。', true);
+            }
+        } catch (error) {
+            console.error('[DEBUG Renderer] handleAction error:', error);
+            updateStatus(`操作中にエラーが発生しました: ${error.message}`, true);
+        }
+    }
+
+    if (btnTrash) btnTrash.addEventListener('click', () => handleAction('trash'));
+    if (btnDeletePermanently) btnDeletePermanently.addEventListener('click', () => handleAction('delete'));
+    if (btnMove) btnMove.addEventListener('click', () => handleAction('move'));
+    
+    if (btnIgnoreError) {
+        btnIgnoreError.addEventListener('click', () => { 
+            const selectedPaths = getSelectedFilePaths();
+            if (selectedPaths.length === 0) {
+                updateStatus("操作対象のアイテムが選択されていません。", true);
+                return;
+            }
+            console.log(`${selectedPaths.length}件のエラーを無視します (実際の処理は未実装)`);
+            updateStatus(`${selectedPaths.length}件のエラーを無視しました。`);
+            // TODO: 選択されたエラーアイテムを originalScanResults.errorFiles から削除し、refreshUIafterFileOperation のような関数でUI更新
+        });
+    }
+    if (btnRetryScanError) {
+        btnRetryScanError.addEventListener('click', () => {
+            const selectedPaths = getSelectedFilePaths();
+             if (selectedPaths.length === 0) {
+                updateStatus("操作対象のアイテムが選択されていません。", true);
+                return;
+            }
+            console.log(`${selectedPaths.length}件のエラーを再スキャン試行します (実際の処理は未実装)`);
+            updateStatus(`${selectedPaths.length}件のエラーの再スキャンを試行します。`);
+            // TODO: 選択されたエラーアイテムに対して再スキャン処理を試みる
+        });
+    }
+
+    function refreshUIafterFileOperation(successPaths) {
+        console.log('[DEBUG Renderer] refreshUIafterFileOperation called with successPaths:', successPaths); // ★デバッグログ
+        if (!successPaths || successPaths.length === 0) return;
+
+        if (originalScanResults.blurryImages) {
+            originalScanResults.blurryImages = originalScanResults.blurryImages.filter(
+                item => !successPaths.includes(item.path)
+            );
+        }
+        if (originalScanResults.similarImagePairs) {
+            originalScanResults.similarImagePairs = originalScanResults.similarImagePairs.filter(
+                pair => !successPaths.includes(pair.path1) && !successPaths.includes(pair.path2)
+            );
+        }
+        if (originalScanResults.errorFiles) { // エラーリストもファイル操作対象になる可能性を考慮
+             originalScanResults.errorFiles = originalScanResults.errorFiles.filter(
+                item => !successPaths.includes(item.filepath) // errorFilesはfilepathプロパティ
+            );
+        }
+        
+        console.log('[DEBUG Renderer] originalScanResults after filtering successPaths:', originalScanResults); // ★デバッグログ
+        applyFilters(); // フィルターを再適用してリストを再描画
+        updateSelectionInfo(); // 選択情報を更新
+        displayPreview(null); // プレビューをリセット
     }
 
 

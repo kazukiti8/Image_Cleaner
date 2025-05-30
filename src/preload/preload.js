@@ -12,7 +12,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     executeScan: (folderPath) => ipcRenderer.invoke('execute-scan', folderPath),
     
     // ファイルパスを安全な画像ソースに変換するよう要求
-    convertFileSrc: (filePath) => ipcRenderer.invoke('convert-file-src', filePath)
+    convertFileSrc: (filePath) => ipcRenderer.invoke('convert-file-src', filePath),
+
+    // 確認ダイアログを開き、結果をPromiseで受け取る
+    showConfirmationDialog: (data) => ipcRenderer.invoke('show-confirmation-dialog', data),
+
+    // ★★★ 新しいAPI: ファイル操作の実行を要求 ★★★
+    performFileOperation: (operationDetails) => ipcRenderer.invoke('perform-file-operation', operationDetails)
 });
 
 console.log('Preload script for main window loaded.');
