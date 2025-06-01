@@ -1,11 +1,12 @@
-import { UI_CONSTANTS } from '../utils/constants.js';
-import { clamp } from '../utils/helpers.js';
+import { UI_CONSTANTS } from '../utils/constants.js'; // clamp は不要になったので削除
+// import { clamp } from '../utils/helpers.js'; // clamp は不要になったので削除
 
 class PreviewManager {
     constructor() {
         this._initializeElements();
-        this._setupZoomControls();
-        this.currentZoom = UI_CONSTANTS.ZOOM.DEFAULT;
+        // ズーム関連の初期化を削除
+        // this._setupZoomControls();
+        // this.currentZoom = UI_CONSTANTS.ZOOM.DEFAULT; // ZOOM定数がないため削除
     }
 
     _initializeElements() {
@@ -13,7 +14,7 @@ class PreviewManager {
             previewImage1: document.getElementById('previewImage1'),
             previewImage2: document.getElementById('previewImage2'),
             previewPlaceholderText: document.getElementById('preview-placeholder-text'),
-            
+
             // 情報表示
             infoFilename: document.getElementById('info-filename'),
             infoFilepath: document.getElementById('info-filepath'),
@@ -24,89 +25,29 @@ class PreviewManager {
             infoBlurScore: document.getElementById('info-blur-score'),
             infoSimilarityContainer: document.getElementById('info-similarity-container'),
             infoSimilarity: document.getElementById('info-similarity'),
-            
-            // ズームコントロール
-            zoomSlider: document.getElementById('zoomSlider'),
-            zoomInput: document.getElementById('zoomInput'),
-            zoomValueDisplay: document.getElementById('zoomValue'),
-            zoomInBtn: document.getElementById('zoomInBtn'),
-            zoomOutBtn: document.getElementById('zoomOutBtn'),
-            resetZoomBtn: document.getElementById('resetZoomBtn')
+
+            // ズームコントロール関連の要素取得を削除
+            // zoomSlider: document.getElementById('zoomSlider'),
+            // zoomInput: document.getElementById('zoomInput'),
+            // zoomValueDisplay: document.getElementById('zoomValue'),
+            // zoomInBtn: document.getElementById('zoomInBtn'),
+            // zoomOutBtn: document.getElementById('zoomOutBtn'),
+            // resetZoomBtn: document.getElementById('resetZoomBtn')
         };
     }
 
-    _setupZoomControls() {
-        if (this.elements.zoomSlider) {
-            this.elements.zoomSlider.addEventListener('input', (e) => 
-                this.updateZoom(e.target.value, true, false));
-        }
-        
-        if (this.elements.zoomInput) {
-            this.elements.zoomInput.addEventListener('change', (e) => 
-                this.updateZoom(e.target.value, false, true));
-            this.elements.zoomInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') this.updateZoom(e.target.value, false, true);
-            });
-        }
-        
-        if (this.elements.zoomInBtn) {
-            this.elements.zoomInBtn.addEventListener('click', () => 
-                this.updateZoom(this.currentZoom + UI_CONSTANTS.ZOOM.STEP));
-        }
-        
-        if (this.elements.zoomOutBtn) {
-            this.elements.zoomOutBtn.addEventListener('click', () => 
-                this.updateZoom(this.currentZoom - UI_CONSTANTS.ZOOM.STEP));
-        }
-        
-        if (this.elements.resetZoomBtn) {
-            this.elements.resetZoomBtn.addEventListener('click', () => {
-                this.updateZoom(UI_CONSTANTS.ZOOM.DEFAULT);
-                this._resetImageTransforms();
-            });
-        }
-    }
+    // _setupZoomControls メソッド全体を削除
 
-    updateZoom(value, fromSlider = false, fromInput = false) {
-        const val = clamp(parseInt(value, 10), UI_CONSTANTS.ZOOM.MIN, UI_CONSTANTS.ZOOM.MAX);
-        this.currentZoom = val;
-        
-        if (!fromSlider && this.elements.zoomSlider) {
-            this.elements.zoomSlider.value = val;
-        }
-        if (!fromInput && this.elements.zoomInput) {
-            this.elements.zoomInput.value = val;
-        }
-        if (this.elements.zoomValueDisplay) {
-            this.elements.zoomValueDisplay.textContent = val;
-        }
-        
-        const scale = val / 100;
-        this._applyZoomToImages(scale);
-    }
+    // updateZoom メソッド全体を削除
 
-    _applyZoomToImages(scale) {
-        if (this.elements.previewImage1.src && this.elements.previewImage1.src.startsWith('app-file://')) {
-            this.elements.previewImage1.style.transform = `scale(${scale})`;
-        }
-        if (this.elements.previewImage2.src && this.elements.previewImage2.src.startsWith('app-file://')) {
-            this.elements.previewImage2.style.transform = `scale(${scale})`;
-        }
-    }
+    // _applyZoomToImages メソッド全体を削除
 
-    _resetImageTransforms() {
-        if (this.elements.previewImage1.src && this.elements.previewImage1.src.startsWith('app-file://')) {
-            this.elements.previewImage1.style.transform = 'scale(1)';
-        }
-        if (this.elements.previewImage2.src && this.elements.previewImage2.src.startsWith('app-file://')) {
-            this.elements.previewImage2.style.transform = 'scale(1)';
-        }
-    }
+    // _resetImageTransforms メソッド全体を削除
 
     async displayPreview(item, type) {
         this._hideAllPreviews();
         this._resetImages();
-        this.updateZoom(UI_CONSTANTS.ZOOM.DEFAULT);
+        // this.updateZoom(UI_CONSTANTS.ZOOM.DEFAULT); // ZOOM定数がないため削除
 
         if (!item) {
             this._showPlaceholder('画像を選択するとここにプレビューが表示されます');
@@ -134,7 +75,7 @@ class PreviewManager {
 
     async _displayBlurryPreview(item) {
         this.elements.previewPlaceholderText.classList.add('hidden');
-        
+
         try {
             const imageSrc = await window.electronAPI.convertFileSrc(item.path);
             if (imageSrc) {
@@ -155,13 +96,13 @@ class PreviewManager {
 
     async _displaySimilarPreview(item) {
         this.elements.previewPlaceholderText.classList.add('hidden');
-        
+
         try {
             const [imageSrc1, imageSrc2] = await Promise.all([
                 window.electronAPI.convertFileSrc(item.path1),
                 window.electronAPI.convertFileSrc(item.path2)
             ]);
-            
+
             if (imageSrc1) {
                 this.elements.previewImage1.src = imageSrc1;
                 this.elements.previewImage1.classList.remove('hidden');
@@ -170,8 +111,8 @@ class PreviewManager {
                 this.elements.previewImage2.src = imageSrc2;
                 this.elements.previewImage2.classList.remove('hidden');
             }
-            
-            if (this.elements.previewImage1.classList.contains('hidden') && 
+
+            if (this.elements.previewImage1.classList.contains('hidden') &&
                 this.elements.previewImage2.classList.contains('hidden')) {
                 this._showPlaceholder('プレビューを読み込めません');
                 return;
@@ -201,8 +142,9 @@ class PreviewManager {
     _resetImages() {
         this.elements.previewImage1.src = '';
         this.elements.previewImage2.src = '';
-        this.elements.previewImage1.style.transform = 'scale(1)';
-        this.elements.previewImage2.style.transform = 'scale(1)';
+        // 画像のtransformスタイル操作を削除
+        // this.elements.previewImage1.style.transform = 'scale(1)';
+        // this.elements.previewImage2.style.transform = 'scale(1)';
     }
 
     _showPlaceholder(text) {

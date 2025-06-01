@@ -33,9 +33,9 @@ class ConfirmationDialog {
         // 確認ボタンの処理
         this.elements.dialogConfirmBtn.addEventListener('click', () => {
             const actionType = this.elements.dialogConfirmBtn.dataset.actionType;
-            window.confirmationDialogAPI?.sendDialogResponse({ 
-                confirmed: true, 
-                actionType: actionType 
+            window.confirmationDialogAPI?.sendDialogResponse({
+                confirmed: true,
+                actionType: actionType
             });
         });
 
@@ -78,8 +78,8 @@ class ConfirmationDialog {
                 extraInfo: "",
                 confirmText: "ゴミ箱へ移動",
                 confirmIconSvg: this.icons.delete_outline,
-                confirmBtnClasses: "bg-amber-500 hover:bg-amber-600 focus:ring-amber-500",
-                dialogIconContainerClasses: "text-amber-500",
+                confirmBtnClasses: "bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-500",
+                dialogIconContainerClasses: "text-yellow-500",
                 dialogIconSvg: this.icons.info_outline
             },
             delete: {
@@ -115,7 +115,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
         const confirmationDialog = new ConfirmationDialog();
         console.log('ConfirmationDialog initialized successfully');
-        
+
         // グローバルアクセス用（デバッグ時など）
         window.confirmationDialog = confirmationDialog;
     } catch (error) {

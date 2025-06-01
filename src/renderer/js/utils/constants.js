@@ -2,22 +2,15 @@
 export const UI_CONSTANTS = {
     TABS: {
         BLURRY: 'blurry',
-        SIMILAR: 'similar', 
+        SIMILAR: 'similar',
         ERRORS: 'errors'
     },
-    
-    ZOOM: {
-        MIN: 25,
-        MAX: 400,
-        DEFAULT: 100,
-        STEP: 10
-    },
-    
+    // ZOOM 定数オブジェクト全体を削除
     BLUR_THRESHOLD: 50,
     SIMILARITY_THRESHOLD: 50,
-    
+
     TABLE_EMPTY_MESSAGE: '対象のアイテムは見つかりませんでした。',
-    
+
     CSS_CLASSES: {
         TAB_ACTIVE: 'tab-active',
         HIDDEN: 'hidden',
@@ -25,7 +18,7 @@ export const UI_CONSTANTS = {
         HOVER_ROW: 'hover:bg-slate-50',
         CURSOR_POINTER: 'cursor-pointer'
     },
-    
+
     BUTTON_TEXTS: {
         SCAN: {
             DEFAULT: 'スキャン開始',

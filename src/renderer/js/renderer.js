@@ -38,13 +38,13 @@ window.addEventListener('DOMContentLoaded', () => {
     const infoSimilarityContainer = document.getElementById('info-similarity-container');
     const infoSimilarity = document.getElementById('info-similarity');
 
-    // ズームコントロール
-    const zoomSlider = document.getElementById('zoomSlider');
-    const zoomInput = document.getElementById('zoomInput');
-    const zoomValueDisplay = document.getElementById('zoomValue');
-    const zoomInBtn = document.getElementById('zoomInBtn');
-    const zoomOutBtn = document.getElementById('zoomOutBtn');
-    const resetZoomBtn = document.getElementById('resetZoomBtn');
+    // ズームコントロール関連の要素取得を削除
+    // const zoomSlider = document.getElementById('zoomSlider');
+    // const zoomInput = document.getElementById('zoomInput');
+    // const zoomValueDisplay = document.getElementById('zoomValue');
+    // const zoomInBtn = document.getElementById('zoomInBtn');
+    // const zoomOutBtn = document.getElementById('zoomOutBtn');
+    // const resetZoomBtn = document.getElementById('resetZoomBtn');
 
 
     // --- 右ペイン ---
@@ -81,7 +81,7 @@ window.addEventListener('DOMContentLoaded', () => {
     let currentTab = 'blurry';
     let selectedTargetFolder = null;
     let selectedOutputFolder = null;
-    let originalScanResults = { 
+    let originalScanResults = {
         blurryImages: [],
         similarImagePairs: [],
         errorFiles: []
@@ -119,12 +119,12 @@ window.addEventListener('DOMContentLoaded', () => {
             selectAllBtn.textContent = "全件選択";
             deselectAllBtn.textContent = "選択解除";
         }
-        resetAndApplyFilters(); 
+        resetAndApplyFilters();
         updateSelectionInfo();
         displayPreview(null);
         console.log(`Switched to ${tabId} tab.`);
     }
-    
+
     function clearAllTablesAndResults() {
         blurryTbody.innerHTML = '';
         similarTbody.innerHTML = '';
@@ -136,7 +136,7 @@ window.addEventListener('DOMContentLoaded', () => {
         displayPreview(null);
         updateSelectionInfo();
     }
-    
+
     function getSelectedFilePaths() {
         console.log('[DEBUG Renderer] getSelectedFilePaths called for tab:', currentTab); // ★デバッグログ
         const activeTbody = document.querySelector(`.list-panel:not(.hidden) tbody`);
@@ -144,8 +144,8 @@ window.addEventListener('DOMContentLoaded', () => {
             console.log('[DEBUG Renderer] getSelectedFilePaths: No active tbody found.'); // ★デバッグログ
             return [];
         }
-        
-        const paths = new Set(); 
+
+        const paths = new Set();
 
         if (currentTab === 'blurry' || currentTab === 'errors') {
             const checkedCheckboxes = activeTbody.querySelectorAll('input[type="checkbox"].item-checkbox:checked');
@@ -153,7 +153,7 @@ window.addEventListener('DOMContentLoaded', () => {
             checkedCheckboxes.forEach(cb => {
                 const row = cb.closest('tr');
                 const itemId = row.dataset.id;
-                const item = (originalScanResults.blurryImages.find(i => i.id === itemId) || 
+                const item = (originalScanResults.blurryImages.find(i => i.id === itemId) ||
                               originalScanResults.errorFiles.find(i => i.id === itemId));
                 if (item && item.path) {
                     paths.add(item.path);
@@ -244,19 +244,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function updateZoom(value, fromSlider = false, fromInput = false) {
-        const val = Math.max(parseInt(zoomSlider.min, 10), Math.min(parseInt(zoomSlider.max, 10), parseInt(value, 10)));
-        if (!fromSlider) zoomSlider.value = val;
-        if (!fromInput) zoomInput.value = val;
-        zoomValueDisplay.textContent = val;
-        const scale = val / 100;
-        if (previewImage1.src && previewImage1.src.startsWith('app-file://')) {
-            previewImage1.style.transform = `scale(${scale})`;
-        }
-        if (previewImage2.src && previewImage2.src.startsWith('app-file://')) {
-            previewImage2.style.transform = `scale(${scale})`;
-        }
-    }
+    // updateZoom 関数全体を削除
 
     async function displayPreview(item, type) {
         previewImage1.classList.add('hidden');
@@ -266,9 +254,9 @@ window.addEventListener('DOMContentLoaded', () => {
         infoSimilarityContainer.classList.add('hidden');
         previewImage1.src = '';
         previewImage2.src = '';
-        previewImage1.style.transform = 'scale(1)';
-        previewImage2.style.transform = 'scale(1)';
-        updateZoom(100);
+        // previewImage1.style.transform = 'scale(1)'; // 削除
+        // previewImage2.style.transform = 'scale(1)'; // 削除
+        // updateZoom(100); // 削除
 
         if (!item) {
             previewPlaceholderText.textContent = '画像を選択するとここにプレビューが表示されます';
@@ -345,7 +333,7 @@ window.addEventListener('DOMContentLoaded', () => {
             infoDatetime.textContent = '-';
         }
     }
-    
+
     // --- イベントリスナー ---
     if (selectTargetFolderBtn) {
         selectTargetFolderBtn.addEventListener('click', async () => {
@@ -411,7 +399,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     originalScanResults = results || { blurryImages: [], similarImagePairs: [], errorFiles: [] };
                     resetAndApplyFilters();
                     updateStatus('スキャン完了', false);
-                } else { 
+                } else {
                     throw new Error('executeScan API is not available.');
                 }
             } catch (error) {
@@ -438,7 +426,7 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
-    
+
     tabButtons.forEach(button => {
         button.addEventListener('click', () => {
             const tabId = button.id.replace('tab-', '');
@@ -446,33 +434,34 @@ window.addEventListener('DOMContentLoaded', () => {
             switchTab(tabId);
         });
     });
-    
-    zoomSlider.addEventListener('input', (e) => updateZoom(e.target.value, true, false));
-    zoomInput.addEventListener('change', (e) => updateZoom(e.target.value, false, true));
-    zoomInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') updateZoom(e.target.value, false, true); });
-    zoomInBtn.addEventListener('click', () => updateZoom(parseInt(zoomInput.value, 10) + 10));
-    zoomOutBtn.addEventListener('click', () => updateZoom(parseInt(zoomInput.value, 10) - 10));
-    resetZoomBtn.addEventListener('click', () => {
-        updateZoom(100);
-        if (previewImage1.src && previewImage1.src.startsWith('app-file://')) previewImage1.style.transform = 'scale(1)';
-        if (previewImage2.src && previewImage2.src.startsWith('app-file://')) previewImage2.style.transform = 'scale(1)';
-    });
+
+    // ズーム関連のイベントリスナーを削除
+    // zoomSlider.addEventListener('input', (e) => updateZoom(e.target.value, true, false));
+    // zoomInput.addEventListener('change', (e) => updateZoom(e.target.value, false, true));
+    // zoomInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') updateZoom(e.target.value, false, true); });
+    // zoomInBtn.addEventListener('click', () => updateZoom(parseInt(zoomInput.value, 10) + 10));
+    // zoomOutBtn.addEventListener('click', () => updateZoom(parseInt(zoomInput.value, 10) - 10));
+    // resetZoomBtn.addEventListener('click', () => {
+    //     updateZoom(100);
+    //     if (previewImage1.src && previewImage1.src.startsWith('app-file://')) previewImage1.style.transform = 'scale(1)';
+    //     if (previewImage2.src && previewImage2.src.startsWith('app-file://')) previewImage2.style.transform = 'scale(1)';
+    // });
 
     // --- フィルター関連の関数とイベントリスナー ---
     function getBlurryFilterValues() {
         const min = parseInt(blurScoreMinInput.value, 10);
         const max = parseInt(blurScoreMaxInput.value, 10);
-        return { 
-            minScore: isNaN(min) || min < 0 ? 0 : min > 100 ? 100 : min, 
-            maxScore: isNaN(max) || max < 0 ? 0 : max > 100 ? 100 : max 
+        return {
+            minScore: isNaN(min) || min < 0 ? 0 : min > 100 ? 100 : min,
+            maxScore: isNaN(max) || max < 0 ? 0 : max > 100 ? 100 : max
         };
     }
 
     function getSimilarFilterValues() {
         const min = parseInt(similarityMinInput.value, 10);
         const max = parseInt(similarityMaxInput.value, 10);
-        return { 
-            minSimilarity: isNaN(min) || min < 0 ? 0 : min > 100 ? 100 : min, 
+        return {
+            minSimilarity: isNaN(min) || min < 0 ? 0 : min > 100 ? 100 : min,
             maxSimilarity: isNaN(max) || max < 0 ? 0 : max > 100 ? 100 : max
         };
     }
@@ -492,7 +481,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         if (currentTab === 'blurry') {
             const { minScore, maxScore } = getBlurryFilterValues();
-            filteredItems = (originalScanResults.blurryImages || []).filter(img => 
+            filteredItems = (originalScanResults.blurryImages || []).filter(img =>
                 img.blurScore >= minScore && img.blurScore <= maxScore
             );
             populateBlurryTable(filteredItems);
@@ -520,7 +509,7 @@ window.addEventListener('DOMContentLoaded', () => {
     function resetAndApplyFilters() {
         if (blurScoreMinInput) blurScoreMinInput.value = 0;
         if (blurScoreMaxInput) blurScoreMaxInput.value = 100;
-        
+
         if (similarityMinInput) similarityMinInput.value = 0;
         if (similarityMaxInput) similarityMaxInput.value = 100;
 
@@ -535,8 +524,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if(resetFilterBlurryBtn) resetFilterBlurryBtn.addEventListener('click', resetAndApplyFilters);
     if(resetFilterSimilarBtn) resetFilterSimilarBtn.addEventListener('click', resetAndApplyFilters);
     if(resetFilterErrorsBtn) resetFilterErrorsBtn.addEventListener('click', resetAndApplyFilters);
-    
-    if (blurScoreMinInput && blurScoreSlider) {
+
+    // blurScoreSlider, similaritySlider 関連のイベントリスナーは削除済みと仮定 (HTMLにもないので)
+    if (blurScoreMinInput) { // blurScoreSlider がないため、条件から削除
         blurScoreMinInput.addEventListener('input', () => {
             let minVal = parseInt(blurScoreMinInput.value, 10);
             let maxVal = parseInt(blurScoreMaxInput.value, 10);
@@ -558,7 +548,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (maxVal > 100) blurScoreMaxInput.value = 100;
          });
     }
-    if(similarityMinInput && similaritySlider) {
+    if(similarityMinInput) { // similaritySlider がないため、条件から削除
         similarityMinInput.addEventListener('input', () => {
             let minVal = parseInt(similarityMinInput.value, 10);
             let maxVal = parseInt(similarityMaxInput.value, 10);
@@ -586,7 +576,7 @@ window.addEventListener('DOMContentLoaded', () => {
         console.log(`[DEBUG Renderer] handleAction called for type: ${actionType}`); // ★デバッグログ
         const filePaths = getSelectedFilePaths();
         const selectedCount = filePaths.length;
-        
+
         console.log(`[DEBUG Renderer] Selected file paths for action:`, filePaths); // ★デバッグログ
 
         let totalSizeMB = 0;
@@ -638,13 +628,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 if (response && response.confirmed) {
                     updateStatus(`${response.actionType} 操作を実行中...`);
                     console.log(`[DEBUG Renderer] User confirmed action: ${response.actionType}. Paths:`, filePaths); // ★デバッグログ
-                    
+
                     const operationResult = await window.electronAPI.performFileOperation({
                         actionType: response.actionType,
                         paths: filePaths,
                         destination: actionType === 'move' ? selectedOutputFolder : undefined
                     });
-                    
+
                     console.log('[DEBUG Renderer] File operation result from main process:', operationResult); // ★デバッグログ
                     if (operationResult.successCount > 0) {
                         updateStatus(`${operationResult.successCount}件のファイルを${response.actionType}しました。`);
@@ -679,27 +669,27 @@ window.addEventListener('DOMContentLoaded', () => {
     if (btnTrash) btnTrash.addEventListener('click', () => handleAction('trash'));
     if (btnDeletePermanently) btnDeletePermanently.addEventListener('click', () => handleAction('delete'));
     if (btnMove) btnMove.addEventListener('click', () => handleAction('move'));
-    
+
     if (btnIgnoreError) {
-        btnIgnoreError.addEventListener('click', () => { 
+        btnIgnoreError.addEventListener('click', () => {
             const selectedPaths = getSelectedFilePaths();
             if (selectedPaths.length === 0) {
                 updateStatus("操作対象のアイテムが選択されていません。", true);
                 return;
             }
-            
+
             // エラーファイルをoriginalScanResultsから削除
-            const originalResults = tableManager.getOriginalScanResults();
-            if (originalResults.errorFiles) {
-                originalResults.errorFiles = originalResults.errorFiles.filter(
+            // tableManager がグローバルに存在しないため、直接 originalScanResults を操作
+            if (originalScanResults.errorFiles) {
+                originalScanResults.errorFiles = originalScanResults.errorFiles.filter(
                     errorFile => !selectedPaths.includes(errorFile.filepath)
                 );
             }
-            
+
             // UIを更新
-            filterManager.applyFilters();
-            selectionManager.updateSelectionInfo();
-            
+            applyFilters(); // filterManager がグローバルに存在しないため、直接 applyFilters を呼ぶ
+            updateSelectionInfo(); // selectionManager がグローバルに存在しないため、直接 updateSelectionInfo を呼ぶ
+
             updateStatus(`${selectedPaths.length}件のエラーを無視しました。`);
         });
     }
@@ -710,35 +700,36 @@ window.addEventListener('DOMContentLoaded', () => {
                 updateStatus("操作対象のアイテムが選択されていません。", true);
                 return;
             }
-            
+
             updateStatus(`${selectedPaths.length}件のエラーファイルを再スキャン中...`);
-            
+
             try {
                 const rescanResults = await window.electronAPI.rescanFiles(selectedPaths);
-                const originalResults = tableManager.getOriginalScanResults();
-                
+                // const originalResults = tableManager.getOriginalScanResults(); // tableManager がない
+                const currentOriginalResults = originalScanResults; // 直接操作
+
                 // エラーファイルリストから再スキャン対象を削除
-                if (originalResults.errorFiles) {
-                    originalResults.errorFiles = originalResults.errorFiles.filter(
+                if (currentOriginalResults.errorFiles) {
+                    currentOriginalResults.errorFiles = currentOriginalResults.errorFiles.filter(
                         errorFile => !selectedPaths.includes(errorFile.filepath)
                     );
                 }
-                
+
                 // 再スキャン結果をoriginalScanResultsに統合
                 if (rescanResults.blurryImages) {
-                    originalResults.blurryImages = (originalResults.blurryImages || []).concat(rescanResults.blurryImages);
+                    currentOriginalResults.blurryImages = (currentOriginalResults.blurryImages || []).concat(rescanResults.blurryImages);
                 }
                 if (rescanResults.similarImagePairs) {
-                    originalResults.similarImagePairs = (originalResults.similarImagePairs || []).concat(rescanResults.similarImagePairs);
+                    currentOriginalResults.similarImagePairs = (currentOriginalResults.similarImagePairs || []).concat(rescanResults.similarImagePairs);
                 }
                 if (rescanResults.errorFiles) {
-                    originalResults.errorFiles = originalResults.errorFiles.concat(rescanResults.errorFiles);
+                    currentOriginalResults.errorFiles = currentOriginalResults.errorFiles.concat(rescanResults.errorFiles);
                 }
-                
+
                 // UIを更新
-                filterManager.applyFilters();
-                selectionManager.updateSelectionInfo();
-                
+                applyFilters(); // filterManager がない
+                updateSelectionInfo(); // selectionManager がない
+
                 updateStatus(`${selectedPaths.length}件のファイルの再スキャンが完了しました。`);
             } catch (error) {
                 console.error('再スキャンエラー:', error);
@@ -753,7 +744,7 @@ window.addEventListener('DOMContentLoaded', () => {
             try {
                 updateStatus('エラーログをエクスポート中...');
                 const result = await window.electronAPI.exportErrorLogs();
-                
+
                 if (result.success) {
                     updateStatus(`${result.message} (${result.logCount}件のログ)`);
                 } else {
@@ -785,7 +776,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 item => !successPaths.includes(item.filepath) // errorFilesはfilepathプロパティ
             );
         }
-        
+
         console.log('[DEBUG Renderer] originalScanResults after filtering successPaths:', originalScanResults); // ★デバッグログ
         applyFilters(); // フィルターを再適用してリストを再描画
         updateSelectionInfo(); // 選択情報を更新
@@ -821,7 +812,7 @@ window.addEventListener('DOMContentLoaded', () => {
         });
         updateSelectionInfo();
     }
-    
+
     function createBlurryRow(item) {
         const row = document.createElement('tr');
         row.className = 'hover:bg-slate-50 cursor-pointer';
@@ -838,7 +829,7 @@ window.addEventListener('DOMContentLoaded', () => {
         `;
         return row;
     }
-    
+
     function createSimilarRow(pair) {
         const row = document.createElement('tr');
         row.className = `hover:bg-slate-50 cursor-pointer ${pair.recommended ? 'bg-yellow-50 hover:bg-yellow-100' : ''}`;
@@ -877,7 +868,7 @@ window.addEventListener('DOMContentLoaded', () => {
         `;
         return row;
     }
-    
+
     function populateBlurryTable(images) {
         populateTable(blurryTbody, images, 'blurry', createBlurryRow);
         document.getElementById('count-blurry').textContent = images.length;
@@ -894,6 +885,6 @@ window.addEventListener('DOMContentLoaded', () => {
     // --- 初期化処理 ---
     switchTab('blurry');
     updateSelectionInfo();
-    updateZoom(100);
+    // updateZoom(100); // 削除
     displayPreview(null, null);
 });

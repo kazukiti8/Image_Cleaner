@@ -66,4 +66,17 @@ input[type="range"]::-moz-range-thumb {
     color: #9ca3af; /* gray-400 */
 }
 
-/* 必要に応じて、コンポーネントごとのCSSファイルを作成し、ここで @import するなども検討 */
+/* フッターのアクションボタンが無効状態の時のスタイルを明示的に指定 */
+#action-buttons-blurry-similar button:disabled,
+#action-buttons-errors button:disabled {
+    background-color: #d1d5db; /* Tailwindのgray-300相当 */
+    color: #6b7280;            /* Tailwindのgray-500相当 */
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+/* 無効時のSVGアイコンの色も文字色に合わせる */
+#action-buttons-blurry-similar button:disabled svg,
+#action-buttons-errors button:disabled svg {
+    color: #6b7280; /* Tailwindのgray-500相当 */
+}
