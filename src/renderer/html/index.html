@@ -8,45 +8,7 @@
     <link rel="stylesheet" href="../css/tailwind.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../css/style.css">
-    <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            overscroll-behavior: none; /* スクロール連鎖を防止 */
-            display: flex; /* ウィンドウ全体をflexコンテナにする */
-            flex-direction: column; /* 子要素を縦に並べる */
-            height: 100vh; /* ウィンドウの高さいっぱいに広げる */
-            margin: 0; /* デフォルトマージンをリセット */
-        }
-        /* スクロールバーのスタイル（オプション） */
-        ::-webkit-scrollbar { width: 8px; height: 8px; }
-        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb { background: #c4c4c4; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
-
-        /* ペインの最小幅・デフォルト幅の制御 (UI/UXタスクリストより) */
-        #left-pane { min-width: 220px; width: 25%; }
-        #center-pane { min-width: 320px; width: 50%; }
-        #right-pane { min-width: 260px; width: 25%; }
-
-        /* テーブルの列幅を調整しやすくするためのカスタムスタイル */
-        .table-layout-fixed {
-            table-layout: fixed;
-        }
-        .th-checkbox { width: 40px; } /* チェックボックス列 */
-        .th-size { width: 90px; }     /* サイズ列 */
-        .th-date { width: 130px; }    /* 日時列 */
-        .th-resolution { width: 110px; } /* 解像度列 */
-        .th-score { width: 90px; }    /* スコア列 */
-        .th-similarity { width: 80px; } /* 類似度列 */
-
-        /* 可変幅の列が残りのスペースを埋めるようにする */
-        .th-fill-space {
-            width: 100%; /* この列が可能な限りスペースを占めるようにする */
-        }
-        /* 複数の th-fill-space がある場合、それらで残りのスペースを分け合う */
-
-    </style>
-</head>
+    </head>
 <body class="bg-slate-100 text-slate-800">
     <div id="app-container" class="flex flex-col h-screen">
 
@@ -66,7 +28,7 @@
             <button id="startScanBtn" class="px-4 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md shadow-sm transition-colors whitespace-nowrap">スキャン開始</button>
             <button id="settingsBtn" title="設定" class="p-1.5 rounded-md hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-800">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                    <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 l-3.84,0c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.03c-0.59,0.24-1.13,0.57-1.62,0.96l-2.39-0.96c-0.22-0.08-0.47,0-0.59,0.22 l-1.92,3.32c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.02,11.36,4,11.68,4,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18-0.14-0.23-0.41-0.12-0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.22 c0.04-0.24-0.24-0.41-0.48-0.41l3.84,0c0.24,0,0.43,0.17-0.47,0.41l0.36-2.22c0.59-0.24,1.13-0.57,1.62-0.96l2.39,0.96 c0.22-0.08,0.47,0-0.59,0.22l1.92-3.32c0.11-0.2,0.06-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                    <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 l-3.84,0c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.03c-0.59,0.24-1.13,0.57-1.62,0.96l-2.39-0.96c-0.22-0.08-0.47,0-0.59,0.22 l-1.92,3.32c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.02,11.36,4,11.68,4,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23-0.41-0.12-0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.22 c0.04-0.24-0.24-0.41-0.48-0.41l3.84,0c0.24,0,0.43,0.17-0.47,0.41l0.36-2.22c0.59-0.24,1.13-0.57,1.62-0.96l2.39,0.96 c0.22,0.08,0.47,0,0.59,0.22l1.92-3.32c0.11-0.2,0.06-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
                 </svg>
             </button>
         </header>

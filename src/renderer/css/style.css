@@ -6,6 +6,7 @@ body {
     flex-direction: column;
     height: 100vh;
     overflow: hidden; /* メインボディのスクロールを禁止し、各ペインで管理 */
+    overscroll-behavior: none; /* スクロール連鎖を防止 (index.htmlから移動) */
 }
 
 #app-container {
@@ -80,3 +81,32 @@ input[type="range"]::-moz-range-thumb {
 #action-buttons-errors button:disabled svg {
     color: #6b7280; /* Tailwindのgray-500相当 */
 }
+
+/* テーブルの列幅を調整しやすくするためのカスタムスタイル */
+.table-layout-fixed {
+    table-layout: fixed;
+}
+.th-checkbox { width: 40px; } /* チェックボックス列 */
+.th-size { width: 90px; }     /* サイズ列 */
+.th-date { width: 130px; }    /* 日時列 */
+.th-resolution { width: 110px; } /* 解像度列 */
+.th-score { width: 90px; }    /* スコア列 */
+.th-similarity { width: 80px; } /* 類似度列 */
+
+/* 可変幅の列が残りのスペースを埋めるようにする */
+.th-fill-space {
+    width: auto;
+    min-width: 100px; /* ファイル名列の最小幅を調整 (例: 100px, 80px など、より小さい値も試してください) */
+    /* max-width: 200px; */ /* 必要に応じて最大幅も設定してみてください */
+}
+
+/* スクロールバーのスタイル（オプション） (index.htmlから移動) */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: #c4c4c4; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #a1a1a1; }
+
+/* ペインの最小幅・デフォルト幅の制御 (index.htmlから移動) */
+#left-pane { min-width: 220px; width: 25%; }
+#center-pane { min-width: 320px; width: 50%; }
+#right-pane { min-width: 260px; width: 25%; }
