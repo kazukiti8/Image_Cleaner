@@ -1,0 +1,51 @@
+{
+  "name": "image-cleanup-assistant",
+  "version": "1.0.0",
+  "description": "画像整理アプリ（イメージクリーンアップアシスタント）",
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "start.bat",
+    "dev": "start.bat --dev",
+    "build": "electron-builder",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "image",
+    "cleanup",
+    "blur",
+    "similar",
+    "electron"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kazukiti8/Image_Cleaner.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kazukiti8/Image_Cleaner/issues"
+  },
+  "homepage": "https://github.com/kazukiti8/Image_Cleaner#readme",
+  "dependencies": {
+    "sharp": "^0.32.6"
+  },
+  "build": {
+    "appId": "com.example.image-cleanup-assistant",
+    "productName": "イメージクリーンアップアシスタント",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/renderer/assets/icons/app-icon.png"
+    }
+  }
+}

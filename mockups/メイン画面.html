@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像整理アプリ モックアップ - メイン画面 (統合版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c4c4c4;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+        .tab-button.tab-active {
+            border-bottom-color: #3b82f6 !important; /* blue-500 */
+            color: #3b82f6 !important;
+        }
+        /* Range SliderのThumbのスタイル */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            border-radius: 50%;
+            margin-top: -6px; /* thumbの位置調整 */
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: none;
+        }
+
+        /* フッターボタンの縦並び用コンテナ (sm未満で適用) */
+        @media (max-width: 639px) { /* smのブレークポイント Tailwind CSS */
+            .footer-actions-responsive {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end; /* 右寄せにする場合 */
+                gap: 0.5rem; /* ボタン間のスペース */
+                width: 100%;
+            }
+            .footer-actions-responsive button {
+                width: 100%; /* ボタン幅をコンテナに合わせる */
+            }
+        }
+        @media (min-width: 640px) { /* sm以上で適用 */
+            .footer-actions-responsive {
+                display: flex;
+                flex-direction: row;
+                gap: 0.5rem; /* ボタン間のスペース */
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+    <div class="flex flex-col h-screen">
+
+        <!-- ヘッダーエリア -->
+        <div class="bg-white p-3 shadow flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 border-b border-slate-200">
+            <div class="flex-grow w-full">
+                <div class="flex items-center mb-1 sm:mb-0">
+                    <label for="targetFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap">対象フォルダ:</label>
+                    <button id="targetFolder" class="ml-1 px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">選択...</button>
+                    <span id="targetFolderPathDisplay" class="ml-2 text-sm text-slate-600 truncate" title="C:\Users\YourName\Pictures\VeryLongFolderName\AnotherFolder\TargetFolder">
+                        C:\Users\...\TargetFolder
+                    </span>
+                </div>
+                <div class="flex items-center">
+                    <label for="outputFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap">移動フォルダ:</label>
+                    <button id="outputFolder" class="ml-1 px-3 py-1.5 text-sm bg-slate-500 hover:bg-slate-600 text-white rounded-md shadow-sm transition-colors">選択...</button>
+                    <span id="outputFolderPathDisplay" class="ml-2 text-sm text-slate-600 truncate" title="D:\Backup\Organized\VeryLongFolderNameForCleanedImages\CleanedImages">
+                        D:\Backup\...\CleanedImages
+                    </span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 self-end sm:self-center">
+                <button id="scanButton" class="px-4 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors whitespace-nowrap">スキャン開始</button>
+                <button title="設定" class="p-1.5 rounded-md hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 l-3.84,0c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.03c-0.59,0.24-1.13,0.57-1.62,0.96l-2.39-0.96c-0.22-0.08-0.47,0-0.59,0.22 l-1.92,3.32c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.02,11.36,4,11.68,4,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.22 c0.04,0.24,0.24,0.41,0.48,0.41l3.84,0c0.24,0-0.43,0.17-0.47,0.41l0.36-2.22c0.59-0.24,1.13-0.57,1.62-0.96l2.39,0.96 c0.22,0.08-0.47,0-0.59-0.22l1.92-3.32c0.11-0.2,0.06-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- メインコンテンツエリア (3ペイン) -->
+        <div class="flex-grow flex p-3 space-x-3 overflow-hidden">
+            <!-- 左ペイン: プレビューエリア -->
+            <div class="w-1/4 min-w-[220px] bg-white p-3 rounded-lg shadow flex flex-col space-y-2 overflow-y-auto">
+                <div id="previewAreaContainer" class="flex-grow bg-slate-200 rounded text-slate-500 text-sm min-h-[200px] sm:min-h-[300px]">
+                     <!-- JavaScriptによって内容が動的に設定される -->
+                     プレビューエリア (タブに応じて内容変更)
+                </div>
+                <!-- ブレ画像・類似画像共通の倍率調整UI -->
+                <div id="zoomControls" class="pt-2 border-t border-slate-200 space-y-2">
+                    <div class="flex items-center justify-between text-xs text-slate-600">
+                        <span>倍率: <span id="zoomValueDisplay">100</span>%</span>
+                        <button id="resetZoomBtn" class="p-1 rounded hover:bg-slate-200" title="100%にリセット">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M5 15H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm0-8H3V3c0-1.1.9-2 2-2h4v2H5v4zm11-5h-4v2h4v4h2V3c0-1.1-.9-2-2-2zm-7 1C7.67 4 4 7.67 4 12s3.67 8 8 8 8-3.67 8-8-3.67-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm4-4h-4v-4h2v2h2v2z"/></svg>
+                        </button>
+                    </div>
+                    <input type="range" id="zoomSlider" min="1" max="150" value="100" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
+                    <div class="flex items-center justify-center space-x-2">
+                        <button id="zoomOutBtn" class="p-1 rounded hover:bg-slate-200" title="縮小 (Ctrl + -)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M7 11v2h10v-2H7zm5-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></button>
+                        <input type="number" id="zoomInput" min="1" max="150" value="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-center">
+                        <button id="zoomInBtn" class="p-1 rounded hover:bg-slate-200" title="拡大 (Ctrl + +)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5"><path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg></button>
+                    </div>
+                </div>
+                <!-- 画像情報表示エリア (タブや選択アイテムに応じてJSで内容更新想定) -->
+                <div id="imageInfoArea" class="text-xs text-slate-600 space-y-1 pt-2 border-t border-slate-200 mt-2">
+                    <p><span class="font-medium">ファイル名:</span> <span id="infoFileName" class="truncate block"></span></p>
+                    <p><span class="font-medium">パス:</span> <span id="infoFilePath" class="truncate block" title=""></span></p>
+                    <p><span class="font-medium">解像度:</span> <span id="infoResolution"></span></p>
+                    <p><span class="font-medium">ファイルサイズ:</span> <span id="infoFileSize"></span></p>
+                    <p><span class="font-medium">撮影日時:</span> <span id="infoTakenDate"></span></p>
+                    <p id="infoBlurScoreContainer" style="display:none;"><span class="font-medium">ブレスコア:</span> <span id="infoBlurScore" class="font-bold text-red-600"></span></p>
+                </div>
+            </div>
+
+            <!-- 中央ペイン: 結果リストエリア -->
+            <div class="w-1/2 min-w-[320px] bg-white rounded-lg shadow flex flex-col overflow-hidden">
+                <!-- タブUI -->
+                <div class="flex border-b border-slate-200 px-2 pt-2">
+                    <button data-tab="blur" class="tab-button tab-active py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">ブレ画像 (<span id="countBlur">0</span>)</button>
+                    <button data-tab="similar" class="tab-button py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">類似画像 (<span id="countSimilar">0</span>)</button>
+                    <button data-tab="error" class="tab-button py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">エラー (<span id="countError">0</span>)</button>
+                </div>
+
+                <!-- ブレ画像タブコンテンツ -->
+                <div id="contentBlur" class="tab-content flex-grow overflow-auto p-1">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="p-2 text-left font-medium text-slate-500 w-10"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></th>
+                                <th class="p-2 text-left font-medium text-slate-500">ファイル名</th>
+                                <th class="p-2 text-left font-medium text-slate-500 hidden md:table-cell">サイズ</th>
+                                <th class="p-2 text-left font-medium text-slate-500 hidden lg:table-cell">更新日時</th>
+                                <th class="p-2 text-left font-medium text-slate-500">スコア</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200">
+                            <tr><td class="p-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></td><td class="p-2 truncate max-w-[150px] sm:max-w-xs" title="IMG_Blur001.jpg">IMG_Blur001.jpg</td><td class="p-2 hidden md:table-cell">2.1MB</td><td class="p-2 hidden lg:table-cell">2023/10/26</td><td class="p-2 text-red-500 font-medium">92</td></tr>
+                            <tr class="bg-sky-50"><td class="p-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50" checked></td><td class="p-2 truncate max-w-[150px] sm:max-w-xs" title="Photo_Blur_example.png">Photo_Blur_example.png</td><td class="p-2 hidden md:table-cell">1.5MB</td><td class="p-2 hidden lg:table-cell">2023/10/25</td><td class="p-2 text-orange-500 font-medium">75</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 類似画像タブコンテンツ (初期非表示) -->
+                <div id="contentSimilar" class="tab-content flex-grow overflow-auto p-1" style="display: none;">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 w-10"><input type="checkbox" title="全ペア選択" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 w-10"><input type="checkbox" title="全ファイル1選択" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">ファイル名1</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 hidden md:table-cell">解像度1</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 w-10"><input type="checkbox" title="全ファイル2選択" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">ファイル名2</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 hidden md:table-cell">解像度2</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">類似度</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200">
+                            <tr class="bg-yellow-50 hover:bg-yellow-100"><td class="p-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></td><td class="p-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></td><td class="p-2"><span class="inline-flex items-center"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-4 h-4 mr-1 text-amber-500"><path d="M22 9.24l-7.19-.62L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.63-7.03L22 9.24zM12 15.4l-3.76 2.27 1-4.28-3.32-2.88 4.38-.38L12 6.1l1.71 4.04 4.38.38-3.32 2.88 1 4.28L12 15.4z"/></svg>Sim_A1.jpg</span></td><td class="p-2 hidden md:table-cell">1920x1080</td><td class="p-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50" checked></td><td class="p-2">Sim_A2.jpg</td><td class="p-2 hidden md:table-cell">1920x1080</td><td class="p-2 text-green-600 font-medium">98%</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- エラータブコンテンツ (初期非表示) -->
+                <div id="contentError" class="tab-content flex-grow overflow-auto p-1" style="display: none;">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500 w-10"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">ファイル名</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">エラー内容</th>
+                                <th class="px-3 py-2 text-left font-medium text-slate-500">パス</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200">
+                            <tr class="hover:bg-slate-100"><td class="p-2"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"></td><td class="p-2" title="Error_File.jpg">Error_File.jpg</td><td class="p-2 text-red-600"><span class="inline-flex items-center"><svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-5 h-5 mr-1 text-red-500"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M21 5v11.59l-3-3.01-4 4.01-4-4-4 4-3-3.01V5c0-1.1.9-2 2-2h14c1.1 0 2 .9 2 2zm-3 14H6V3H4v18h14v-2h3v-7.42l-3-2.99zM19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-1 16H6V5h12v14zm-4.01-6.71L11.5 15.59l-2.01-2.01L6.5 17h11l-3.51-4.71z"/></svg>ファイル破損</span></td><td class="p-2 truncate max-w-xs" title="C:\Path\To\Error_File.jpg">C:\...\Error_File.jpg</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 右ペイン: 操作・フィルターパネル -->
+            <div class="w-1/4 min-w-[260px] bg-white p-3 rounded-lg shadow flex flex-col space-y-4 overflow-y-auto">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-2">選択操作</h3>
+                    <div class="flex space-x-2">
+                        <button class="flex-1 px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">全選択</button>
+                        <button class="flex-1 px-3 py-1.5 text-xs bg-slate-400 hover:bg-slate-500 text-white rounded-md shadow-sm transition-colors">選択解除</button>
+                    </div>
+                     <button id="exportErrorLogButton" class="mt-2 w-full flex items-center justify-center px-3 py-1.5 text-xs bg-emerald-500 hover:bg-emerald-600 text-white rounded-md shadow-sm transition-colors" title="エラーログをファイルに保存します" style="display: none;">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4 mr-1"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+                        エラーログをエクスポート...
+                    </button>
+                </div>
+
+                <!-- ブレ画像用フィルター (初期表示) -->
+                <div id="filterBlur" class="filter-panel space-y-3">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-1">フィルター (ブレ)</h3>
+                    <div>
+                        <label for="blurScoreRange" class="block text-xs font-medium text-slate-600">ブレスコア:</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" step="1" min="0" max="100" value="80" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <span>-</span>
+                            <input type="number" step="1" min="0" max="100" value="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <input type="range" id="blurScoreRange" min="0" max="100" value="80" step="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-1 accent-blue-500">
+                    </div>
+                    <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">適用</button>
+                    <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">リセット</button>
+                </div>
+
+                <!-- 類似画像用フィルター (初期非表示) -->
+                <div id="filterSimilar" class="filter-panel space-y-3" style="display: none;">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-1">フィルター (類似)</h3>
+                    <div>
+                        <label for="similarityScoreRange" class="block text-xs font-medium text-slate-600">類似度:</label>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <input type="number" step="1" min="0" max="100" value="90" class="w-20 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm"><span>% -</span>
+                            <input type="number" step="1" min="0" max="100" value="100" class="w-20 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm"><span>%</span>
+                        </div>
+                        <input type="range" id="similarityScoreRange" min="0" max="100" value="90" step="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-1 accent-blue-500">
+                    </div>
+                    <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm">適用</button>
+                    <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm">リセット</button>
+                </div>
+
+                <!-- エラー用フィルター (初期非表示) -->
+                <div id="filterError" class="filter-panel space-y-3" style="display: none;">
+                    <h3 class="text-sm font-semibold text-slate-700 mb-1">フィルター (エラー)</h3>
+                    <div>
+                        <label for="errorTypeFilter" class="block text-xs font-medium text-slate-600">エラーの種類:</label>
+                        <select id="errorTypeFilter" class="mt-1 block w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">すべて表示</option>
+                            <option value="corrupted">ファイル破損</option>
+                            <option value="unsupported">非対応形式</option>
+                            <option value="access_denied">アクセス権なし</option>
+                        </select>
+                    </div>
+                    <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm">適用</button>
+                    <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm">リセット</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- フッターエリア: アクションボタン -->
+        <div class="bg-white p-3 shadow-upward border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0">
+            <div id="selectionSummary" class="text-sm text-slate-600 text-center sm:text-left">
+                選択: <span class="font-semibold text-slate-800">1件</span> (合計: <span class="font-semibold text-slate-800">1.5 MB</span>)
+            </div>
+            <div id="footerActions" class="footer-actions-responsive">
+                <!-- アクションボタンはタブによってJSで表示/非表示・内容変更 -->
+                <button id="actionTrash" class="flex items-center justify-center px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-sm transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg>ゴミ箱へ
+                </button>
+                <button id="actionDeletePermanent" class="flex items-center justify-center px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md shadow-sm transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1"><path d="M14.12 10.47 12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12zM15.5 4l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>完全削除
+                </button>
+                <button id="actionMove" class="flex items-center justify-center px-4 py-1.5 text-sm bg-sky-500 hover:bg-sky-600 text-white rounded-md shadow-sm transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1"><path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-2h4V8l4 4-4 4z"/></svg>移動...
+                </button>
+                <button id="actionIgnore" class="flex items-center justify-center px-4 py-1.5 text-sm bg-slate-500 hover:bg-slate-600 text-white rounded-md shadow-sm transition-colors" style="display:none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75C21.27 9.12 17.5 4 12 4c-1.4 0-2.73.25-3.98.7L9.65 6.35C10.37 6.13 11.17 6 12 6zm-1.05 5.05L12 11l.95.95-1.09 1.09L13 14.17l1.09-1.09.95.95-2.05 2.05-2.05-2.05.95-.95 1.09 1.09zm-4.01-7.32L4.22 2.01 3 3.23l2.09 2.09C4.07 6.43 3.09 7.69 2.35 9c1.52 2.87 4.35 5 7.65 5 1.06 0 2.07-.21 3-.58l2.88 2.88 1.23-1.23-1.73-1.73-8.24-8.24zm7.75 10.27c-.73.32-1.5.5-2.3.5-3.27 0-6.06-2.09-7.62-4.94.62-1.12 1.44-2.11 2.43-2.91l1.41 1.41C9.63 10.74 9 11.77 9 13c0 1.66 1.34 3 3 3 .69 0 1.32-.24 1.82-.62l1.44 1.44z"/></svg>選択を無視
+                </button>
+                <button id="actionRescan" class="flex items-center justify-center px-4 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors" style="display:none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 0 24 24" width="24px" fill="currentColor" class="w-5 h-5 mr-1 -ml-1"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8.5h2V10l3-3-3-3v1.5H9V7h4v2h-2v7z"/></svg>再スキャン試行
+                </button>
+            </div>
+        </div>
+
+        <!-- ステータスフッター -->
+        <footer class="bg-slate-700 text-white text-xs px-3 py-1.5 flex flex-col sm:flex-row justify-between items-center text-center sm:text-left">
+            <div id="statusMessage">スキャン待機中</div>
+            <div id="appVersion">バージョン 0.1.0 (仮)</div>
+        </footer>
+    </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = {
+            blur: document.getElementById('contentBlur'),
+            similar: document.getElementById('contentSimilar'),
+            error: document.getElementById('contentError')
+        };
+        const filterPanels = {
+            blur: document.getElementById('filterBlur'),
+            similar: document.getElementById('filterSimilar'),
+            error: document.getElementById('filterError')
+        };
+        const footerActionButtons = {
+            blur: [document.getElementById('actionTrash'), document.getElementById('actionDeletePermanent'), document.getElementById('actionMove')],
+            similar: [document.getElementById('actionTrash'), document.getElementById('actionDeletePermanent'), document.getElementById('actionMove')],
+            error: [document.getElementById('actionIgnore'), document.getElementById('actionRescan')]
+        };
+        const exportErrorLogButton = document.getElementById('exportErrorLogButton');
+        const selectionSummary = document.getElementById('selectionSummary');
+        const previewAreaContainer = document.getElementById('previewAreaContainer');
+        const imageInfoArea = document.getElementById('imageInfoArea');
+        const infoBlurScoreContainer = document.getElementById('infoBlurScoreContainer');
+        const zoomControls = document.getElementById('zoomControls');
+
+
+        function setActiveTab(tabName) {
+            tabButtons.forEach(button => {
+                if (button.dataset.tab === tabName) {
+                    button.classList.add('tab-active');
+                } else {
+                    button.classList.remove('tab-active');
+                }
+            });
+
+            Object.keys(tabContents).forEach(key => {
+                tabContents[key].style.display = (key === tabName) ? 'block' : 'none';
+            });
+
+            Object.keys(filterPanels).forEach(key => {
+                filterPanels[key].style.display = (key === tabName) ? 'block' : 'none';
+            });
+
+            Object.values(footerActionButtons).flat().forEach(btn => btn.style.display = 'none');
+            if (footerActionButtons[tabName]) {
+                footerActionButtons[tabName].forEach(btn => btn.style.display = 'flex');
+            }
+            
+            exportErrorLogButton.style.display = (tabName === 'error') ? 'flex' : 'none';
+
+            updatePreviewAndInfo(tabName);
+            updateSelectionSummary(tabName);
+        }
+
+        function updatePreviewAndInfo(tabName) {
+            const fileNameEl = document.getElementById('infoFileName');
+            const filePathEl = document.getElementById('infoFilePath');
+            const resolutionEl = document.getElementById('infoResolution');
+            const fileSizeEl = document.getElementById('infoFileSize');
+            const takenDateEl = document.getElementById('infoTakenDate');
+            const blurScoreEl = document.getElementById('infoBlurScore');
+
+            previewAreaContainer.innerHTML = ''; 
+            infoBlurScoreContainer.style.display = 'none';
+            imageInfoArea.style.display = 'block'; 
+            zoomControls.style.display = 'block'; 
+            previewAreaContainer.className = 'flex-grow bg-slate-200 rounded text-slate-500 text-sm min-h-[200px] sm:min-h-[300px]'; // Reset classes
+
+            if (tabName === 'blur') {
+                previewAreaContainer.classList.add('flex', 'items-center', 'justify-center');
+                previewAreaContainer.innerHTML = '<img src="https://placehold.co/300x200/e2e8f0/94a3b8?text=ブレ画像プレビュー" alt="ブレ画像プレビュー" class="max-w-full max-h-full object-contain rounded">';
+                fileNameEl.textContent = "IMG_Blur_Selected.jpg";
+                filePathEl.textContent = "C:\\...\\IMG_Blur_Selected.jpg";
+                filePathEl.title = "C:\\Path\\To\\IMG_Blur_Selected.jpg";
+                resolutionEl.textContent = "1920x1080";
+                fileSizeEl.textContent = "2.2 MB";
+                takenDateEl.textContent = "2023/10/20";
+                blurScoreEl.textContent = "88";
+                infoBlurScoreContainer.style.display = 'block';
+            } else if (tabName === 'similar') {
+                previewAreaContainer.classList.add('flex', 'space-x-2', 'p-1'); // Add flex for side-by-side
+
+                const previewPane1 = document.createElement('div');
+                previewPane1.className = 'flex-1 bg-slate-300 rounded flex items-center justify-center text-slate-600 text-xs p-1 min-h-[150px] sm:min-h-[280px]';
+                previewPane1.innerHTML = '<img src="https://placehold.co/140x140/d1d5db/6b7280?text=画像1" alt="類似画像1" class="max-w-full max-h-full object-contain rounded">';
+
+                const previewPane2 = document.createElement('div');
+                previewPane2.className = 'flex-1 bg-slate-300 rounded flex items-center justify-center text-slate-600 text-xs p-1 min-h-[150px] sm:min-h-[280px]';
+                previewPane2.innerHTML = '<img src="https://placehold.co/140x140/d1d5db/6b7280?text=画像2" alt="類似画像2" class="max-w-full max-h-full object-contain rounded">';
+
+                previewAreaContainer.appendChild(previewPane1);
+                previewAreaContainer.appendChild(previewPane2);
+                
+                fileNameEl.textContent = "Pair_ImgA.jpg / Pair_ImgB.jpg";
+                filePathEl.textContent = "C:\\...\\Pair_ImgA.jpg"; 
+                filePathEl.title = "C:\\Path\\To\\Pair_ImgA.jpg & C:\\Path\\To\\Pair_ImgB.jpg";
+                resolutionEl.textContent = "1920x1080 / 2048x1536";
+                fileSizeEl.textContent = "3.0 MB / 3.1 MB";
+                takenDateEl.textContent = "2023/11/01 (両方)";
+            } else if (tabName === 'error') {
+                previewAreaContainer.classList.add('flex', 'items-center', 'justify-center');
+                previewAreaContainer.innerHTML = '<div class="text-slate-500 text-center p-4">エラー対象ファイル情報<br>(画像プレビューなし)</div>';
+                imageInfoArea.style.display = 'none';
+                zoomControls.style.display = 'none';
+                fileNameEl.textContent = "ErrorFile.png"; 
+                filePathEl.textContent = "D:\\...\\ErrorFile.png";
+                filePathEl.title = "D:\\Problematic\\ErrorFile.png";
+                resolutionEl.textContent = "N/A";
+                fileSizeEl.textContent = "500 KB";
+                takenDateEl.textContent = "N/A";
+            }
+        }
+        
+        function updateSelectionSummary(tabName) {
+            if (tabName === 'blur' || tabName === 'similar') {
+                selectionSummary.innerHTML = `選択: <span class="font-semibold text-slate-800">1件</span> (合計: <span class="font-semibold text-slate-800">2.2 MB</span>)`;
+            } else if (tabName === 'error') {
+                selectionSummary.innerHTML = `選択中のアイテム: <span class="font-semibold text-slate-800">1件</span> (エラーリスト)`;
+            }
+        }
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                setActiveTab(button.dataset.tab);
+            });
+        });
+
+        setActiveTab('blur');
+
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomInput = document.getElementById('zoomInput');
+        const zoomValueDisplay = document.getElementById('zoomValueDisplay');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const resetZoomBtn = document.getElementById('resetZoomBtn');
+
+        function updateZoomUI(value) {
+            const val = Math.max(1, Math.min(150, parseInt(value, 10)));
+            zoomSlider.value = val;
+            zoomInput.value = val;
+            zoomValueDisplay.textContent = val;
+            console.log(`Zoom set to: ${val}%`);
+        }
+
+        zoomSlider.addEventListener('input', (e) => updateZoomUI(e.target.value));
+        zoomInput.addEventListener('change', (e) => updateZoomUI(e.target.value));
+        zoomInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') updateZoomUI(e.target.value); });
+        zoomInBtn.addEventListener('click', () => updateZoomUI(parseInt(zoomInput.value, 10) + 10));
+        zoomOutBtn.addEventListener('click', () => updateZoomUI(parseInt(zoomInput.value, 10) - 10));
+        resetZoomBtn.addEventListener('click', () => updateZoomUI(100));
+        updateZoomUI(100); 
+
+        document.getElementById('countBlur').textContent = '102';
+        document.getElementById('countSimilar').textContent = '45';
+        document.getElementById('countError').textContent = '3';
+        document.getElementById('statusMessage').textContent = 'スキャン完了 (ブレ: 102, 類似: 45, エラー: 3)';
+
+    });
+</script>
+</body>
+</html>

@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>画像整理アプリ モックアップ (レスポンシブ - 幅狭時)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none; /* スクロール連鎖を防止 */
+        }
+        /* スクロールバーのスタイル（オプション） */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c4c4c4;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+        .tab-active {
+            border-bottom-color: #3b82f6 !important; /* blue-500 */
+            color: #3b82f6 !important;
+        }
+        /* ペインの最小幅を意識した幅設定 (例) */
+        .left-pane-narrow {
+            width: 220px; /* 最小幅の例 */
+            flex-shrink: 0;
+        }
+        .center-pane-narrow {
+            min-width: 320px; /* 最小幅の例 */
+            flex-grow: 1;
+        }
+        .right-pane-narrow {
+            width: 260px; /* 最小幅の例 */
+            flex-shrink: 0;
+        }
+
+        /* フッターボタンの縦並び用コンテナ (sm未満で適用) */
+        @media (max-width: 639px) { /* smのブレークポイント Tailwind CSS */
+            .footer-actions-responsive {
+                display: flex;
+                flex-direction: column;
+                align-items: flex-end; /* 右寄せにする場合 */
+                gap: 0.5rem; /* ボタン間のスペース */
+                width: 100%;
+            }
+            .footer-actions-responsive button {
+                width: 100%; /* ボタン幅をコンテナに合わせる */
+            }
+        }
+        @media (min-width: 640px) { /* sm以上で適用 */
+            .footer-actions-responsive {
+                display: flex;
+                flex-direction: row;
+                gap: 0.5rem; /* ボタン間のスペース */
+            }
+        }
+
+
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+    <div class="flex flex-col h-screen max-w-[800px] mx-auto"> <div class="bg-white p-3 shadow flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 border-b border-slate-200">
+            <div class="flex-grow w-full">
+                <div class="flex items-center mb-1 sm:mb-0">
+                    <label for="targetFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap">対象:</label>
+                    <button id="targetFolder" class="ml-1 px-3 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">選択...</button>
+                    <span class="ml-2 text-sm text-slate-600 truncate" title="C:\Users\YourName\Pictures\VeryLongFolderName\AnotherFolder\TargetFolder">
+                        C:\Users\...\TargetFolder
+                    </span>
+                </div>
+                <div class="flex items-center">
+                    <label for="outputFolder" class="text-sm font-medium text-slate-700 whitespace-nowrap">移動先:</label>
+                    <button id="outputFolder" class="ml-1 px-3 py-1.5 text-sm bg-slate-500 hover:bg-slate-600 text-white rounded-md shadow-sm transition-colors">選択...</button>
+                    <span class="ml-2 text-sm text-slate-600 truncate" title="D:\Backup\Organized\VeryLongFolderNameForCleanedImages\CleanedImages">
+                        D:\Backup\...\CleanedImages
+                    </span>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2 self-end sm:self-center">
+                <button class="px-4 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md shadow-sm transition-colors whitespace-nowrap">スキャン開始</button>
+                <button title="設定" class="p-1.5 rounded-md hover:bg-slate-200 transition-colors text-slate-600 hover:text-slate-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                        <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 l-3.84,0c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.03c-0.59,0.24-1.13,0.57-1.62,0.96l-2.39-0.96c-0.22-0.08-0.47,0-0.59,0.22 l-1.92,3.32c-0.11,0.2-0.06,0.47,0.12,0.61l2.03,1.58C4.02,11.36,4,11.68,4,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.22 c0.04,0.24,0.24,0.41,0.48,0.41l3.84,0c0.24,0,0.43-0.17,0.47,0.41l0.36-2.22c0.59-0.24,1.13-0.57,1.62-0.96l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.11-0.2,0.06-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-grow flex p-3 space-x-3 overflow-hidden">
+            <div class="left-pane-narrow bg-white p-3 rounded-lg shadow flex flex-col space-y-2 overflow-y-auto">
+                <div class="flex-grow bg-slate-200 rounded flex items-center justify-center text-slate-500 text-sm min-h-[200px]">
+                    プレビュー
+                </div>
+                <div class="text-xs text-slate-600 space-y-1">
+                    <p><span class="font-medium">ファイル名:</span> <span class="truncate">IMG_VeryLongName_001.jpg</span></p>
+                    <p><span class="font-medium">パス:</span> <span class="truncate" title="C:\Users\YourName\Pictures\TargetFolder\SubFolder\IMG_VeryLongName_001.jpg">C:\...\IMG_VeryLongName_001.jpg</span></p>
+                    <p><span class="font-medium">解像度:</span> 1920x1080</p>
+                    <p><span class="font-medium">サイズ:</span> 2.5 MB</p>
+                    <p><span class="font-medium">撮影日時:</span> 2024/04/30</p>
+                </div>
+                <div class="pt-2 border-t border-slate-200 text-center">
+                    <span class="text-xs text-slate-500">倍率: 100%</span>
+                    </div>
+            </div>
+
+            <div class="center-pane-narrow bg-white rounded-lg shadow flex flex-col overflow-hidden">
+                <div class="flex border-b border-slate-200 px-2 pt-2">
+                    <button class="tab-active py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">ブレ (102)</button>
+                    <button class="py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">類似 (45)</button>
+                    <button class="py-2 px-3 sm:px-4 text-xs sm:text-sm font-medium text-slate-600 border-b-2 border-transparent hover:border-blue-500 hover:text-blue-500 transition-colors">エラー (3)</button>
+                </div>
+                <div class="flex-grow overflow-auto p-1">
+                    <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="p-2 text-left font-medium text-slate-500 w-10"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></th>
+                                <th class="p-2 text-left font-medium text-slate-500">ファイル名</th>
+                                <th class="p-2 text-left font-medium text-slate-500 hidden md:table-cell">サイズ</th>
+                                <th class="p-2 text-left font-medium text-slate-500 hidden lg:table-cell">更新日時</th>
+                                <th class="p-2 text-left font-medium text-slate-500">スコア</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-slate-200">
+                            <tr>
+                                <td class="p-2"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></td>
+                                <td class="p-2 text-slate-700 truncate max-w-[150px] sm:max-w-xs" title="IMG_VeryLongName_001.jpg">IMG_VeryLongName_001.jpg</td>
+                                <td class="p-2 text-slate-600 hidden md:table-cell">2.5 MB</td>
+                                <td class="p-2 text-slate-600 hidden lg:table-cell">2024/05/01</td>
+                                <td class="p-2 text-red-500 font-medium">95</td>
+                            </tr>
+                             <tr class="bg-sky-50"> <td class="p-2"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4" checked></td>
+                                <td class="p-2 text-slate-700 truncate max-w-[150px] sm:max-w-xs" title="another_blurry_photo_example.png">another_blurry_photo_example.png</td>
+                                <td class="p-2 text-slate-600 hidden md:table-cell">1.8 MB</td>
+                                <td class="p-2 text-slate-600 hidden lg:table-cell">2024/05/02</td>
+                                <td class="p-2 text-orange-500 font-medium">78</td>
+                            </tr>
+                            <tr>
+                                <td class="p-2"><input type="checkbox" class="rounded border-slate-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 h-4 w-4"></td>
+                                <td class="p-2 text-slate-700 truncate max-w-[150px] sm:max-w-xs" title="IMG_003_needs_review.jpeg">IMG_003_needs_review.jpeg</td>
+                                <td class="p-2 text-slate-600 hidden md:table-cell">3.1 MB</td>
+                                <td class="p-2 text-slate-600 hidden lg:table-cell">2024/05/03</td>
+                                <td class="p-2 text-red-600 font-bold">98</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="right-pane-narrow bg-white p-3 rounded-lg shadow flex flex-col space-y-4 overflow-y-auto">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-2">選択操作</h3>
+                    <div class="flex space-x-2">
+                        <button class="flex-1 px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">全選択</button>
+                        <button class="flex-1 px-3 py-1.5 text-xs bg-slate-400 hover:bg-slate-500 text-white rounded-md shadow-sm transition-colors">選択解除</button>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-700 mb-2">フィルター (ブレ)</h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label for="blurScore" class="block text-xs font-medium text-slate-600">ブレスコア:</label>
+                            <div class="flex items-center space-x-2 mt-1">
+                                <input type="number" step="1" min="0" max="100" value="80" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <span>-</span>
+                                <input type="number" step="1" min="0" max="100" value="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <input type="range" min="0" max="100" value="80" step="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer mt-1 accent-blue-500">
+                        </div>
+                        <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">適用</button>
+                        <button class="w-full px-3 py-1.5 text-xs bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-md shadow-sm transition-colors">リセット</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-3 shadow-upward border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between space-y-2 sm:space-y-0">
+            <div class="text-sm text-slate-600 text-center sm:text-left">
+                選択: <span class="font-semibold text-slate-800">1件</span> (合計: <span class="font-semibold text-slate-800">2.5 MB</span>)
+            </div>
+            <div class="footer-actions-responsive">
+                <button class="flex items-center justify-center px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-sm transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                        <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/>
+                    </svg>
+                    ゴミ箱へ
+                </button>
+                <button class="flex items-center justify-center px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md shadow-sm transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                        <path d="M14.12 10.47 12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12zM15.5 4l-1-1h-5l-1 1H5v2h14V4zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/>
+                    </svg>
+                    完全削除
+                </button>
+                <button class="flex items-center justify-center px-4 py-1.5 text-sm bg-sky-500 hover:bg-sky-600 text-white rounded-md shadow-sm transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                        <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-6 12v-3h-4v-2h4V8l4 4-4 4z"/>
+                    </svg>
+                    移動...
+                </button>
+            </div>
+        </div>
+
+        <footer class="bg-slate-700 text-white text-xs px-3 py-1.5 flex flex-col sm:flex-row justify-between items-center text-center sm:text-left">
+            <div>スキャン完了 (ブレ: 102, 類似: 45, エラー: 3)</div>
+            <div class="mt-1 sm:mt-0">バージョン 0.1.0 (仮)</div>
+        </footer>
+    </div>
+</body>
+</html>

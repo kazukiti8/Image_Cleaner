@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>確認ダイアログ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .dialog-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* 少し濃いめのオーバーレイ */
+            z-index: 9990; /* 他のUIより手前 */
+            display: none; /* 初期状態は非表示 */
+            align-items: center;
+            justify-content: center;
+        }
+        .dialog-modal {
+            width: 90%;
+            max-width: 480px; /* 最大幅 */
+            min-height: 200px; /* 最小高さ、内容に応じて調整 */
+        }
+    </style>
+</head>
+<body class="bg-slate-200 p-8">
+
+    <div class="space-x-2 mb-8">
+        <button onclick="showConfirmationDialog('trash', { count: 5, totalSizeMB: 12.3 })" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-sm">ゴミ箱へ移動 確認</button>
+        <button onclick="showConfirmationDialog('delete', { count: 2, totalSizeMB: 3.1 })" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md shadow-sm">完全に削除 確認</button>
+        <button onclick="showConfirmationDialog('move', { count: 10, totalSizeMB: 25.8, moveToPath: 'D:\\Backup\\整理済み画像' })" class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-md shadow-sm">移動 確認</button>
+    </div>
+
+
+    <div id="confirmationDialogOverlay" class="dialog-overlay">
+        <div class="dialog-modal bg-white rounded-lg shadow-xl flex flex-col">
+            <div id="dialogHeader" class="px-6 py-4 flex items-center space-x-3 border-b border-slate-200">
+                <div id="dialogIconContainer" class="text-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 0 24 24" width="28px" fill="currentColor" class="w-7 h-7">
+                        <path d="M0 0h24v24H0V0z" fill="none"/><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
+                    </svg>
+                </div>
+                <h3 id="dialogTitle" class="text-lg font-semibold text-slate-800">確認</h3>
+            </div>
+
+            <div class="p-6 flex-grow">
+                <p id="dialogMessage" class="text-sm text-slate-600 whitespace-pre-wrap">ここに確認メッセージが表示されます。</p>
+                <p id="dialogExtraInfo" class="mt-2 text-sm text-slate-500 font-medium"></p>
+            </div>
+
+            <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-3 rounded-b-lg">
+                <button id="dialogCancelBtn" class="flex items-center px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4 mr-1 -ml-1">
+                        <path d="M0 0h24v24H0V0z" fill="none"/><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+                    </svg>
+                    キャンセル
+                </button>
+                <button id="dialogConfirmBtn" class="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                    <span id="dialogConfirmIconContainer" class="mr-1 -ml-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4">
+                            <path d="M0 0h24v24H0V0z" fill="none"/><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                        </svg>
+                    </span>
+                    <span id="dialogConfirmBtnText">実行</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Confirmation Dialog Logic ---
+        const dialogOverlay = document.getElementById('confirmationDialogOverlay');
+        const dialogIconContainer = document.getElementById('dialogIconContainer');
+        const dialogTitle = document.getElementById('dialogTitle');
+        const dialogMessage = document.getElementById('dialogMessage');
+        const dialogExtraInfo = document.getElementById('dialogExtraInfo');
+        const dialogCancelBtn = document.getElementById('dialogCancelBtn');
+        const dialogConfirmBtn = document.getElementById('dialogConfirmBtn');
+        const dialogConfirmBtnText = document.getElementById('dialogConfirmBtnText');
+        const dialogConfirmIconContainer = document.getElementById('dialogConfirmIconContainer');
+
+        // Icons SVG (Google Fonts Outlined)
+        const icons = {
+            info_outline: `<svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 0 24 24" width="28px" fill="currentColor" class="w-7 h-7"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>`,
+            warning_amber: `<svg xmlns="http://www.w3.org/2000/svg" height="28px" viewBox="0 0 24 24" width="28px" fill="currentColor" class="w-7 h-7"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"/></svg>`,
+            delete_outline: `<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/></svg>`,
+            delete_forever_outline: `<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M14.12 10.47L12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12-1.41-1.41zM15.5 4l-1-1h-5l-1 1H5v2h14V4h-3.5l-1-1zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/></svg>`,
+            drive_file_move_outline: `<svg xmlns="http://www.w3.org/2000/svg" height="20px" viewBox="0 0 24 24" width="20px" fill="currentColor" class="w-4 h-4"><path d="M0 0h24v24H0V0z" fill="none"/><path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm0 12H4V6h5.17l2 2H20v10zm-8-4h2V8h-2v2H8v2h4v2zm2 3l4-4-4-4v3H8v2h4v3z"/></svg>`
+        };
+
+        function showConfirmationDialog(type, data) {
+            // data = { count: X, totalSizeMB: Y, moveToPath: Z (optional) }
+            let title = "確認";
+            let message = "";
+            let extraInfo = "";
+            let confirmText = "実行";
+            let confirmIconSvg = icons.delete_outline; // Default, will be overridden
+            let dialogIconSvg = icons.info_outline;
+            let confirmBtnClasses = "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500";
+            let dialogIconContainerClasses = "text-blue-500";
+
+            const itemCount = data.count || 0;
+            const totalSize = data.totalSizeMB || 0;
+
+            switch (type) {
+                case 'trash':
+                    title = "画像の削除の確認";
+                    message = `選択された ${itemCount} 件の画像 (合計 ${totalSize} MB) を\nゴミ箱へ移動します。よろしいですか？`;
+                    confirmText = "ゴミ箱へ移動";
+                    confirmIconSvg = icons.delete_outline;
+                    confirmBtnClasses = "bg-amber-500 hover:bg-amber-600 focus:ring-amber-500";
+                    dialogIconContainerClasses = "text-amber-500"; // Matching the button
+                    dialogIconSvg = icons.info_outline;
+                    break;
+                case 'delete':
+                    title = "画像の完全な削除の確認";
+                    message = `選択された ${itemCount} 件の画像 (合計 ${totalSize} MB) を\n完全に削除します。\n\nこの操作は元に戻すことができません。\n本当によろしいですか？`;
+                    confirmText = "完全に削除";
+                    confirmIconSvg = icons.delete_forever_outline;
+                    confirmBtnClasses = "bg-red-600 hover:bg-red-700 focus:ring-red-500";
+                    dialogIconContainerClasses = "text-red-500";
+                    dialogIconSvg = icons.warning_amber;
+                    break;
+                case 'move':
+                    title = "画像の移動の確認";
+                    message = `選択された ${itemCount} 件の画像 (合計 ${totalSize} MB) を\n以下の場所に移動します。よろしいですか？`;
+                    extraInfo = `移動先: ${data.moveToPath || "未指定"}`;
+                    confirmText = "移動する";
+                    confirmIconSvg = icons.drive_file_move_outline;
+                    confirmBtnClasses = "bg-sky-500 hover:bg-sky-600 focus:ring-sky-500";
+                    dialogIconContainerClasses = "text-sky-500";
+                    dialogIconSvg = icons.info_outline;
+                    break;
+            }
+
+            dialogTitle.textContent = title;
+            dialogMessage.textContent = message;
+            dialogExtraInfo.textContent = extraInfo;
+            dialogConfirmBtnText.textContent = confirmText;
+
+            dialogConfirmBtn.className = `flex items-center px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmBtnClasses}`;
+            dialogIconContainer.className = dialogIconContainerClasses;
+
+            dialogIconContainer.innerHTML = dialogIconSvg;
+            dialogConfirmIconContainer.innerHTML = confirmIconSvg;
+
+            dialogOverlay.style.display = 'flex';
+
+            dialogConfirmBtn.dataset.actionType = type;
+            // You might want to pass 'data' to the confirm handler too, e.g., via dataset or a closure
+        }
+
+        function closeConfirmationDialog() {
+            dialogOverlay.style.display = 'none';
+        }
+
+        dialogCancelBtn.addEventListener('click', closeConfirmationDialog);
+
+        dialogConfirmBtn.addEventListener('click', () => {
+            const actionType = dialogConfirmBtn.dataset.actionType;
+            console.log(`Confirmed: ${actionType}`);
+            // Implement actual action based on actionType and potentially passed data
+            closeConfirmationDialog();
+        });
+
+    </script>
+</body>
+</html>
