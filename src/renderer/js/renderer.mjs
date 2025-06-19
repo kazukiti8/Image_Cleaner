@@ -25,6 +25,12 @@ class ImageCleanupApp {
             error: { minSize: 0, maxSize: 100 }
         };
         this.settingsManager = null;
+        
+        // プレビュー機能用のプロパティ
+        this.currentPreviewImage = null;
+        this.zoomLevel = 100;
+        this.previewImageElement = null;
+        
         this.init();
     }
 
@@ -88,6 +94,9 @@ class ImageCleanupApp {
         
         // キーボードショートカット
         this.initializeKeyboardShortcuts();
+        
+        // プレビュー機能の初期化
+        this.initializePreviewFeatures();
     }
 
     // スキャン関連のメソッド
@@ -195,10 +204,6 @@ class ImageCleanupApp {
 
     handleScanComplete(results) {
         console.log('スキャン完了:', results);
-        console.log('結果の詳細構造:');
-        console.log('- blurImages:', results.blurImages);
-        console.log('- similarImages:', results.similarImages);
-        console.log('- errors:', results.errors);
         
         this.scanInProgress = false;
         this.updateScanButton();
@@ -213,11 +218,6 @@ class ImageCleanupApp {
         this.originalData.blur = results.blurImages || [];
         this.originalData.similar = results.similarImages || [];
         this.originalData.error = results.errors || [];
-        
-        console.log('保存されたデータ:');
-        console.log('- originalData.blur:', this.originalData.blur);
-        console.log('- originalData.similar:', this.originalData.similar);
-        console.log('- originalData.error:', this.originalData.error);
         
         // 結果を表示
         this.displayBlurResults(this.originalData.blur);
@@ -335,12 +335,8 @@ class ImageCleanupApp {
 
     // 結果表示メソッド
     displayBlurResults(blurImages) {
-        console.log('displayBlurResults呼び出し:', blurImages);
         const container = document.getElementById('contentBlur');
         const countElement = document.getElementById('countBlur');
-        
-        console.log('container:', container);
-        console.log('countElement:', countElement);
         
         countElement.textContent = blurImages.length;
         
@@ -355,12 +351,8 @@ class ImageCleanupApp {
     }
 
     displaySimilarResults(similarImages) {
-        console.log('displaySimilarResults呼び出し:', similarImages);
         const container = document.getElementById('contentSimilar');
         const countElement = document.getElementById('countSimilar');
-        
-        console.log('container:', container);
-        console.log('countElement:', countElement);
         
         countElement.textContent = similarImages.length;
         
@@ -375,12 +367,8 @@ class ImageCleanupApp {
     }
 
     displayErrorResults(errors) {
-        console.log('displayErrorResults呼び出し:', errors);
         const container = document.getElementById('contentError');
         const countElement = document.getElementById('countError');
-        
-        console.log('container:', container);
-        console.log('countElement:', countElement);
         
         countElement.textContent = errors.length;
         
@@ -435,7 +423,7 @@ class ImageCleanupApp {
         const tbody = document.createElement('tbody');
         blurImages.forEach(image => {
             const row = document.createElement('tr');
-            row.className = 'border-b border-slate-100 hover:bg-slate-50';
+            row.className = 'border-b border-slate-100 hover:bg-slate-50 cursor-pointer';
             row.dataset.filePath = image.filePath;
             row.dataset.size = image.size;
             row.dataset.modifiedDate = image.modifiedDate;
@@ -454,6 +442,14 @@ class ImageCleanupApp {
                     </span>
                 </td>
             </tr>`;
+            
+            // 行クリック時のプレビュー表示（チェックボックス以外をクリックした場合）
+            row.addEventListener('click', (e) => {
+                if (e.target.type !== 'checkbox') {
+                    this.showImagePreview(image);
+                }
+            });
+            
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -465,7 +461,6 @@ class ImageCleanupApp {
     }
 
     createSimilarTable(similarImages) {
-        console.log('createSimilarTable呼び出し:', similarImages);
         const table = document.createElement('table');
         table.className = 'w-full text-sm border-collapse';
         
@@ -487,13 +482,11 @@ class ImageCleanupApp {
         // ボディ
         const tbody = document.createElement('tbody');
         similarImages.forEach((pair, index) => {
-            console.log(`類似画像ペア ${index}:`, pair);
             const row = document.createElement('tr');
-            row.className = 'border-b border-slate-100 hover:bg-slate-50';
+            row.className = 'border-b border-slate-100 hover:bg-slate-50 cursor-pointer';
             
             // 新しいデータ構造に対応
             if (!pair.files || pair.files.length < 2) {
-                console.warn('無効な類似画像データ:', pair);
                 return; // このアイテムをスキップ
             }
             
@@ -501,11 +494,6 @@ class ImageCleanupApp {
             const file2 = pair.files[1];
             const similarity = pair.similarity || 0;
             const type = pair.type || 'similar';
-            
-            console.log(`ファイル1:`, file1);
-            console.log(`ファイル2:`, file2);
-            console.log(`類似度:`, similarity);
-            console.log(`タイプ:`, type);
             
             // 最初のファイルをプレビュー用に設定
             row.dataset.filePath = file1.filePath;
@@ -543,6 +531,15 @@ class ImageCleanupApp {
                     </span>
                 </td>
             </tr>`;
+            
+            // 行クリック時のプレビュー表示（チェックボックス以外をクリックした場合）
+            row.addEventListener('click', (e) => {
+                if (e.target.type !== 'checkbox') {
+                    // 最初のファイルをプレビュー表示
+                    this.showImagePreview(file1);
+                }
+            });
+            
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -574,7 +571,7 @@ class ImageCleanupApp {
         const tbody = document.createElement('tbody');
         errors.forEach(error => {
             const row = document.createElement('tr');
-            row.className = 'border-b border-slate-100 hover:bg-slate-50';
+            row.className = 'border-b border-slate-100 hover:bg-slate-50 cursor-pointer';
             row.dataset.filePath = error.filePath;
             
             row.innerHTML = `
@@ -584,6 +581,14 @@ class ImageCleanupApp {
                 <td class="p-2 font-medium text-slate-800">${error.filename}</td>
                 <td class="p-2 text-red-600">${error.error}</td>
             </tr>`;
+            
+            // 行クリック時のプレビュー表示（チェックボックス以外をクリックした場合）
+            row.addEventListener('click', (e) => {
+                if (e.target.type !== 'checkbox') {
+                    this.showImagePreview(error);
+                }
+            });
+            
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -610,6 +615,11 @@ class ImageCleanupApp {
         rowCheckboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
                 this.updateSelection(e.target.value, e.target.checked);
+            });
+            
+            // チェックボックスのクリックイベントが行クリックイベントに伝播しないようにする
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
             });
         });
     }
@@ -690,6 +700,291 @@ class ImageCleanupApp {
 
     handleFileOperationComplete(result) {
         // ファイル操作完了の処理
+    }
+
+    // プレビュー機能の初期化
+    initializePreviewFeatures() {
+        // プレビューエリアの初期化
+        this.initializePreviewArea();
+        
+        // 倍率調整コントロールの初期化
+        this.initializeZoomControls();
+        
+        // プレビューエリアの初期表示
+        this.showPreviewPlaceholder();
+    }
+
+    // プレビューエリアの初期化
+    initializePreviewArea() {
+        const container = document.getElementById('previewAreaContainer');
+        if (!container) return;
+        
+        // プレビューエリアをクリア
+        container.innerHTML = '';
+        
+        // プレビュー用の画像要素を作成
+        this.previewImageElement = document.createElement('img');
+        this.previewImageElement.className = 'max-w-full max-h-full object-contain';
+        this.previewImageElement.style.display = 'none';
+        
+        // プレビューエリアに画像要素を追加
+        container.appendChild(this.previewImageElement);
+        
+        // プレビューエリアのクリックイベント（画像の拡大表示）
+        container.addEventListener('click', () => {
+            if (this.currentPreviewImage && this.previewImageElement.style.display !== 'none') {
+                this.showFullScreenPreview();
+            }
+        });
+    }
+
+    // 倍率調整コントロールの初期化
+    initializeZoomControls() {
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomInput = document.getElementById('zoomInput');
+        const zoomValueDisplay = document.getElementById('zoomValueDisplay');
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const resetZoomBtn = document.getElementById('resetZoomBtn');
+        
+        if (!zoomSlider || !zoomInput || !zoomValueDisplay) return;
+        
+        // スライダーの変更イベント
+        zoomSlider.addEventListener('input', (e) => {
+            this.setZoomLevel(parseInt(e.target.value));
+        });
+        
+        // 数値入力の変更イベント
+        zoomInput.addEventListener('input', (e) => {
+            const value = parseInt(e.target.value);
+            if (value >= 1 && value <= 150) {
+                this.setZoomLevel(value);
+            }
+        });
+        
+        // Enterキーでの確定
+        zoomInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const value = parseInt(e.target.value);
+                if (value >= 1 && value <= 150) {
+                    this.setZoomLevel(value);
+                }
+            }
+        });
+        
+        // 拡大ボタン
+        zoomInBtn.addEventListener('click', () => {
+            this.setZoomLevel(Math.min(this.zoomLevel + 10, 150));
+        });
+        
+        // 縮小ボタン
+        zoomOutBtn.addEventListener('click', () => {
+            this.setZoomLevel(Math.max(this.zoomLevel - 10, 1));
+        });
+        
+        // リセットボタン
+        resetZoomBtn.addEventListener('click', () => {
+            this.setZoomLevel(100);
+        });
+        
+        // キーボードショートカット
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && !e.shiftKey && !e.altKey) {
+                if (e.key === '=' || e.key === '+') {
+                    e.preventDefault();
+                    this.setZoomLevel(Math.min(this.zoomLevel + 10, 150));
+                } else if (e.key === '-') {
+                    e.preventDefault();
+                    this.setZoomLevel(Math.max(this.zoomLevel - 10, 1));
+                } else if (e.key === '0') {
+                    e.preventDefault();
+                    this.setZoomLevel(100);
+                }
+            }
+        });
+    }
+
+    // 倍率の設定
+    setZoomLevel(level) {
+        this.zoomLevel = Math.max(1, Math.min(150, level));
+        
+        // UI要素を更新
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomInput = document.getElementById('zoomInput');
+        const zoomValueDisplay = document.getElementById('zoomValueDisplay');
+        
+        if (zoomSlider) zoomSlider.value = this.zoomLevel;
+        if (zoomInput) zoomInput.value = this.zoomLevel;
+        if (zoomValueDisplay) zoomValueDisplay.textContent = this.zoomLevel;
+        
+        // プレビュー画像の倍率を更新
+        if (this.previewImageElement && this.previewImageElement.style.display !== 'none') {
+            this.previewImageElement.style.transform = `scale(${this.zoomLevel / 100})`;
+            this.previewImageElement.style.transformOrigin = 'center center';
+        }
+    }
+
+    // プレビュープレースホルダーの表示
+    showPreviewPlaceholder() {
+        const container = document.getElementById('previewAreaContainer');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+                <p>画像を選択して<br>プレビューを表示</p>
+            </div>
+        `;
+        
+        // プレビュー用の画像要素を再作成
+        this.previewImageElement = document.createElement('img');
+        this.previewImageElement.className = 'max-w-full max-h-full object-contain';
+        this.previewImageElement.style.display = 'none';
+        container.appendChild(this.previewImageElement);
+    }
+
+    // 画像のプレビュー表示
+    async showImagePreview(imageData) {
+        console.log('画像プレビュー表示:', imageData);
+        
+        if (!imageData || !imageData.filePath) {
+            this.showPreviewPlaceholder();
+            return;
+        }
+        
+        this.currentPreviewImage = imageData;
+        
+        try {
+            // プレビューエリアを取得
+            const container = document.getElementById('previewAreaContainer');
+            if (!container) return;
+            
+            // プレビュー用の画像要素を取得または作成
+            if (!this.previewImageElement) {
+                this.previewImageElement = document.createElement('img');
+                this.previewImageElement.className = 'max-w-full max-h-full object-contain';
+                container.appendChild(this.previewImageElement);
+            }
+            
+            // 画像を読み込み
+            this.previewImageElement.src = `file://${imageData.filePath}`;
+            this.previewImageElement.style.display = 'block';
+            
+            // プレビューエリアのプレースホルダーを非表示
+            const placeholder = container.querySelector('div');
+            if (placeholder) {
+                placeholder.style.display = 'none';
+            }
+            
+            // 画像の読み込み完了時の処理
+            this.previewImageElement.onload = () => {
+                // 倍率を適用
+                this.setZoomLevel(this.zoomLevel);
+                
+                // 画像情報を表示
+                this.updateImageInfo(imageData);
+            };
+            
+            // 画像の読み込みエラー時の処理
+            this.previewImageElement.onerror = () => {
+                console.error('画像の読み込みに失敗:', imageData.filePath);
+                this.showPreviewError('画像の読み込みに失敗しました');
+            };
+            
+        } catch (error) {
+            console.error('プレビュー表示エラー:', error);
+            this.showPreviewError('プレビューの表示に失敗しました');
+        }
+    }
+
+    // プレビューエラーの表示
+    showPreviewError(message) {
+        const container = document.getElementById('previewAreaContainer');
+        if (!container) return;
+        
+        container.innerHTML = `
+            <div class="text-center text-red-500">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <p>${message}</p>
+            </div>
+        `;
+    }
+
+    // 画像情報の更新
+    updateImageInfo(imageData) {
+        // ファイル名
+        const infoFileName = document.getElementById('infoFileName');
+        if (infoFileName) {
+            infoFileName.textContent = imageData.filename || '';
+        }
+        
+        // ファイルパス
+        const infoFilePath = document.getElementById('infoFilePath');
+        if (infoFilePath) {
+            infoFilePath.textContent = imageData.filePath || '';
+            infoFilePath.title = imageData.filePath || '';
+        }
+        
+        // ファイルサイズ
+        const infoFileSize = document.getElementById('infoFileSize');
+        if (infoFileSize) {
+            infoFileSize.textContent = imageData.size ? this.formatFileSize(imageData.size) : '';
+        }
+        
+        // 撮影日時
+        const infoTakenDate = document.getElementById('infoTakenDate');
+        if (infoTakenDate) {
+            infoTakenDate.textContent = imageData.modifiedDate ? this.formatDate(imageData.modifiedDate) : '';
+        }
+        
+        // 解像度（画像から取得）
+        const infoResolution = document.getElementById('infoResolution');
+        if (infoResolution && this.previewImageElement) {
+            infoResolution.textContent = `${this.previewImageElement.naturalWidth} × ${this.previewImageElement.naturalHeight}`;
+        }
+        
+        // ブレスコア（ブレ画像の場合）
+        const infoBlurScoreContainer = document.getElementById('infoBlurScoreContainer');
+        const infoBlurScore = document.getElementById('infoBlurScore');
+        if (infoBlurScoreContainer && infoBlurScore) {
+            if (imageData.blurScore !== undefined) {
+                infoBlurScore.textContent = imageData.blurScore;
+                infoBlurScoreContainer.style.display = 'block';
+            } else {
+                infoBlurScoreContainer.style.display = 'none';
+            }
+        }
+    }
+
+    // フルスクリーンプレビューの表示
+    showFullScreenPreview() {
+        if (!this.currentPreviewImage || !this.previewImageElement) return;
+        
+        // フルスクリーンモーダルを作成
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="relative max-w-full max-h-full p-4">
+                <button class="absolute top-4 right-4 text-white hover:text-gray-300 text-2xl font-bold z-10" onclick="this.parentElement.parentElement.remove()">×</button>
+                <img src="${this.previewImageElement.src}" class="max-w-full max-h-full object-contain" style="transform: scale(${this.zoomLevel / 100}); transform-origin: center center;">
+            </div>
+        `;
+        
+        // モーダルを表示
+        document.body.appendChild(modal);
+        
+        // ESCキーで閉じる
+        const closeModal = () => modal.remove();
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        }, { once: true });
     }
 }
 
