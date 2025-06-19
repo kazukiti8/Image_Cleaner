@@ -166,7 +166,7 @@ ipcMain.handle('delete-files', async (event, filePaths, toRecycleBin) => {
             results.push({ 
               path: filePath, 
               success: false, 
-              error: 'ファイルが使用中のため削除できませんでした',
+              error: 'ゴミ箱への移動に失敗しました',
               partialSuccess: true,
               message: 'ファイルは残りますが、操作は完了しました'
             });
@@ -356,7 +356,7 @@ async function moveToRecycleBin(filePath) {
     const execAsync = promisify(exec);
     
     try {
-      // 方法1: PowerShell + Microsoft.VisualBasic
+      // 方法1: PowerShell + Microsoft.VisualBasic（推奨）
       const command1 = `powershell -command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${filePath.replace(/\\/g, '\\\\')}', 'OnlyErrorDialogs', 'SendToRecycleBin')"`;
       await execAsync(command1);
       console.log('PowerShellでのゴミ箱移動成功:', filePath);
@@ -365,21 +365,17 @@ async function moveToRecycleBin(filePath) {
       console.warn('PowerShellでのゴミ箱移動に失敗、代替方法を試行:', error.message);
       
       try {
-        // 方法2: より安全なPowerShellコマンド
-        const command2 = `powershell -command "Remove-Item '${filePath.replace(/\\/g, '\\\\')}' -Force -Recurse -ErrorAction SilentlyContinue"`;
+        // 方法2: より安全なPowerShellコマンド（RecycleBinオプション付き）
+        const command2 = `powershell -command "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(0x0a).MoveHere('${filePath.replace(/\\/g, '\\\\')}')"`;
         await execAsync(command2);
-        console.log('代替PowerShellでの削除成功:', filePath);
+        console.log('代替PowerShellでのゴミ箱移動成功:', filePath);
         return true;
       } catch (error2) {
-        console.warn('代替PowerShellも失敗、通常削除を試行:', error2.message);
+        console.warn('代替PowerShellも失敗、ファイルは残します:', error2.message);
         
-        try {
-          // 方法3: 通常削除（リトライ機能付き）
-          return await safeDeleteFile(filePath);
-        } catch (error3) {
-          console.error('すべての削除方法が失敗:', error3.message);
-          throw error3;
-        }
+        // 方法3: ファイルを残して部分的な成功として扱う
+        console.log('ゴミ箱への移動に失敗したため、ファイルは残します:', filePath);
+        return false;
       }
     }
   } else {
