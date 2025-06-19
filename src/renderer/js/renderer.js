@@ -963,7 +963,7 @@ class ImageCleanupApp {
         const img = document.createElement('img');
         img.src = image.filePath;
         img.alt = image.filename;
-        img.className = 'max-w-full max-h-[400px] rounded shadow';
+        img.className = 'max-w-full max-h-[600px] rounded shadow';
         previewContainer.appendChild(img);
         
         // 画像情報
