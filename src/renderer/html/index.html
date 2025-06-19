@@ -359,6 +359,20 @@
                 </div>
             </div>
         </div>
+
+        <!-- パフォーマンス監視UI -->
+        <div id="performanceIndicator" class="performance-indicator">
+            <div>メモリ: <span id="memoryUsage">--</span>MB</div>
+            <div>FPS: <span id="fpsCounter">--</span></div>
+        </div>
+        
+        <!-- メモリ使用量表示 -->
+        <div id="memoryUsageDisplay" class="memory-usage" style="display: none;">
+            <strong>メモリ使用量:</strong> <span id="memoryUsageText">--</span>MB
+            <button id="cleanupMemory" class="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">
+                クリーンアップ
+            </button>
+        </div>
     </div>
 
     <!-- 確認ダイアログモーダル -->
@@ -634,5 +648,4 @@
     <script src="../js/components/settings.mjs"></script>
     <script src="../js/renderer.mjs"></script>
 </body>
-</html> 
 </html> 

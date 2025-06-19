@@ -61,25 +61,61 @@ class ImageCleanupApp {
         this.totalGuideSteps = 4;
         this.guideShown = false;
         
+        // 仮想スクロール用のプロパティ
+        this.virtualScroll = {
+            itemHeight: 60, // 1行の高さ（px）
+            visibleItems: 20, // 一度に表示するアイテム数
+            startIndex: 0,
+            endIndex: 0,
+            scrollTop: 0,
+            containerHeight: 0,
+            totalHeight: 0
+        };
+        
+        // パフォーマンス最適化用のプロパティ
+        this.performanceCache = {
+            recommendations: new Map(), // 推奨判定のキャッシュ
+            filteredResults: new Map(), // フィルタリング結果のキャッシュ
+            lastFilterHash: '', // 最後のフィルター設定のハッシュ
+            debounceTimer: null // デバウンス用タイマー
+        };
+        
         this.init();
     }
 
-    async init() {
-        // 設定マネージャーを初期化
+    init() {
+        console.log('ImageCleanupApp初期化開始');
+        
+        // 設定マネージャーの初期化
         this.settingsManager = new SettingsManager();
         
-        this.bindEvents();
-        this.updateUI();
+        // イベントリスナーの設定
+        this.initializeEventListeners();
         
-        // 初回起動時ガイダンスの確認
-        await this.checkFirstTimeGuide();
+        // フィルター関連のイベントリスナー
+        this.initializeFilterEvents();
+        
+        // キーボードショートカットの初期化
+        this.initializeKeyboardShortcuts();
+        
+        // 初期UIの設定
+        this.updateFilterUI();
+        
+        // ガイダンスの表示
+        this.showGuidanceIfNeeded();
+        
+        // パフォーマンス監視の開始
+        this.startPerformanceMonitoring();
+        this.startMemoryCleanup();
+        
+        console.log('ImageCleanupApp初期化完了');
     }
 
     getSettings() {
         return this.settingsManager ? this.settingsManager.getSettings() : null;
     }
 
-    bindEvents() {
+    initializeEventListeners() {
         // フォルダ選択ボタン
         document.getElementById('targetFolder').addEventListener('click', () => this.selectTargetFolder());
         document.getElementById('outputFolder').addEventListener('click', () => this.selectOutputFolder());
@@ -988,41 +1024,139 @@ class ImageCleanupApp {
         // 倍率調整の初期化
     }
 
+    // キーボードショートカットの最適化
     initializeKeyboardShortcuts() {
-        // キーボードショートカットの初期化
+        // デバウンス処理付きのキーボードイベント
+        let lastKeyTime = 0;
+        const keyDebounceTime = 100; // 100ms
+        
         document.addEventListener('keydown', (e) => {
-            // Ctrl+F: フィルター適用
-            if (e.ctrlKey && e.key === 'f') {
-                e.preventDefault();
-                this.applyFilter();
+            const currentTime = Date.now();
+            if (currentTime - lastKeyTime < keyDebounceTime) {
+                return; // デバウンス
             }
+            lastKeyTime = currentTime;
             
-            // Ctrl+R: フィルターリセット
-            if (e.ctrlKey && e.key === 'r') {
-                e.preventDefault();
-                this.resetFilter();
-            }
-            
-            // Ctrl+Shift+F: フィルターパネルにフォーカス
-            if (e.ctrlKey && e.shiftKey && e.key === 'F') {
-                e.preventDefault();
-                const filterInput = document.getElementById('blurMinScore');
-                if (filterInput) {
-                    filterInput.focus();
+            // Ctrl/Cmd + キーの組み合わせ
+            if (e.ctrlKey || e.metaKey) {
+                switch (e.key) {
+                    case 'a':
+                        e.preventDefault();
+                        this.selectAllItems();
+                        break;
+                    case 'd':
+                        e.preventDefault();
+                        this.deselectAllItems();
+                        break;
+                    case 'f':
+                        e.preventDefault();
+                        this.focusFilterInput();
+                        break;
+                    case 'r':
+                        e.preventDefault();
+                        this.resetFilters();
+                        break;
+                    case '1':
+                    case '2':
+                    case '3':
+                        e.preventDefault();
+                        const tabIndex = parseInt(e.key) - 1;
+                        this.switchToTab(['blur', 'similar', 'error'][tabIndex]);
+                        break;
                 }
             }
             
-            // ESC: 選択解除
-            if (e.key === 'Escape') {
-                this.deselectAll();
-            }
-            
-            // Ctrl+A: 全選択
-            if (e.ctrlKey && e.key === 'a') {
-                e.preventDefault();
-                this.selectAll();
+            // 単独キー
+            switch (e.key) {
+                case 'Escape':
+                    this.clearSelection();
+                    break;
+                case 'Delete':
+                    if (this.selectedItems.size > 0) {
+                        e.preventDefault();
+                        this.deleteSelectedItems();
+                    }
+                    break;
+                case 'Enter':
+                    if (this.selectedItems.size === 1) {
+                        e.preventDefault();
+                        this.showPreviewForSelected();
+                    }
+                    break;
             }
         });
+    }
+
+    // 全選択（最適化版）
+    selectAllItems() {
+        const currentData = this.filteredData[this.currentTab];
+        if (!currentData || currentData.length === 0) return;
+        
+        // バッチ処理で選択状態を更新
+        const batchSize = 100;
+        for (let i = 0; i < currentData.length; i += batchSize) {
+            const batch = currentData.slice(i, i + batchSize);
+            batch.forEach(item => {
+                if (this.currentTab === 'similar' && item.files) {
+                    // 類似画像の場合は両方のファイルを選択
+                    item.files.forEach(file => {
+                        this.selectedItems.add(file.filePath);
+                    });
+                } else {
+                    this.selectedItems.add(item.filePath);
+                }
+            });
+            
+            // UI更新をバッチごとに実行
+            if (i % (batchSize * 5) === 0) {
+                this.updateSelectedCount();
+            }
+        }
+        
+        this.updateSelectedCount();
+        this.updateCheckboxes();
+    }
+
+    // 全選択解除（最適化版）
+    deselectAllItems() {
+        this.selectedItems.clear();
+        this.updateSelectedCount();
+        this.updateCheckboxes();
+    }
+
+    // 選択解除
+    clearSelection() {
+        this.deselectAllItems();
+        this.hidePreview();
+    }
+
+    // フィルター入力にフォーカス
+    focusFilterInput() {
+        const filterInput = document.querySelector('.filter-input');
+        if (filterInput) {
+            filterInput.focus();
+        }
+    }
+
+    // 選択されたアイテムのプレビュー表示
+    showPreviewForSelected() {
+        const selectedArray = Array.from(this.selectedItems);
+        if (selectedArray.length === 1) {
+            const filePath = selectedArray[0];
+            const currentData = this.filteredData[this.currentTab];
+            const item = currentData.find(item => 
+                item.filePath === filePath || 
+                (item.files && item.files.some(f => f.filePath === filePath))
+            );
+            
+            if (item) {
+                if (this.currentTab === 'similar' && item.files) {
+                    this.showSimilarImagePreview(item);
+                } else {
+                    this.showImagePreview(item);
+                }
+            }
+        }
     }
 
     updateFilterContent() {
@@ -1201,6 +1335,19 @@ class ImageCleanupApp {
     }
 
     performFiltering() {
+        // フィルター設定のハッシュを計算
+        const filterHash = this.calculateFilterHash();
+        
+        // キャッシュされた結果があるかチェック
+        if (this.performanceCache.filteredResults.has(filterHash)) {
+            console.log('フィルタリング結果をキャッシュから取得');
+            this.filteredData = this.performanceCache.filteredResults.get(filterHash);
+            return;
+        }
+        
+        console.log('フィルタリング処理を実行中...');
+        const startTime = performance.now();
+        
         // ブレ画像のフィルタリング
         this.filteredData.blur = this.originalData.blur.filter(item => {
             const score = parseFloat(item.blurScore) || 0;
@@ -1272,29 +1419,86 @@ class ImageCleanupApp {
             }
         });
         
-        console.log('フィルタリング結果:', {
+        // 結果をキャッシュに保存
+        this.performanceCache.filteredResults.set(filterHash, {
+            blur: [...this.filteredData.blur],
+            similar: [...this.filteredData.similar],
+            error: [...this.filteredData.error]
+        });
+        
+        // キャッシュサイズを制限（最大100件）
+        if (this.performanceCache.filteredResults.size > 100) {
+            const firstKey = this.performanceCache.filteredResults.keys().next().value;
+            this.performanceCache.filteredResults.delete(firstKey);
+        }
+        
+        const endTime = performance.now();
+        console.log(`フィルタリング完了: ${(endTime - startTime).toFixed(2)}ms`, {
             blur: this.filteredData.blur.length,
             similar: this.filteredData.similar.length,
             error: this.filteredData.error.length
         });
     }
 
+    calculateFilterHash() {
+        // フィルター設定を文字列化してハッシュを生成
+        const filterString = JSON.stringify(this.currentFilters);
+        let hash = 0;
+        for (let i = 0; i < filterString.length; i++) {
+            const char = filterString.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // 32bit整数に変換
+        }
+        return hash.toString();
+    }
+
     displayFilteredResults() {
-        // 現在のタブに応じてフィルタリング結果を表示
-        switch (this.currentTab) {
-            case 'blur':
-                this.displayBlurResults(this.filteredData.blur);
-                break;
-            case 'similar':
-                this.displaySimilarResults(this.filteredData.similar);
-                break;
-            case 'error':
-                this.displayErrorResults(this.filteredData.error);
-                break;
+        console.log('フィルタリング結果を表示中...');
+        const startTime = performance.now();
+        
+        // 現在のタブのコンテナを取得
+        const container = document.getElementById(`content${this.currentTab.charAt(0).toUpperCase() + this.currentTab.slice(1)}`);
+        if (!container) {
+            console.error('コンテナが見つかりません');
+            return;
+        }
+        
+        // コンテナをクリア
+        container.innerHTML = '';
+        
+        // データ量に応じて仮想スクロールを使用するか決定
+        const data = this.filteredData[this.currentTab];
+        const useVirtualScroll = data.length > 100; // 100件以上で仮想スクロールを使用
+        
+        let table;
+        if (useVirtualScroll) {
+            console.log(`仮想スクロールを使用: ${data.length}件のデータ`);
+            table = this.createVirtualScrollTable(data, this.currentTab);
+        } else {
+            console.log(`通常のテーブルを使用: ${data.length}件のデータ`);
+            switch (this.currentTab) {
+                case 'blur':
+                    table = this.createBlurTable(data);
+                    break;
+                case 'similar':
+                    table = this.createSimilarTable(data);
+                    break;
+                case 'error':
+                    table = this.createErrorTable(data);
+                    break;
+            }
+        }
+        
+        // テーブルをコンテナに追加
+        if (table) {
+            container.appendChild(table);
         }
         
         // カウントを更新
         this.updateFilterCounts();
+        
+        const endTime = performance.now();
+        console.log(`表示完了: ${(endTime - startTime).toFixed(2)}ms`);
     }
 
     updateFilterCounts() {
@@ -2087,48 +2291,48 @@ class ImageCleanupApp {
             this.resetFilters();
         });
         
+        // デバウンス処理付きのフィルター適用関数
+        const debouncedFilter = this.debounce(() => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
+        }, 300);
+        
         // ブレ画像フィルターの数値入力
-        document.getElementById('blurMinScore')?.addEventListener('input', () => this.updateCurrentFilters());
-        document.getElementById('blurMaxScore')?.addEventListener('input', () => this.updateCurrentFilters());
+        document.getElementById('blurMinScore')?.addEventListener('input', debouncedFilter);
+        document.getElementById('blurMaxScore')?.addEventListener('input', debouncedFilter);
         
         // 類似画像フィルターの数値入力
-        document.getElementById('similarMinScore')?.addEventListener('input', () => this.updateCurrentFilters());
-        document.getElementById('similarMaxScore')?.addEventListener('input', () => this.updateCurrentFilters());
-        document.getElementById('similarMinSize')?.addEventListener('input', () => this.updateCurrentFilters());
-        document.getElementById('similarMaxSize')?.addEventListener('input', () => this.updateCurrentFilters());
+        document.getElementById('similarMinScore')?.addEventListener('input', debouncedFilter);
+        document.getElementById('similarMaxScore')?.addEventListener('input', debouncedFilter);
+        document.getElementById('similarMinSize')?.addEventListener('input', debouncedFilter);
+        document.getElementById('similarMaxSize')?.addEventListener('input', debouncedFilter);
         
         // 類似画像フィルターのチェックボックス
-        document.getElementById('similarTypeSimilar')?.addEventListener('change', () => {
-            this.updateCurrentFilters();
-            this.performFiltering();
-            this.displayFilteredResults();
-        });
-        document.getElementById('similarTypeDuplicate')?.addEventListener('change', () => {
-            this.updateCurrentFilters();
-            this.performFiltering();
-            this.displayFilteredResults();
-        });
-        document.getElementById('similarRecommendFile1')?.addEventListener('change', () => {
-            this.updateCurrentFilters();
-            this.performFiltering();
-            this.displayFilteredResults();
-        });
-        document.getElementById('similarRecommendFile2')?.addEventListener('change', () => {
-            this.updateCurrentFilters();
-            this.performFiltering();
-            this.displayFilteredResults();
-        });
-        document.getElementById('similarRecommendBoth')?.addEventListener('change', () => {
-            this.updateCurrentFilters();
-            this.performFiltering();
-            this.displayFilteredResults();
-        });
+        document.getElementById('similarTypeSimilar')?.addEventListener('change', debouncedFilter);
+        document.getElementById('similarTypeDuplicate')?.addEventListener('change', debouncedFilter);
+        document.getElementById('similarRecommendFile1')?.addEventListener('change', debouncedFilter);
+        document.getElementById('similarRecommendFile2')?.addEventListener('change', debouncedFilter);
+        document.getElementById('similarRecommendBoth')?.addEventListener('change', debouncedFilter);
         
         // エラーフィルターのチェックボックス
-        document.getElementById('errorFileNotFound')?.addEventListener('change', () => this.updateErrorFilter());
-        document.getElementById('errorPermissionDenied')?.addEventListener('change', () => this.updateErrorFilter());
-        document.getElementById('errorCorrupted')?.addEventListener('change', () => this.updateErrorFilter());
-        document.getElementById('errorUnsupported')?.addEventListener('change', () => this.updateErrorFilter());
+        document.getElementById('errorFileNotFound')?.addEventListener('change', debouncedFilter);
+        document.getElementById('errorPermissionDenied')?.addEventListener('change', debouncedFilter);
+        document.getElementById('errorCorrupted')?.addEventListener('change', debouncedFilter);
+        document.getElementById('errorUnsupported')?.addEventListener('change', debouncedFilter);
+    }
+
+    // デバウンス関数
+    debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
     }
 
     // 初回起動時ガイダンス関連のメソッド
@@ -2606,6 +2810,451 @@ class ImageCleanupApp {
             if (normalActions) normalActions.style.display = 'flex';
             if (errorActions) errorActions.style.display = 'none';
         }
+    }
+
+    createVirtualScrollTable(data, tableType) {
+        const container = document.createElement('div');
+        container.className = 'virtual-scroll-container';
+        container.style.position = 'relative';
+        container.style.height = '100%';
+        container.style.overflow = 'auto';
+        
+        // スクロール可能なコンテンツエリア
+        const scrollContent = document.createElement('div');
+        scrollContent.className = 'virtual-scroll-content';
+        scrollContent.style.position = 'relative';
+        
+        // 実際のコンテンツを表示するエリア
+        const visibleContent = document.createElement('div');
+        visibleContent.className = 'virtual-scroll-visible';
+        visibleContent.style.position = 'absolute';
+        visibleContent.style.top = '0';
+        visibleContent.style.left = '0';
+        visibleContent.style.right = '0';
+        
+        // ヘッダー
+        const header = this.createTableHeader(tableType);
+        header.style.position = 'sticky';
+        header.style.top = '0';
+        header.style.zIndex = '10';
+        header.style.backgroundColor = 'white';
+        
+        container.appendChild(header);
+        container.appendChild(scrollContent);
+        scrollContent.appendChild(visibleContent);
+        
+        // 仮想スクロールの初期化
+        this.initializeVirtualScroll(container, scrollContent, visibleContent, data, tableType);
+        
+        return container;
+    }
+
+    createTableHeader(tableType) {
+        const thead = document.createElement('thead');
+        thead.className = 'bg-slate-50 border-b border-slate-200';
+        
+        switch (tableType) {
+            case 'blur':
+                thead.innerHTML = `
+                    <tr>
+                        <th class="p-2 text-left">
+                            <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                        </th>
+                        <th class="p-2 text-left">ファイル名</th>
+                        <th class="p-2 text-left">サイズ</th>
+                        <th class="p-2 text-left">日時</th>
+                        <th class="p-2 text-left">ブレスコア</th>
+                    </tr>
+                `;
+                break;
+            case 'similar':
+                thead.innerHTML = `
+                    <tr>
+                        <th class="p-2 text-left">
+                            <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" title="全ペア選択">
+                        </th>
+                        <th class="p-2 text-left">
+                            <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" title="全ファイル1選択">
+                        </th>
+                        <th class="p-2 text-left">ファイル1</th>
+                        <th class="p-2 text-left hidden md:table-cell">サイズ1</th>
+                        <th class="p-2 text-left hidden lg:table-cell">解像度1</th>
+                        <th class="p-2 text-left">
+                            <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" title="全ファイル2選択">
+                        </th>
+                        <th class="p-2 text-left">ファイル2</th>
+                        <th class="p-2 text-left hidden md:table-cell">サイズ2</th>
+                        <th class="p-2 text-left hidden lg:table-cell">解像度2</th>
+                        <th class="p-2 text-left">類似度</th>
+                        <th class="p-2 text-left">タイプ</th>
+                        <th class="p-2 text-left">推奨</th>
+                    </tr>
+                `;
+                break;
+            case 'error':
+                thead.innerHTML = `
+                    <tr>
+                        <th class="p-2 text-left">
+                            <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                        </th>
+                        <th class="p-2 text-left">ファイル名</th>
+                        <th class="p-2 text-left">エラー</th>
+                    </tr>
+                `;
+                break;
+        }
+        
+        return thead;
+    }
+
+    initializeVirtualScroll(container, scrollContent, visibleContent, data, tableType) {
+        const itemHeight = this.virtualScroll.itemHeight;
+        const visibleItems = this.virtualScroll.visibleItems;
+        const totalItems = data.length;
+        
+        // スクロールコンテンツの高さを設定
+        scrollContent.style.height = `${totalItems * itemHeight}px`;
+        
+        // 初期表示
+        this.updateVisibleItems(container, scrollContent, visibleContent, data, tableType, 0, Math.min(visibleItems, totalItems));
+        
+        // スクロールイベントリスナー
+        container.addEventListener('scroll', (e) => {
+            // デバウンス処理
+            if (this.performanceCache.debounceTimer) {
+                clearTimeout(this.performanceCache.debounceTimer);
+            }
+            
+            this.performanceCache.debounceTimer = setTimeout(() => {
+                const scrollTop = e.target.scrollTop;
+                const startIndex = Math.floor(scrollTop / itemHeight);
+                const endIndex = Math.min(startIndex + visibleItems + 5, totalItems); // バッファを追加
+                
+                this.updateVisibleItems(container, scrollContent, visibleContent, data, tableType, startIndex, endIndex);
+            }, 16); // 約60fps
+        });
+    }
+
+    updateVisibleItems(container, scrollContent, visibleContent, data, tableType, startIndex, endIndex) {
+        const itemHeight = this.virtualScroll.itemHeight;
+        
+        // 表示位置を調整
+        visibleContent.style.transform = `translateY(${startIndex * itemHeight}px)`;
+        
+        // 表示するアイテムのみを生成
+        const visibleData = data.slice(startIndex, endIndex);
+        const tbody = document.createElement('tbody');
+        
+        visibleData.forEach((item, index) => {
+            const actualIndex = startIndex + index;
+            const row = this.createTableRow(item, actualIndex, tableType);
+            tbody.appendChild(row);
+        });
+        
+        // 既存のコンテンツを置き換え
+        visibleContent.innerHTML = '';
+        visibleContent.appendChild(tbody);
+    }
+
+    createTableRow(item, index, tableType) {
+        const row = document.createElement('tr');
+        row.className = 'border-b border-slate-100 hover:bg-slate-50 cursor-pointer';
+        row.style.height = `${this.virtualScroll.itemHeight}px`;
+        
+        switch (tableType) {
+            case 'blur':
+                return this.createBlurRow(item, index, row);
+            case 'similar':
+                return this.createSimilarRow(item, index, row);
+            case 'error':
+                return this.createErrorRow(item, index, row);
+            default:
+                return row;
+        }
+    }
+
+    createBlurRow(image, index, row) {
+        row.dataset.filePath = image.filePath;
+        row.dataset.size = image.size;
+        row.dataset.modifiedDate = image.modifiedDate;
+        row.dataset.blurScore = image.blurScore;
+        
+        row.innerHTML = `
+            <td class="p-2">
+                <input type="checkbox" value="${image.filePath}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+            </td>
+            <td class="p-2 font-medium text-slate-800">${image.filename}</td>
+            <td class="p-2 text-slate-600">${this.formatFileSize(image.size)}</td>
+            <td class="p-2 text-slate-600">${this.formatDate(image.modifiedDate)}</td>
+            <td class="p-2">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
+                    ${image.blurScore}
+                </span>
+            </td>
+        `;
+        
+        // 行クリック時のプレビュー表示（チェックボックス以外をクリックした場合）
+        row.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                this.showImagePreview(image);
+            }
+        });
+        
+        return row;
+    }
+
+    createSimilarRow(pair, index, row) {
+        // 新しいデータ構造に対応
+        if (!pair.files || pair.files.length < 2) {
+            return row; // このアイテムをスキップ
+        }
+        
+        const file1 = pair.files[0];
+        const file2 = pair.files[1];
+        const similarity = pair.similarity || 0;
+        const type = pair.type || 'similar';
+        
+        // 推奨判定（キャッシュを使用）
+        const cacheKey = `${file1.filePath}_${file2.filePath}`;
+        let recommendation = this.performanceCache.recommendations.get(cacheKey);
+        if (!recommendation) {
+            recommendation = this.getSimilarImageRecommendation(file1, file2);
+            this.performanceCache.recommendations.set(cacheKey, recommendation);
+        }
+        
+        // タイプに応じた表示色を決定
+        let typeColor = 'bg-blue-100 text-blue-800';
+        let typeText = '類似';
+        if (type === 'duplicate') {
+            typeColor = 'bg-red-100 text-red-800';
+            typeText = '重複';
+        }
+        
+        // 類似度に応じた表示色を決定
+        let similarityColor = 'bg-orange-100 text-orange-800';
+        if (similarity >= 95) {
+            similarityColor = 'bg-red-100 text-red-800';
+        } else if (similarity >= 85) {
+            similarityColor = 'bg-yellow-100 text-yellow-800';
+        }
+        
+        // 推奨に応じた表示色を決定
+        let recommendationColor = 'bg-green-100 text-green-800';
+        let recommendationText = 'ファイル1';
+        if (recommendation === 'file2') {
+            recommendationColor = 'bg-purple-100 text-purple-800';
+            recommendationText = 'ファイル2';
+        } else if (recommendation === 'both') {
+            recommendationColor = 'bg-gray-100 text-gray-800';
+            recommendationText = '両方';
+        }
+        
+        row.innerHTML = `
+            <td class="p-2">
+                <input type="checkbox" value="pair_${index}" class="pair-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500" data-pair-index="${index}">
+            </td>
+            <td class="p-2">
+                <input type="checkbox" value="${file1.filePath}" class="file1-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500" data-pair-index="${index}">
+            </td>
+            <td class="p-2 font-medium text-slate-800">${file1.filename}</td>
+            <td class="p-2 text-slate-600 hidden md:table-cell">${this.formatFileSize(file1.size)}</td>
+            <td class="p-2 text-slate-600 hidden lg:table-cell">${file1.resolution || 'N/A'}</td>
+            <td class="p-2">
+                <input type="checkbox" value="${file2.filePath}" class="file2-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500" data-pair-index="${index}">
+            </td>
+            <td class="p-2 font-medium text-slate-800">${file2.filename}</td>
+            <td class="p-2 text-slate-600 hidden md:table-cell">${this.formatFileSize(file2.size)}</td>
+            <td class="p-2 text-slate-600 hidden lg:table-cell">${file2.resolution || 'N/A'}</td>
+            <td class="p-2">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full ${similarityColor}">
+                    ${similarity}%
+                </span>
+            </td>
+            <td class="p-2">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full ${typeColor}">
+                    ${typeText}
+                </span>
+            </td>
+            <td class="p-2">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full ${recommendationColor}" title="推奨: ${recommendationText}">
+                    ${recommendationText}
+                </span>
+            </td>
+        `;
+        
+        // 行クリック時のプレビュー表示（チェックボックス以外をクリックした場合）
+        row.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                this.showSimilarImagePreview(pair);
+            }
+        });
+        
+        return row;
+    }
+
+    createErrorRow(error, index, row) {
+        row.dataset.filePath = error.filePath;
+        row.dataset.errorType = error.errorType;
+        
+        const errorTypeText = this.getErrorTypeText(error.errorType);
+        const errorColor = this.getErrorTypeColor(error.errorType);
+        
+        row.innerHTML = `
+            <td class="p-2">
+                <input type="checkbox" value="${error.filePath}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+            </td>
+            <td class="p-2 font-medium text-slate-800">${error.filename}</td>
+            <td class="p-2">
+                <span class="px-2 py-1 text-xs font-semibold rounded-full ${errorColor}">
+                    ${errorTypeText}
+                </span>
+            </td>
+        `;
+        
+        return row;
+    }
+
+    // メモリ管理とクリーンアップ
+    cleanupMemory() {
+        console.log('メモリクリーンアップを実行中...');
+        
+        // 推奨判定キャッシュのクリーンアップ
+        if (this.performanceCache.recommendations.size > 1000) {
+            console.log('推奨判定キャッシュをクリーンアップ');
+            this.performanceCache.recommendations.clear();
+        }
+        
+        // フィルタリング結果キャッシュのクリーンアップ
+        if (this.performanceCache.filteredResults.size > 50) {
+            console.log('フィルタリング結果キャッシュをクリーンアップ');
+            this.performanceCache.filteredResults.clear();
+        }
+        
+        // プレビュー画像のクリーンアップ
+        if (this.previewImageElement) {
+            this.previewImageElement.src = '';
+            this.previewImageElement = null;
+        }
+        
+        // ガベージコレクションを促す
+        if (window.gc) {
+            window.gc();
+        }
+        
+        console.log('メモリクリーンアップ完了');
+    }
+
+    // 定期的なメモリクリーンアップ
+    startMemoryCleanup() {
+        // 5分ごとにメモリクリーンアップを実行
+        setInterval(() => {
+            this.cleanupMemory();
+        }, 5 * 60 * 1000);
+    }
+
+    // パフォーマンス監視
+    startPerformanceMonitoring() {
+        // メモリ使用量の監視
+        if (performance.memory) {
+            setInterval(() => {
+                const memoryInfo = performance.memory;
+                const usedMB = Math.round(memoryInfo.usedJSHeapSize / 1024 / 1024);
+                const totalMB = Math.round(memoryInfo.totalJSHeapSize / 1024 / 1024);
+                const limitMB = Math.round(memoryInfo.jsHeapSizeLimit / 1024 / 1024);
+                
+                console.log(`メモリ使用量: ${usedMB}MB / ${totalMB}MB (上限: ${limitMB}MB)`);
+                
+                // メモリ使用量が80%を超えた場合、クリーンアップを実行
+                if (usedMB / limitMB > 0.8) {
+                    console.warn('メモリ使用量が高いため、クリーンアップを実行します');
+                    this.cleanupMemory();
+                }
+            }, 30 * 1000); // 30秒ごと
+        }
+    }
+
+    // パフォーマンス監視UIの制御
+    initializePerformanceUI() {
+        // メモリクリーンアップボタン
+        document.getElementById('cleanupMemory')?.addEventListener('click', () => {
+            this.cleanupMemory();
+            this.updateMemoryUsageDisplay();
+        });
+        
+        // FPS監視
+        this.startFPSMonitoring();
+        
+        // メモリ使用量表示の更新
+        this.updateMemoryUsageDisplay();
+    }
+
+    // FPS監視
+    startFPSMonitoring() {
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+        const updateFPS = () => {
+            frameCount++;
+            const currentTime = performance.now();
+            
+            if (currentTime - lastTime >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                document.getElementById('fpsCounter').textContent = fps;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            requestAnimationFrame(updateFPS);
+        };
+        
+        requestAnimationFrame(updateFPS);
+    }
+
+    // メモリ使用量表示の更新
+    updateMemoryUsageDisplay() {
+        if (performance.memory) {
+            const usedMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+            const totalMB = Math.round(performance.memory.totalJSHeapSize / 1024 / 1024);
+            const limitMB = Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024);
+            
+            document.getElementById('memoryUsage').textContent = usedMB;
+            document.getElementById('memoryUsageText').textContent = `${usedMB} / ${totalMB} (上限: ${limitMB})`;
+            
+            // メモリ使用量に応じて表示を変更
+            const memoryDisplay = document.getElementById('memoryUsageDisplay');
+            const usageRatio = usedMB / limitMB;
+            
+            memoryDisplay.className = 'memory-usage';
+            if (usageRatio > 0.8) {
+                memoryDisplay.classList.add('danger');
+            } else if (usageRatio > 0.6) {
+                memoryDisplay.classList.add('warning');
+            }
+            
+            memoryDisplay.style.display = 'block';
+        }
+    }
+
+    // パフォーマンス監視の開始（更新版）
+    startPerformanceMonitoring() {
+        // メモリ使用量の監視
+        if (performance.memory) {
+            setInterval(() => {
+                this.updateMemoryUsageDisplay();
+                
+                const usedMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+                const limitMB = Math.round(performance.memory.jsHeapSizeLimit / 1024 / 1024);
+                
+                // メモリ使用量が80%を超えた場合、クリーンアップを実行
+                if (usedMB / limitMB > 0.8) {
+                    console.warn('メモリ使用量が高いため、クリーンアップを実行します');
+                    this.cleanupMemory();
+                }
+            }, 30 * 1000); // 30秒ごと
+        }
+        
+        // パフォーマンス監視UIの初期化
+        this.initializePerformanceUI();
     }
 }
 
