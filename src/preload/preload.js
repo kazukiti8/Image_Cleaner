@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteFiles: (filePaths, toRecycleBin) => ipcRenderer.invoke('delete-files', filePaths, toRecycleBin),
   moveFiles: (filePaths, destinationPath) => ipcRenderer.invoke('move-files', filePaths, destinationPath),
   
+  // ファイル保存
+  saveFile: (options) => ipcRenderer.invoke('save-file', options),
+  
   // 画像分析
   scanImages: (folderPath, includeSubfolders) => ipcRenderer.invoke('scan-images', folderPath, includeSubfolders),
   cancelScan: () => ipcRenderer.invoke('cancel-scan'),

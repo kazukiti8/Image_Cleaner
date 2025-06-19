@@ -198,26 +198,59 @@ ipcMain.handle('delete-files', async (event, filePaths, toRecycleBin) => {
     
     console.log(`ファイル操作完了: 成功 ${successCount}件, 部分成功 ${partialSuccessCount}件, 失敗 ${errorCount}件`);
     
-    // 操作完了を通知
-    if (mainWindow) {
-      mainWindow.webContents.send('file-operation-complete', {
-        operation: toRecycleBin ? 'trash' : 'delete',
-        successCount: successCount,
-        errorCount: errorCount,
-        partialSuccessCount: partialSuccessCount
-      });
-    }
-    
-    return { 
-      success: errorCount === 0, 
+    return {
+      success: true,
       results: results,
-      successCount: successCount,
-      errorCount: errorCount,
-      partialSuccessCount: partialSuccessCount
+      summary: {
+        total: filePaths.length,
+        success: successCount,
+        error: errorCount,
+        partialSuccess: partialSuccessCount
+      }
     };
   } catch (error) {
-    console.error('ファイル削除エラー:', error);
-    return { success: false, error: error.message };
+    console.error('ファイル操作エラー:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+// ファイル保存機能
+ipcMain.handle('save-file', async (event, options) => {
+  try {
+    const { content, filename, filters } = options;
+    
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'ファイルを保存',
+      defaultPath: filename,
+      filters: filters || [
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+    
+    if (result.canceled) {
+      return { success: false, canceled: true };
+    }
+    
+    const filePath = result.filePath;
+    
+    // ファイルを保存
+    await fs.writeFile(filePath, content, 'utf8');
+    
+    console.log('ファイル保存成功:', filePath);
+    
+    return {
+      success: true,
+      filePath: filePath
+    };
+  } catch (error) {
+    console.error('ファイル保存エラー:', error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 });
 
