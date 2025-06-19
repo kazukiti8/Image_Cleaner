@@ -756,7 +756,15 @@ class ImageCleanupApp {
     }
 
     deletePermanently() {
-        this.performFileOperation('delete');
+        // 設定に応じて削除操作を決定
+        const settings = this.getSettings();
+        if (settings && settings.deleteOperation === 'recycleBin') {
+            // 設定でゴミ箱へ移動が選択されている場合
+            this.performFileOperation('trash');
+        } else {
+            // 設定で完全削除が選択されている場合、または設定がない場合
+            this.performFileOperation('delete');
+        }
     }
 
     moveFiles() {
@@ -821,6 +829,14 @@ class ImageCleanupApp {
         try {
             let result;
             
+            // 操作名の定義
+            const operationNames = {
+                'trash': 'ゴミ箱へ移動',
+                'delete': '完全削除',
+                'move': '移動',
+                'copy': 'コピー'
+            };
+            
             switch (operation) {
                 case 'trash':
                     result = await window.electronAPI.deleteFiles(filePaths, true);
@@ -849,6 +865,7 @@ class ImageCleanupApp {
             if (result.success) {
                 this.showSuccess(`${operationNames[operation]}が完了しました`);
                 // 成功したファイルをリストから削除
+                safeConsoleLog(`File operation successful. Removing ${filePaths.length} files from table:`, filePaths);
                 this.removeTableRows(filePaths);
             } else {
                 this.showError(`操作に失敗しました: ${result.error}`);
@@ -869,16 +886,20 @@ class ImageCleanupApp {
                 outputFolder = settings.defaultOutputFolder;
             }
             
-            // 設定に移動先フォルダが設定されていない場合はダイアログを表示
-            if (!outputFolder) {
-                const folderPath = await window.electronAPI.selectOutputFolder();
-                if (folderPath) {
-                    return folderPath;
+            // 設定に移動先フォルダが設定されている場合は確認を求める
+            if (outputFolder) {
+                const useDefault = confirm(`設定で指定された移動先フォルダを使用しますか？\n${outputFolder}\n\n「キャンセル」を選択すると、別のフォルダを選択できます。`);
+                if (useDefault) {
+                    return outputFolder;
                 }
-                return null;
             }
             
-            return outputFolder;
+            // 設定に移動先フォルダが設定されていない場合、またはユーザーが別のフォルダを選択したい場合
+            const folderPath = await window.electronAPI.selectOutputFolder();
+            if (folderPath) {
+                return folderPath;
+            }
+            return null;
         } catch (error) {
             safeConsoleError('Move destination folder selection error:', error);
             this.showError('移動先フォルダの選択に失敗しました');
@@ -895,16 +916,20 @@ class ImageCleanupApp {
                 outputFolder = settings.defaultOutputFolder;
             }
             
-            // 設定にコピー先フォルダが設定されていない場合はダイアログを表示
-            if (!outputFolder) {
-                const folderPath = await window.electronAPI.selectOutputFolder();
-                if (folderPath) {
-                    return folderPath;
+            // 設定にコピー先フォルダが設定されている場合は確認を求める
+            if (outputFolder) {
+                const useDefault = confirm(`設定で指定されたコピー先フォルダを使用しますか？\n${outputFolder}\n\n「キャンセル」を選択すると、別のフォルダを選択できます。`);
+                if (useDefault) {
+                    return outputFolder;
                 }
-                return null;
             }
             
-            return outputFolder;
+            // 設定にコピー先フォルダが設定されていない場合、またはユーザーが別のフォルダを選択したい場合
+            const folderPath = await window.electronAPI.selectOutputFolder();
+            if (folderPath) {
+                return folderPath;
+            }
+            return null;
         } catch (error) {
             safeConsoleError('Copy destination folder selection error:', error);
             this.showError('コピー先フォルダの選択に失敗しました');
@@ -964,6 +989,21 @@ class ImageCleanupApp {
         img.src = image.filePath;
         img.alt = image.filename;
         img.className = 'max-w-full max-h-[600px] rounded shadow';
+        
+        // 画像読み込みエラーハンドラー
+        img.onerror = () => {
+            safeConsoleLog(`Image load error for: ${image.filePath}`);
+            previewContainer.innerHTML = `
+                <div class="text-center text-red-500 p-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <p class="text-sm">ファイルが見つかりません</p>
+                    <p class="text-xs text-gray-500 mt-1">${image.filename}</p>
+                </div>
+            `;
+        };
+        
         previewContainer.appendChild(img);
         
         // 画像情報
@@ -1009,6 +1049,20 @@ class ImageCleanupApp {
         img1.src = file1.filePath;
         img1.alt = file1.filename;
         img1.className = 'max-w-full max-h-[500px] rounded shadow mx-auto';
+        
+        // 画像1のエラーハンドラー
+        img1.onerror = () => {
+            safeConsoleLog(`Image1 load error for: ${file1.filePath}`);
+            img1Container.innerHTML = `
+                <div class="text-center text-red-500 p-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 mx-auto mb-1">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <p class="text-xs">ファイルが見つかりません</p>
+                </div>
+            `;
+        };
+        
         img1Container.appendChild(img1);
         
         const label1 = document.createElement('div');
@@ -1023,6 +1077,20 @@ class ImageCleanupApp {
         img2.src = file2.filePath;
         img2.alt = file2.filename;
         img2.className = 'max-w-full max-h-[500px] rounded shadow mx-auto';
+        
+        // 画像2のエラーハンドラー
+        img2.onerror = () => {
+            safeConsoleLog(`Image2 load error for: ${file2.filePath}`);
+            img2Container.innerHTML = `
+                <div class="text-center text-red-500 p-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 mx-auto mb-1">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                    <p class="text-xs">ファイルが見つかりません</p>
+                </div>
+            `;
+        };
+        
         img2Container.appendChild(img2);
         
         const label2 = document.createElement('div');
@@ -1075,7 +1143,7 @@ class ImageCleanupApp {
             row.className = 'hover:bg-slate-50 cursor-pointer';
             row.innerHTML = `
                 <td class="border border-slate-300 px-4 py-2">
-                    <input type="checkbox" class="file-checkbox mr-2" data-filepath="${image.filePath}">
+                    <input type="checkbox" class="blur-checkbox mr-2" data-filepath="${image.filePath}">
                     ${image.filename}
                 </td>
                 <td class="border border-slate-300 px-4 py-2">${this.formatFileSize(image.size)}</td>
@@ -1225,22 +1293,30 @@ class ImageCleanupApp {
 
     // テーブルのチェックボックスイベントを設定
     setupTableCheckboxes(table, type) {
+        safeConsoleLog(`Setting up checkboxes for type: ${type}`);
+        
         // 全選択チェックボックス
         const selectAllCheckbox = table.querySelector(`#selectAll${type.charAt(0).toUpperCase() + type.slice(1)}`);
         if (selectAllCheckbox) {
+            safeConsoleLog(`Found select all checkbox for ${type}`);
             selectAllCheckbox.addEventListener('change', (e) => {
+                safeConsoleLog(`Select all checkbox changed: ${e.target.checked}`);
                 const checkboxes = table.querySelectorAll(`.${type}-checkbox`);
                 checkboxes.forEach(checkbox => {
                     checkbox.checked = e.target.checked;
                     this.handleCheckboxChange(checkbox, type);
                 });
             });
+        } else {
+            safeConsoleLog(`Select all checkbox not found for ${type}`);
         }
         
         // 個別チェックボックス
         const checkboxes = table.querySelectorAll(`.${type}-checkbox`);
+        safeConsoleLog(`Found ${checkboxes.length} individual checkboxes for ${type}`);
         checkboxes.forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
+                safeConsoleLog(`Individual checkbox changed: ${e.target.checked}`);
                 this.handleCheckboxChange(e.target, type);
             });
         });
@@ -1248,15 +1324,26 @@ class ImageCleanupApp {
 
     // チェックボックスの変更を処理
     handleCheckboxChange(checkbox, type) {
+        safeConsoleLog(`Checkbox change: type=${type}, checked=${checkbox.checked}, filepath=${checkbox.dataset.filepath}`);
+        
         switch (type) {
             case 'blur':
-            case 'error':
                 const filePath = checkbox.dataset.filepath;
                 if (checkbox.checked) {
                     this.selectedFiles.add(filePath);
                 } else {
                     this.selectedFiles.delete(filePath);
                 }
+                safeConsoleLog(`Blur files selected: ${this.selectedFiles.size}`);
+                break;
+            case 'error':
+                const errorFilePath = checkbox.dataset.filepath;
+                if (checkbox.checked) {
+                    this.selectedErrors.add(errorFilePath);
+                } else {
+                    this.selectedErrors.delete(errorFilePath);
+                }
+                safeConsoleLog(`Error files selected: ${this.selectedErrors.size}`);
                 break;
             case 'similar':
                 const pairKey = checkbox.dataset.pair;
@@ -1265,6 +1352,7 @@ class ImageCleanupApp {
                 } else {
                     this.selectedSimilarPairs.delete(pairKey);
                 }
+                safeConsoleLog(`Similar pairs selected: ${this.selectedSimilarPairs.size}`);
                 break;
         }
         
@@ -1302,13 +1390,110 @@ class ImageCleanupApp {
     }
 
     removeTableRows(filePaths) {
-        // 選択されたファイルの行を削除
-        filePaths.forEach(filePath => {
-            const row = document.querySelector(`[data-filepath="${filePath}"]`)?.closest('tr');
-            if (row) {
-                row.remove();
-            }
-        });
+        safeConsoleLog(`Removing ${filePaths.length} rows from table. Current tab: ${this.currentTab}`);
+        safeConsoleLog(`File paths to remove:`, filePaths);
+        
+        // 削除されたファイルをスキャン結果からも削除
+        switch (this.currentTab) {
+            case 'blur':
+                // ブレ画像から削除
+                this.scanResults.blurImages = this.scanResults.blurImages.filter(image => 
+                    !filePaths.includes(image.filePath)
+                );
+                safeConsoleLog(`Removed files from blur results. Remaining: ${this.scanResults.blurImages.length}`);
+                break;
+                
+            case 'error':
+                // エラーから削除
+                this.scanResults.errors = this.scanResults.errors.filter(error => 
+                    !filePaths.includes(error.filePath)
+                );
+                safeConsoleLog(`Removed files from error results. Remaining: ${this.scanResults.errors.length}`);
+                break;
+                
+            case 'similar':
+                // 類似画像から削除（ペアの両方のファイルが含まれるペアを削除）
+                this.scanResults.similarImages = this.scanResults.similarImages.filter(group => {
+                    const file1Path = group.files[0].filePath;
+                    const file2Path = group.files[1].filePath;
+                    return !filePaths.includes(file1Path) && !filePaths.includes(file2Path);
+                });
+                safeConsoleLog(`Removed files from similar results. Remaining: ${this.scanResults.similarImages.length}`);
+                break;
+        }
+        
+        // 現在のタブのコンテンツエリアを確認
+        const currentContent = document.getElementById(`content${this.currentTab.charAt(0).toUpperCase() + this.currentTab.slice(1)}`);
+        safeConsoleLog(`Current content element:`, currentContent);
+        
+        if (currentContent) {
+            const tables = currentContent.querySelectorAll('table');
+            safeConsoleLog(`Found ${tables.length} tables in current content`);
+            tables.forEach((table, index) => {
+                const rows = table.querySelectorAll('tr');
+                safeConsoleLog(`Table ${index} has ${rows.length} rows`);
+            });
+        }
+        
+        // 削除済みの行を追跡するSet
+        const removedRows = new Set();
+        
+        // 現在のタブに応じた処理
+        switch (this.currentTab) {
+            case 'blur':
+            case 'error':
+                // ブレ画像とエラータブの場合
+                filePaths.forEach(filePath => {
+                    safeConsoleLog(`Looking for file: ${filePath}`);
+                    
+                    // チェックボックスのdata-filepath属性を基準に行を探す
+                    const checkboxes = document.querySelectorAll(`[data-filepath="${filePath}"]`);
+                    safeConsoleLog(`Found ${checkboxes.length} checkboxes for file: ${filePath}`);
+                    
+                    checkboxes.forEach((checkbox, index) => {
+                        const row = checkbox.closest('tr');
+                        safeConsoleLog(`Checkbox ${index} closest tr:`, row);
+                        
+                        if (row && !removedRows.has(row)) {
+                            safeConsoleLog(`Removing row for file: ${filePath}`);
+                            row.remove();
+                            removedRows.add(row);
+                        } else if (removedRows.has(row)) {
+                            safeConsoleLog(`Row already removed for file: ${filePath}`);
+                        } else {
+                            safeConsoleLog(`Row not found for file: ${filePath}`);
+                        }
+                    });
+                });
+                break;
+                
+            case 'similar':
+                // 類似画像タブの場合
+                safeConsoleLog(`Selected similar pairs:`, Array.from(this.selectedSimilarPairs));
+                
+                this.selectedSimilarPairs.forEach(pairKey => {
+                    safeConsoleLog(`Looking for similar pair: ${pairKey}`);
+                    
+                    const checkboxes = document.querySelectorAll(`[data-pair="${pairKey}"]`);
+                    safeConsoleLog(`Found ${checkboxes.length} checkboxes for pair: ${pairKey}`);
+                    
+                    checkboxes.forEach((checkbox, index) => {
+                        const row = checkbox.closest('tr');
+                        safeConsoleLog(`Similar pair checkbox ${index} closest tr:`, row);
+                        
+                        if (row && !removedRows.has(row)) {
+                            safeConsoleLog(`Removing similar pair row: ${pairKey}`);
+                            row.remove();
+                            removedRows.add(row);
+                        } else if (removedRows.has(row)) {
+                            safeConsoleLog(`Similar pair row already removed: ${pairKey}`);
+                        } else {
+                            safeConsoleLog(`Similar pair row not found: ${pairKey}`);
+                        }
+                    });
+                });
+                break;
+        }
         
         // 選択状態をクリア
         this.selectedFiles.clear();
@@ -1316,6 +1501,53 @@ class ImageCleanupApp {
         this.selectedErrors.clear();
         this.updateSelectedCount();
         this.updateActionButtons();
+        
+        safeConsoleLog(`Table rows removal completed. Removed ${removedRows.size} rows.`);
+        
+        // タブのカウント表示を更新
+        this.updateTabCounts();
+        
+        // DOM操作が失敗した場合のフォールバック：テーブル全体を再構築
+        if (removedRows.size === 0 && filePaths.length > 0) {
+            safeConsoleLog('DOM removal failed, rebuilding table...');
+            this.rebuildCurrentTable();
+        }
+    }
+    
+    // 現在のタブのテーブルを再構築する関数
+    rebuildCurrentTable() {
+        safeConsoleLog(`Rebuilding table for tab: ${this.currentTab}`);
+        
+        switch (this.currentTab) {
+            case 'blur':
+                this.displayBlurResults(this.scanResults.blurImages);
+                break;
+            case 'similar':
+                this.displaySimilarResults(this.scanResults.similarImages);
+                break;
+            case 'error':
+                this.displayErrorResults(this.scanResults.errors);
+                break;
+        }
+        
+        safeConsoleLog('Table rebuild completed');
+    }
+    
+    // タブのカウント表示を更新する関数を追加
+    updateTabCounts() {
+        const countBlur = document.getElementById('countBlur');
+        const countSimilar = document.getElementById('countSimilar');
+        const countError = document.getElementById('countError');
+        
+        if (countBlur) {
+            countBlur.textContent = this.scanResults.blurImages.length;
+        }
+        if (countSimilar) {
+            countSimilar.textContent = this.scanResults.similarImages.length;
+        }
+        if (countError) {
+            countError.textContent = this.scanResults.errors.length;
+        }
     }
 
     updateActionButtons() {
@@ -1333,6 +1565,8 @@ class ImageCleanupApp {
                 break;
         }
         
+        safeConsoleLog(`updateActionButtons: currentTab=${this.currentTab}, count=${count}`);
+        
         // アクションボタンの有効/無効を切り替え
         const actionButtons = document.querySelectorAll('#copyBtn, #deleteBtn, #moveBtn');
         actionButtons.forEach(button => {
@@ -1340,10 +1574,12 @@ class ImageCleanupApp {
                 button.disabled = false;
                 button.classList.remove('opacity-50', 'cursor-not-allowed');
                 button.classList.add('cursor-pointer');
+                safeConsoleLog(`Button ${button.id} enabled`);
             } else {
                 button.disabled = true;
                 button.classList.add('opacity-50', 'cursor-not-allowed');
                 button.classList.remove('cursor-pointer');
+                safeConsoleLog(`Button ${button.id} disabled`);
             }
         });
     }
@@ -1352,6 +1588,18 @@ class ImageCleanupApp {
 // アプリケーションの初期化
 document.addEventListener('DOMContentLoaded', () => {
     safeConsoleLog('DOM content loaded');
+    
+    // グローバルエラーハンドラーを追加
+    window.addEventListener('error', (event) => {
+        // dragEventエラーを無視
+        if (event.message && event.message.includes('dragEvent is not defined')) {
+            event.preventDefault();
+            return false;
+        }
+        // その他のエラーは通常通り処理
+        safeConsoleError('Global error:', event.error);
+    });
+    
     window.imageCleanupApp = new ImageCleanupApp();
     
     // 設定マネージャーの初期化
