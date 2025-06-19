@@ -208,6 +208,54 @@
                                            class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
                                 </div>
                             </div>
+                            
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-slate-700 mb-2">タイプ</label>
+                                <div class="space-y-1">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="similarTypeSimilar" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">類似画像</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="similarTypeDuplicate" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">重複画像</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-slate-700 mb-2">推奨</label>
+                                <div class="space-y-1">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="similarRecommendFile1" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">ファイル1推奨</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="similarRecommendFile2" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">ファイル2推奨</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="similarRecommendBoth" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">両方推奨</span>
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-slate-700 mb-2">ファイルサイズ範囲 (MB)</label>
+                                <div class="flex items-center space-x-2">
+                                    <input type="number" id="similarMinSize" min="0" max="1000" value="0" step="0.1"
+                                           class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
+                                    <span class="text-xs text-slate-500">〜</span>
+                                    <input type="number" id="similarMaxSize" min="0" max="1000" value="1000" step="0.1"
+                                           class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
+                                </div>
+                            </div>
                         </div>
 
                         <!-- エラーフィルター -->
@@ -586,4 +634,5 @@
     <script src="../js/components/settings.mjs"></script>
     <script src="../js/renderer.mjs"></script>
 </body>
+</html> 
 </html> 

@@ -26,7 +26,17 @@ class ImageCleanupApp {
         };
         this.currentFilters = {
             blur: { minScore: 0, maxScore: 100 },
-            similar: { minScore: 0, maxScore: 100 },
+            similar: { 
+                minScore: 0, 
+                maxScore: 100, 
+                typeSimilar: true, 
+                typeDuplicate: true, 
+                recommendFile1: true, 
+                recommendFile2: true, 
+                recommendBoth: true, 
+                minSize: 0, 
+                maxSize: 1000 
+            },
             error: { 
                 fileNotFound: true, 
                 permissionDenied: true, 
@@ -293,28 +303,57 @@ class ImageCleanupApp {
 
     // 基本的なメソッド
     switchTab(tabName) {
-        // タブボタンの状態を更新
-        document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('tab-active'));
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('tab-active');
+        console.log('タブ切り替え:', tabName);
         
-        // タブコンテンツの表示を切り替え
-        document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
-        document.getElementById(`content${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`).style.display = 'block';
-        
+        // 現在のタブを更新
         this.currentTab = tabName;
+        
+        // タブボタンの状態を更新
+        document.querySelectorAll('.tab-button').forEach(button => {
+            if (button.dataset.tab === tabName) {
+                button.classList.add('tab-active');
+            } else {
+                button.classList.remove('tab-active');
+            }
+        });
+        
+        // タブコンテンツの表示/非表示を切り替え
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.style.display = 'none';
+        });
+        
+        const targetContent = document.getElementById(`content${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+        if (targetContent) {
+            targetContent.style.display = 'block';
+        }
+        
+        // フィルターコンテンツの表示/非表示を切り替え
         this.updateFilterContent();
+        
+        // アクションボタンの表示/非表示を切り替え
+        this.updateActionButtons();
+        
+        // 選択状態をクリア
+        this.selectedItems.clear();
         this.updateSelectedCount();
         
-        // アクションボタンの表示切り替え
-        const normalActions = document.getElementById('normalActions');
-        const errorActions = document.getElementById('errorActions');
-        if (tabName === 'error') {
-            if (normalActions) normalActions.style.display = 'none';
-            if (errorActions) errorActions.style.display = '';
-        } else {
-            if (normalActions) normalActions.style.display = '';
-            if (errorActions) errorActions.style.display = 'none';
+        // プレビューエリアをリセット
+        this.resetPreviewArea();
+        
+        // 倍率調整UIの表示/非表示を切り替え
+        const zoomControls = document.getElementById('zoomControls');
+        if (zoomControls) {
+            if (tabName === 'similar') {
+                zoomControls.style.display = 'none';
+            } else {
+                zoomControls.style.display = 'block';
+            }
         }
+        
+        // フィルタリング結果を表示
+        this.displayFilteredResults();
+        
+        console.log('タブ切り替え完了:', tabName);
     }
 
     updateUI() {
@@ -593,12 +632,23 @@ class ImageCleanupApp {
         thead.innerHTML = `
             <tr class="bg-slate-50 border-b border-slate-200">
                 <th class="p-2 text-left">
-                    <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" title="全ペア選択">
+                </th>
+                <th class="p-2 text-left">
+                    <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" title="全ファイル1選択">
                 </th>
                 <th class="p-2 text-left">ファイル1</th>
+                <th class="p-2 text-left hidden md:table-cell">サイズ1</th>
+                <th class="p-2 text-left hidden lg:table-cell">解像度1</th>
+                <th class="p-2 text-left">
+                    <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" title="全ファイル2選択">
+                </th>
                 <th class="p-2 text-left">ファイル2</th>
+                <th class="p-2 text-left hidden md:table-cell">サイズ2</th>
+                <th class="p-2 text-left hidden lg:table-cell">解像度2</th>
                 <th class="p-2 text-left">類似度</th>
                 <th class="p-2 text-left">タイプ</th>
+                <th class="p-2 text-left">推奨</th>
             </tr>
         `;
         table.appendChild(thead);
@@ -619,8 +669,8 @@ class ImageCleanupApp {
             const similarity = pair.similarity || 0;
             const type = pair.type || 'similar';
             
-            // 最初のファイルをプレビュー用に設定
-            row.dataset.filePath = file1.filePath;
+            // 推奨判定（ファイルサイズ、解像度などを考慮）
+            const recommendation = this.getSimilarImageRecommendation(file1, file2);
             
             // タイプに応じた表示色を決定
             let typeColor = 'bg-blue-100 text-blue-800';
@@ -638,12 +688,33 @@ class ImageCleanupApp {
                 similarityColor = 'bg-yellow-100 text-yellow-800';
             }
             
+            // 推奨に応じた表示色を決定
+            let recommendationColor = 'bg-green-100 text-green-800';
+            let recommendationText = 'ファイル1';
+            if (recommendation === 'file2') {
+                recommendationColor = 'bg-purple-100 text-purple-800';
+                recommendationText = 'ファイル2';
+            } else if (recommendation === 'both') {
+                recommendationColor = 'bg-gray-100 text-gray-800';
+                recommendationText = '両方';
+            }
+            
             row.innerHTML = `
                 <td class="p-2">
-                    <input type="checkbox" value="${file1.filePath}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <input type="checkbox" value="pair_${index}" class="pair-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500" data-pair-index="${index}">
+                </td>
+                <td class="p-2">
+                    <input type="checkbox" value="${file1.filePath}" class="file1-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500" data-pair-index="${index}">
                 </td>
                 <td class="p-2 font-medium text-slate-800">${file1.filename}</td>
+                <td class="p-2 text-slate-600 hidden md:table-cell">${this.formatFileSize(file1.size)}</td>
+                <td class="p-2 text-slate-600 hidden lg:table-cell">${file1.resolution || 'N/A'}</td>
+                <td class="p-2">
+                    <input type="checkbox" value="${file2.filePath}" class="file2-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500" data-pair-index="${index}">
+                </td>
                 <td class="p-2 font-medium text-slate-800">${file2.filename}</td>
+                <td class="p-2 text-slate-600 hidden md:table-cell">${this.formatFileSize(file2.size)}</td>
+                <td class="p-2 text-slate-600 hidden lg:table-cell">${file2.resolution || 'N/A'}</td>
                 <td class="p-2">
                     <span class="px-2 py-1 text-xs font-semibold rounded-full ${similarityColor}">
                         ${similarity}%
@@ -654,13 +725,17 @@ class ImageCleanupApp {
                         ${typeText}
                     </span>
                 </td>
+                <td class="p-2">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${recommendationColor}" title="推奨: ${recommendationText}">
+                        ${recommendationText}
+                    </span>
+                </td>
             </tr>`;
             
             // 行クリック時のプレビュー表示（チェックボックス以外をクリックした場合）
             row.addEventListener('click', (e) => {
                 if (e.target.type !== 'checkbox') {
-                    // 最初のファイルをプレビュー表示
-                    this.showImagePreview(file1);
+                    this.showSimilarImagePreview(pair);
                 }
             });
             
@@ -669,9 +744,136 @@ class ImageCleanupApp {
         table.appendChild(tbody);
         
         // イベントリスナーを設定
-        this.setupCheckboxListeners(table);
+        this.setupSimilarCheckboxListeners(table);
         
         return table;
+    }
+
+    // 類似画像の推奨判定
+    getSimilarImageRecommendation(file1, file2) {
+        // ファイルサイズを比較
+        const size1 = file1.size || 0;
+        const size2 = file2.size || 0;
+        
+        // 解像度を比較（幅x高さの形式を想定）
+        const resolution1 = this.parseResolution(file1.resolution);
+        const resolution2 = this.parseResolution(file2.resolution);
+        
+        let score1 = 0;
+        let score2 = 0;
+        
+        // ファイルサイズのスコア（大きい方が良い）
+        if (size1 > size2) score1 += 2;
+        else if (size2 > size1) score2 += 2;
+        
+        // 解像度のスコア（高い方が良い）
+        if (resolution1 && resolution2) {
+            const pixels1 = resolution1.width * resolution1.height;
+            const pixels2 = resolution2.width * resolution2.height;
+            if (pixels1 > pixels2) score1 += 3;
+            else if (pixels2 > pixels1) score2 += 3;
+        }
+        
+        // ファイル名のスコア（より詳細な名前の方が良い）
+        const name1 = file1.filename.toLowerCase();
+        const name2 = file2.filename.toLowerCase();
+        if (name1.includes('copy') || name1.includes('duplicate')) score1 -= 1;
+        if (name2.includes('copy') || name2.includes('duplicate')) score2 -= 1;
+        
+        // 結果を返す
+        if (score1 > score2) return 'file1';
+        else if (score2 > score1) return 'file2';
+        else return 'both'; // 同点の場合は両方
+    }
+
+    // 解像度文字列をパース
+    parseResolution(resolutionStr) {
+        if (!resolutionStr) return null;
+        const match = resolutionStr.match(/(\d+)x(\d+)/);
+        if (match) {
+            return {
+                width: parseInt(match[1]),
+                height: parseInt(match[2])
+            };
+        }
+        return null;
+    }
+
+    // 類似画像用のチェックボックスリスナー
+    setupSimilarCheckboxListeners(table) {
+        // ヘッダーのチェックボックス
+        const headerCheckboxes = table.querySelectorAll('thead input[type="checkbox"]');
+        const pairCheckboxes = table.querySelectorAll('tbody .pair-checkbox');
+        const file1Checkboxes = table.querySelectorAll('tbody .file1-checkbox');
+        const file2Checkboxes = table.querySelectorAll('tbody .file2-checkbox');
+        
+        // 全ペア選択
+        headerCheckboxes[0].addEventListener('change', (e) => {
+            pairCheckboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                this.updateSimilarSelection(checkbox.value, e.target.checked);
+            });
+        });
+        
+        // 全ファイル1選択
+        headerCheckboxes[1].addEventListener('change', (e) => {
+            file1Checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                this.updateSelection(checkbox.value, e.target.checked);
+            });
+        });
+        
+        // 全ファイル2選択
+        headerCheckboxes[2].addEventListener('change', (e) => {
+            file2Checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                this.updateSelection(checkbox.value, e.target.checked);
+            });
+        });
+        
+        // ペア選択チェックボックス
+        pairCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                const pairIndex = e.target.dataset.pairIndex;
+                const file1Checkbox = table.querySelector(`.file1-checkbox[data-pair-index="${pairIndex}"]`);
+                const file2Checkbox = table.querySelector(`.file2-checkbox[data-pair-index="${pairIndex}"]`);
+                
+                if (e.target.checked) {
+                    file1Checkbox.checked = true;
+                    file2Checkbox.checked = true;
+                    this.updateSelection(file1Checkbox.value, true);
+                    this.updateSelection(file2Checkbox.value, true);
+                } else {
+                    file1Checkbox.checked = false;
+                    file2Checkbox.checked = false;
+                    this.updateSelection(file1Checkbox.value, false);
+                    this.updateSelection(file2Checkbox.value, false);
+                }
+            });
+        });
+        
+        // 個別ファイル選択チェックボックス
+        [...file1Checkboxes, ...file2Checkboxes].forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                this.updateSelection(e.target.value, e.target.checked);
+            });
+            
+            // チェックボックスのクリックイベントが行クリックイベントに伝播しないようにする
+            checkbox.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        });
+    }
+
+    // 類似画像選択の更新
+    updateSimilarSelection(pairValue, selected) {
+        // ペア選択の場合は個別ファイルの選択状態も更新
+        if (selected) {
+            this.selectedItems.add(pairValue);
+        } else {
+            this.selectedItems.delete(pairValue);
+        }
+        this.updateSelectedCount();
     }
 
     createErrorTable(errors) {
@@ -858,10 +1060,25 @@ class ImageCleanupApp {
         // 類似画像フィルター
         const similarMinScore = document.getElementById('similarMinScore');
         const similarMaxScore = document.getElementById('similarMaxScore');
+        const similarTypeSimilar = document.getElementById('similarTypeSimilar');
+        const similarTypeDuplicate = document.getElementById('similarTypeDuplicate');
+        const similarRecommendFile1 = document.getElementById('similarRecommendFile1');
+        const similarRecommendFile2 = document.getElementById('similarRecommendFile2');
+        const similarRecommendBoth = document.getElementById('similarRecommendBoth');
+        const similarMinSize = document.getElementById('similarMinSize');
+        const similarMaxSize = document.getElementById('similarMaxSize');
+        
         if (similarMinScore && similarMaxScore) {
             similarMinScore.value = this.currentFilters.similar.minScore;
             similarMaxScore.value = this.currentFilters.similar.maxScore;
         }
+        if (similarTypeSimilar) similarTypeSimilar.checked = this.currentFilters.similar.typeSimilar;
+        if (similarTypeDuplicate) similarTypeDuplicate.checked = this.currentFilters.similar.typeDuplicate;
+        if (similarRecommendFile1) similarRecommendFile1.checked = this.currentFilters.similar.recommendFile1;
+        if (similarRecommendFile2) similarRecommendFile2.checked = this.currentFilters.similar.recommendFile2;
+        if (similarRecommendBoth) similarRecommendBoth.checked = this.currentFilters.similar.recommendBoth;
+        if (similarMinSize) similarMinSize.value = this.currentFilters.similar.minSize;
+        if (similarMaxSize) similarMaxSize.value = this.currentFilters.similar.maxSize;
         
         // エラーフィルター
         const errorFileNotFound = document.getElementById('errorFileNotFound');
@@ -891,48 +1108,78 @@ class ImageCleanupApp {
     }
 
     resetFilter() {
-        console.log('フィルターをリセットします');
+        // ブレ画像フィルターをリセット
+        const blurMinScore = document.getElementById('blurMinScore');
+        const blurMaxScore = document.getElementById('blurMaxScore');
+        if (blurMinScore) blurMinScore.value = '0';
+        if (blurMaxScore) blurMaxScore.value = '100';
         
-        // フィルター値をデフォルトにリセット
-        this.currentFilters = {
-            blur: { minScore: 0, maxScore: 100 },
-            similar: { minScore: 0, maxScore: 100 },
-            error: { 
-                fileNotFound: true, 
-                permissionDenied: true, 
-                corrupted: true, 
-                unsupported: true 
-            }
-        };
+        // 類似画像フィルターをリセット
+        const similarMinScore = document.getElementById('similarMinScore');
+        const similarMaxScore = document.getElementById('similarMaxScore');
+        const similarTypeSimilar = document.getElementById('similarTypeSimilar');
+        const similarTypeDuplicate = document.getElementById('similarTypeDuplicate');
+        const similarRecommendFile1 = document.getElementById('similarRecommendFile1');
+        const similarRecommendFile2 = document.getElementById('similarRecommendFile2');
+        const similarRecommendBoth = document.getElementById('similarRecommendBoth');
+        const similarMinSize = document.getElementById('similarMinSize');
+        const similarMaxSize = document.getElementById('similarMaxSize');
         
-        // UIを更新
-        this.updateFilterUI();
+        if (similarMinScore) similarMinScore.value = '0';
+        if (similarMaxScore) similarMaxScore.value = '100';
+        if (similarTypeSimilar) similarTypeSimilar.checked = true;
+        if (similarTypeDuplicate) similarTypeDuplicate.checked = true;
+        if (similarRecommendFile1) similarRecommendFile1.checked = true;
+        if (similarRecommendFile2) similarRecommendFile2.checked = true;
+        if (similarRecommendBoth) similarRecommendBoth.checked = true;
+        if (similarMinSize) similarMinSize.value = '0';
+        if (similarMaxSize) similarMaxSize.value = '1000';
         
-        // フィルタリングを実行
+        // エラーフィルターをリセット
+        const errorFileNotFound = document.getElementById('errorFileNotFound');
+        const errorPermissionDenied = document.getElementById('errorPermissionDenied');
+        const errorCorrupted = document.getElementById('errorCorrupted');
+        const errorUnsupported = document.getElementById('errorUnsupported');
+        
+        if (errorFileNotFound) errorFileNotFound.checked = true;
+        if (errorPermissionDenied) errorPermissionDenied.checked = true;
+        if (errorCorrupted) errorCorrupted.checked = true;
+        if (errorUnsupported) errorUnsupported.checked = true;
+        
+        // フィルターを適用
+        this.updateCurrentFilters();
         this.performFiltering();
-        
-        // 結果を表示
         this.displayFilteredResults();
-        
-        this.showSuccess('フィルターをリセットしました');
     }
 
     updateCurrentFilters() {
         // ブレ画像フィルター
         const blurMinScore = document.getElementById('blurMinScore');
         const blurMaxScore = document.getElementById('blurMaxScore');
-        if (blurMinScore && blurMaxScore) {
-            this.currentFilters.blur.minScore = parseInt(blurMinScore.value) || 0;
-            this.currentFilters.blur.maxScore = parseInt(blurMaxScore.value) || 100;
-        }
+        
+        if (blurMinScore) this.currentFilters.blur.minScore = parseFloat(blurMinScore.value) || 0;
+        if (blurMaxScore) this.currentFilters.blur.maxScore = parseFloat(blurMaxScore.value) || 100;
         
         // 類似画像フィルター
         const similarMinScore = document.getElementById('similarMinScore');
         const similarMaxScore = document.getElementById('similarMaxScore');
-        if (similarMinScore && similarMaxScore) {
-            this.currentFilters.similar.minScore = parseInt(similarMinScore.value) || 0;
-            this.currentFilters.similar.maxScore = parseInt(similarMaxScore.value) || 100;
-        }
+        const similarTypeSimilar = document.getElementById('similarTypeSimilar');
+        const similarTypeDuplicate = document.getElementById('similarTypeDuplicate');
+        const similarRecommendFile1 = document.getElementById('similarRecommendFile1');
+        const similarRecommendFile2 = document.getElementById('similarRecommendFile2');
+        const similarRecommendBoth = document.getElementById('similarRecommendBoth');
+        const similarMinSize = document.getElementById('similarMinSize');
+        const similarMaxSize = document.getElementById('similarMaxSize');
+        
+        if (similarMinScore) this.currentFilters.similar.minScore = parseFloat(similarMinScore.value) || 0;
+        if (similarMaxScore) this.currentFilters.similar.maxScore = parseFloat(similarMaxScore.value) || 100;
+        if (similarTypeSimilar) this.currentFilters.similar.typeSimilar = similarTypeSimilar.checked;
+        if (similarTypeDuplicate) this.currentFilters.similar.typeDuplicate = similarTypeDuplicate.checked;
+        if (similarRecommendFile1) this.currentFilters.similar.recommendFile1 = similarRecommendFile1.checked;
+        if (similarRecommendFile2) this.currentFilters.similar.recommendFile2 = similarRecommendFile2.checked;
+        if (similarRecommendBoth) this.currentFilters.similar.recommendBoth = similarRecommendBoth.checked;
+        if (similarMinSize) this.currentFilters.similar.minSize = parseFloat(similarMinSize.value) || 0;
+        if (similarMaxSize) this.currentFilters.similar.maxSize = parseFloat(similarMaxSize.value) || 1000;
         
         // エラーフィルター
         const errorFileNotFound = document.getElementById('errorFileNotFound');
@@ -963,9 +1210,49 @@ class ImageCleanupApp {
         
         // 類似画像のフィルタリング
         this.filteredData.similar = this.originalData.similar.filter(item => {
-            const score = parseFloat(item.similarityScore) || 0;
-            return score >= this.currentFilters.similar.minScore && 
-                   score <= this.currentFilters.similar.maxScore;
+            const similarity = parseFloat(item.similarity) || 0;
+            const type = item.type || 'similar';
+            
+            // 類似度フィルター
+            if (similarity < this.currentFilters.similar.minScore || 
+                similarity > this.currentFilters.similar.maxScore) {
+                return false;
+            }
+            
+            // タイプフィルター
+            if (type === 'similar' && !this.currentFilters.similar.typeSimilar) {
+                return false;
+            }
+            if (type === 'duplicate' && !this.currentFilters.similar.typeDuplicate) {
+                return false;
+            }
+            
+            // 推奨フィルター
+            if (item.files && item.files.length >= 2) {
+                const recommendation = this.getSimilarImageRecommendation(item.files[0], item.files[1]);
+                if (recommendation === 'file1' && !this.currentFilters.similar.recommendFile1) {
+                    return false;
+                }
+                if (recommendation === 'file2' && !this.currentFilters.similar.recommendFile2) {
+                    return false;
+                }
+                if (recommendation === 'both' && !this.currentFilters.similar.recommendBoth) {
+                    return false;
+                }
+                
+                // ファイルサイズフィルター（両方のファイルのサイズをチェック）
+                const file1SizeMB = (item.files[0].size || 0) / (1024 * 1024);
+                const file2SizeMB = (item.files[1].size || 0) / (1024 * 1024);
+                const maxSizeMB = Math.max(file1SizeMB, file2SizeMB);
+                const minSizeMB = Math.min(file1SizeMB, file2SizeMB);
+                
+                if (maxSizeMB < this.currentFilters.similar.minSize || 
+                    minSizeMB > this.currentFilters.similar.maxSize) {
+                    return false;
+                }
+            }
+            
+            return true;
         });
         
         // エラーのフィルタリング
@@ -1047,6 +1334,9 @@ class ImageCleanupApp {
                             <p>• <strong>類似度範囲</strong>: 0-100の範囲で類似度を指定</p>
                             <p>• 数値が高いほど類似度が高い</p>
                             <p>• 例: 80-100で設定すると、非常に類似度の高い画像のみ表示</p>
+                            <p>• <strong>タイプ</strong>: 類似画像と重複画像を個別にフィルタリング</p>
+                            <p>• <strong>推奨</strong>: 自動判定された推奨ファイル別にフィルタリング</p>
+                            <p>• <strong>ファイルサイズ範囲</strong>: MB単位でファイルサイズを指定</p>
                         </div>
                     </div>
                     
@@ -1787,38 +2077,58 @@ class ImageCleanupApp {
     // フィルター関連のイベントリスナー
     initializeFilterEvents() {
         // フィルターボタン
-        document.getElementById('applyFilter').addEventListener('click', () => this.applyFilter());
-        document.getElementById('resetFilter').addEventListener('click', () => this.resetFilter());
+        document.getElementById('applyFilter')?.addEventListener('click', () => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
+        });
         
-        // フィルター入力フィールドのEnterキーイベント
-        const filterInputs = [
-            'blurMinScore', 'blurMaxScore',
-            'similarMinScore', 'similarMaxScore'
-        ];
+        document.getElementById('resetFilter')?.addEventListener('click', () => {
+            this.resetFilters();
+        });
         
-        filterInputs.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.applyFilter();
-                    }
-                });
-            }
+        // ブレ画像フィルターの数値入力
+        document.getElementById('blurMinScore')?.addEventListener('input', () => this.updateCurrentFilters());
+        document.getElementById('blurMaxScore')?.addEventListener('input', () => this.updateCurrentFilters());
+        
+        // 類似画像フィルターの数値入力
+        document.getElementById('similarMinScore')?.addEventListener('input', () => this.updateCurrentFilters());
+        document.getElementById('similarMaxScore')?.addEventListener('input', () => this.updateCurrentFilters());
+        document.getElementById('similarMinSize')?.addEventListener('input', () => this.updateCurrentFilters());
+        document.getElementById('similarMaxSize')?.addEventListener('input', () => this.updateCurrentFilters());
+        
+        // 類似画像フィルターのチェックボックス
+        document.getElementById('similarTypeSimilar')?.addEventListener('change', () => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
+        });
+        document.getElementById('similarTypeDuplicate')?.addEventListener('change', () => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
+        });
+        document.getElementById('similarRecommendFile1')?.addEventListener('change', () => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
+        });
+        document.getElementById('similarRecommendFile2')?.addEventListener('change', () => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
+        });
+        document.getElementById('similarRecommendBoth')?.addEventListener('change', () => {
+            this.updateCurrentFilters();
+            this.performFiltering();
+            this.displayFilteredResults();
         });
         
         // エラーフィルターのチェックボックス
-        const errorCheckboxes = [
-            'errorFileNotFound', 'errorPermissionDenied', 
-            'errorCorrupted', 'errorUnsupported'
-        ];
-        
-        errorCheckboxes.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) {
-                element.addEventListener('change', () => this.updateErrorFilter());
-            }
-        });
+        document.getElementById('errorFileNotFound')?.addEventListener('change', () => this.updateErrorFilter());
+        document.getElementById('errorPermissionDenied')?.addEventListener('change', () => this.updateErrorFilter());
+        document.getElementById('errorCorrupted')?.addEventListener('change', () => this.updateErrorFilter());
+        document.getElementById('errorUnsupported')?.addEventListener('change', () => this.updateErrorFilter());
     }
 
     // 初回起動時ガイダンス関連のメソッド
@@ -2049,6 +2359,253 @@ class ImageCleanupApp {
             URL.revokeObjectURL(url);
         }, 100);
         this.showSuccess('エラーログをエクスポートしました');
+    }
+
+    // 類似画像の比較プレビュー表示
+    showSimilarImagePreview(pair) {
+        if (!pair.files || pair.files.length < 2) {
+            console.error('類似画像ペアのデータが不正です:', pair);
+            return;
+        }
+
+        const file1 = pair.files[0];
+        const file2 = pair.files[1];
+        const similarity = pair.similarity || 0;
+        const type = pair.type || 'similar';
+        const recommendation = this.getSimilarImageRecommendation(file1, file2);
+
+        // プレビューエリアをクリア
+        const previewArea = document.getElementById('previewAreaContainer');
+        if (!previewArea) return;
+
+        // 類似画像用のレイアウトに変更
+        previewArea.className = 'flex-grow bg-slate-100 rounded text-slate-500 text-sm min-h-[200px] sm:min-h-[300px] flex space-x-2 p-2';
+        previewArea.innerHTML = '';
+
+        // 左側の画像（ファイル1）
+        const leftPane = document.createElement('div');
+        leftPane.className = 'flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col';
+        
+        const leftImageContainer = document.createElement('div');
+        leftImageContainer.className = 'flex-1 flex items-center justify-center p-2 bg-slate-50';
+        
+        const leftImage = document.createElement('img');
+        leftImage.className = 'max-w-full max-h-full object-contain rounded';
+        leftImage.alt = file1.filename;
+        leftImage.onerror = () => {
+            leftImageContainer.innerHTML = `
+                <div class="text-center text-slate-400">
+                    <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p class="text-xs">画像を読み込めません</p>
+                </div>
+            `;
+        };
+        
+        // ファイルパスから画像を読み込み
+        window.electronAPI.loadImage(file1.filePath).then(imageData => {
+            leftImage.src = imageData;
+        }).catch(error => {
+            console.error('画像読み込みエラー:', error);
+            leftImage.onerror();
+        });
+        
+        leftImageContainer.appendChild(leftImage);
+        leftPane.appendChild(leftImageContainer);
+
+        // ファイル1の情報
+        const leftInfo = document.createElement('div');
+        leftInfo.className = 'p-2 border-t border-slate-200 bg-white';
+        leftInfo.innerHTML = `
+            <div class="text-xs space-y-1">
+                <div class="font-medium text-slate-800">${file1.filename}</div>
+                <div class="text-slate-600">サイズ: ${this.formatFileSize(file1.size)}</div>
+                <div class="text-slate-600">解像度: ${file1.resolution || 'N/A'}</div>
+                <div class="text-slate-600">更新日: ${this.formatDate(file1.modifiedDate)}</div>
+            </div>
+        `;
+        leftPane.appendChild(leftInfo);
+
+        // 右側の画像（ファイル2）
+        const rightPane = document.createElement('div');
+        rightPane.className = 'flex-1 bg-white rounded-lg shadow-sm overflow-hidden flex flex-col';
+        
+        const rightImageContainer = document.createElement('div');
+        rightImageContainer.className = 'flex-1 flex items-center justify-center p-2 bg-slate-50';
+        
+        const rightImage = document.createElement('img');
+        rightImage.className = 'max-w-full max-h-full object-contain rounded';
+        rightImage.alt = file2.filename;
+        rightImage.onerror = () => {
+            rightImageContainer.innerHTML = `
+                <div class="text-center text-slate-400">
+                    <svg class="w-12 h-12 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <p class="text-xs">画像を読み込めません</p>
+                </div>
+            `;
+        };
+        
+        // ファイルパスから画像を読み込み
+        window.electronAPI.loadImage(file2.filePath).then(imageData => {
+            rightImage.src = imageData;
+        }).catch(error => {
+            console.error('画像読み込みエラー:', error);
+            rightImage.onerror();
+        });
+        
+        rightImageContainer.appendChild(rightImage);
+        rightPane.appendChild(rightImageContainer);
+
+        // ファイル2の情報
+        const rightInfo = document.createElement('div');
+        rightInfo.className = 'p-2 border-t border-slate-200 bg-white';
+        rightInfo.innerHTML = `
+            <div class="text-xs space-y-1">
+                <div class="font-medium text-slate-800">${file2.filename}</div>
+                <div class="text-slate-600">サイズ: ${this.formatFileSize(file2.size)}</div>
+                <div class="text-slate-600">解像度: ${file2.resolution || 'N/A'}</div>
+                <div class="text-slate-600">更新日: ${this.formatDate(file2.modifiedDate)}</div>
+            </div>
+        `;
+        rightPane.appendChild(rightInfo);
+
+        // 中央の比較情報
+        const centerPane = document.createElement('div');
+        centerPane.className = 'w-16 flex flex-col items-center justify-center space-y-2';
+        
+        // 類似度表示
+        const similarityBadge = document.createElement('div');
+        similarityBadge.className = 'px-3 py-2 bg-blue-100 text-blue-800 rounded-lg text-center';
+        similarityBadge.innerHTML = `
+            <div class="text-lg font-bold">${similarity}%</div>
+            <div class="text-xs">類似度</div>
+        `;
+        
+        // タイプ表示
+        const typeBadge = document.createElement('div');
+        const typeColor = type === 'duplicate' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800';
+        const typeText = type === 'duplicate' ? '重複' : '類似';
+        typeBadge.className = `px-3 py-2 ${typeColor} rounded-lg text-center`;
+        typeBadge.innerHTML = `
+            <div class="text-sm font-bold">${typeText}</div>
+        `;
+        
+        // 推奨表示
+        const recommendationBadge = document.createElement('div');
+        let recommendationColor = 'bg-green-100 text-green-800';
+        let recommendationText = '推奨: ファイル1';
+        if (recommendation === 'file2') {
+            recommendationColor = 'bg-purple-100 text-purple-800';
+            recommendationText = '推奨: ファイル2';
+        } else if (recommendation === 'both') {
+            recommendationColor = 'bg-gray-100 text-gray-800';
+            recommendationText = '推奨: 両方';
+        }
+        recommendationBadge.className = `px-3 py-2 ${recommendationColor} rounded-lg text-center`;
+        recommendationBadge.innerHTML = `
+            <div class="text-xs font-bold">${recommendationText}</div>
+        `;
+        
+        centerPane.appendChild(similarityBadge);
+        centerPane.appendChild(typeBadge);
+        centerPane.appendChild(recommendationBadge);
+
+        // プレビューエリアに追加
+        previewArea.appendChild(leftPane);
+        previewArea.appendChild(centerPane);
+        previewArea.appendChild(rightPane);
+
+        // 画像情報エリアを更新
+        this.updateImageInfoForSimilar(pair);
+        
+        // 倍率調整UIを非表示（類似画像比較時は不要）
+        const zoomControls = document.getElementById('zoomControls');
+        if (zoomControls) {
+            zoomControls.style.display = 'none';
+        }
+    }
+
+    // 類似画像用の画像情報更新
+    updateImageInfoForSimilar(pair) {
+        if (!pair.files || pair.files.length < 2) return;
+
+        const file1 = pair.files[0];
+        const file2 = pair.files[1];
+        const similarity = pair.similarity || 0;
+        const type = pair.type || 'similar';
+        const recommendation = this.getSimilarImageRecommendation(file1, file2);
+
+        // 画像情報エリアを更新
+        const fileNameEl = document.getElementById('infoFileName');
+        const filePathEl = document.getElementById('infoFilePath');
+        const resolutionEl = document.getElementById('infoResolution');
+        const fileSizeEl = document.getElementById('infoFileSize');
+        const takenDateEl = document.getElementById('infoTakenDate');
+        const blurScoreContainer = document.getElementById('infoBlurScoreContainer');
+
+        if (fileNameEl) fileNameEl.textContent = `${file1.filename} / ${file2.filename}`;
+        if (filePathEl) {
+            filePathEl.textContent = `${this.getDisplayPath(file1.filePath)} / ${this.getDisplayPath(file2.filePath)}`;
+            filePathEl.title = `${file1.filePath}\n${file2.filePath}`;
+        }
+        if (resolutionEl) resolutionEl.textContent = `${file1.resolution || 'N/A'} / ${file2.resolution || 'N/A'}`;
+        if (fileSizeEl) fileSizeEl.textContent = `${this.formatFileSize(file1.size)} / ${this.formatFileSize(file2.size)}`;
+        if (takenDateEl) takenDateEl.textContent = `${this.formatDate(file1.modifiedDate)} / ${this.formatDate(file2.modifiedDate)}`;
+        
+        // ブレスコア表示を非表示
+        if (blurScoreContainer) blurScoreContainer.style.display = 'none';
+    }
+
+    // プレビューエリアをリセット
+    resetPreviewArea() {
+        const previewArea = document.getElementById('previewAreaContainer');
+        if (!previewArea) return;
+
+        // デフォルトのプレビューエリアに戻す
+        previewArea.className = 'flex-grow bg-slate-100 rounded text-slate-500 text-sm min-h-[200px] sm:min-h-[300px] flex items-center justify-center border-2 border-dashed border-slate-300';
+        previewArea.innerHTML = `
+            <div class="text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                </svg>
+                <p>画像を選択して<br>プレビューを表示</p>
+            </div>
+        `;
+
+        // 画像情報エリアをクリア
+        const fileNameEl = document.getElementById('infoFileName');
+        const filePathEl = document.getElementById('infoFilePath');
+        const resolutionEl = document.getElementById('infoResolution');
+        const fileSizeEl = document.getElementById('infoFileSize');
+        const takenDateEl = document.getElementById('infoTakenDate');
+        const blurScoreContainer = document.getElementById('infoBlurScoreContainer');
+
+        if (fileNameEl) fileNameEl.textContent = '';
+        if (filePathEl) {
+            filePathEl.textContent = '';
+            filePathEl.title = '';
+        }
+        if (resolutionEl) resolutionEl.textContent = '';
+        if (fileSizeEl) fileSizeEl.textContent = '';
+        if (takenDateEl) takenDateEl.textContent = '';
+        if (blurScoreContainer) blurScoreContainer.style.display = 'none';
+    }
+
+    // アクションボタンの表示/非表示を切り替え
+    updateActionButtons() {
+        const normalActions = document.getElementById('normalActions');
+        const errorActions = document.getElementById('errorActions');
+        
+        if (this.currentTab === 'error') {
+            if (normalActions) normalActions.style.display = 'none';
+            if (errorActions) errorActions.style.display = 'flex';
+        } else {
+            if (normalActions) normalActions.style.display = 'flex';
+            if (errorActions) errorActions.style.display = 'none';
+        }
     }
 }
 
