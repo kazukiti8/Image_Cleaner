@@ -4,13 +4,77 @@ const fs = require('fs').promises;
 const ImageAnalyzer = require('./imageAnalyzer');
 
 // 文字エンコーディング設定
-process.env.LANG = 'ja_JP.UTF-8';
-process.env.LC_ALL = 'ja_JP.UTF-8';
+process.env.LANG = 'en_US.UTF-8';
+process.env.LC_ALL = 'en_US.UTF-8';
 
-// コンソール出力の文字エンコーディングを設定
+// Windowsでの文字化け対策
 if (process.platform === 'win32') {
-    // Windowsの場合、コンソールのコードページをUTF-8に設定
-    require('child_process').execSync('chcp 65001', { stdio: 'ignore' });
+    // コンソールのコードページをUTF-8に設定
+    try {
+        require('child_process').execSync('chcp 65001', { stdio: 'ignore' });
+    } catch (error) {
+        // エラーを無視
+    }
+    
+    // コンソール出力の文字エンコーディングを強制的にUTF-8に設定
+    if (process.stdout && process.stdout.setEncoding) {
+        process.stdout.setEncoding('utf8');
+    }
+    if (process.stderr && process.stderr.setEncoding) {
+        process.stderr.setEncoding('utf8');
+    }
+    
+    // 環境変数を追加設定
+    process.env.PYTHONIOENCODING = 'utf-8';
+    process.env.NODE_OPTIONS = '--max-old-space-size=4096';
+}
+
+// ログファイルパス
+const logFilePath = path.join(app.getPath('userData'), 'app.log');
+
+// ファイルログ関数
+async function writeToLog(message) {
+    try {
+        const timestamp = new Date().toISOString();
+        const logMessage = `[${timestamp}] ${message}\n`;
+        await fs.appendFile(logFilePath, logMessage, 'utf8');
+    } catch (error) {
+        // ログ書き込みエラーは無視
+    }
+}
+
+// コンソール出力のラッパー関数
+function safeConsoleLog(...args) {
+    try {
+        const message = args.join(' ');
+        writeToLog(`LOG: ${message}`);
+        // コンソールには最小限の情報のみ出力
+        console.log('App running...');
+    } catch (error) {
+        // エラーを無視
+    }
+}
+
+function safeConsoleError(...args) {
+    try {
+        const message = args.join(' ');
+        writeToLog(`ERROR: ${message}`);
+        // コンソールには最小限の情報のみ出力
+        console.log('Error occurred. Check log file.');
+    } catch (error) {
+        // エラーを無視
+    }
+}
+
+function safeConsoleWarn(...args) {
+    try {
+        const message = args.join(' ');
+        writeToLog(`WARN: ${message}`);
+        // コンソールには最小限の情報のみ出力
+        console.log('Warning occurred. Check log file.');
+    } catch (error) {
+        // エラーを無視
+    }
 }
 
 // メインウィンドウの参照を保持
@@ -35,7 +99,7 @@ async function loadSettings() {
         const data = await fs.readFile(settingsPath, 'utf8');
         return { ...defaultSettings, ...JSON.parse(data) };
     } catch (error) {
-        console.log('設定ファイルが見つからないため、デフォルト設定を使用します');
+        safeConsoleLog('Settings file not found, using default settings');
         return defaultSettings;
     }
 }
@@ -44,9 +108,9 @@ async function loadSettings() {
 async function saveSettings(settings) {
     try {
         await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
-        console.log('設定を保存しました');
+        safeConsoleLog('Settings saved successfully');
     } catch (error) {
-        console.error('設定の保存に失敗しました:', error);
+        safeConsoleError('Failed to save settings:', error);
         throw error;
     }
 }
@@ -157,37 +221,35 @@ ipcMain.handle('delete-files', async (event, filePaths, toRecycleBin) => {
           // ゴミ箱へ移動
           const success = await moveToRecycleBin(filePath);
           if (success) {
-            console.log('ゴミ箱へ移動成功:', filePath);
+            safeConsoleLog('Moved to recycle bin successfully:', filePath);
             results.push({ path: filePath, success: true });
           } else {
-            console.warn('ゴミ箱への移動に失敗、ファイルは残ります:', filePath);
+            safeConsoleLog('Failed to move to recycle bin, file remains:', filePath);
             results.push({ 
               path: filePath, 
               success: false, 
-              error: 'ゴミ箱への移動に失敗しました',
+              error: 'Failed to move to recycle bin',
               partialSuccess: true,
-              message: 'ファイルは残りますが、操作は完了しました'
+              message: 'File remains but operation completed'
             });
           }
         } else {
           // 完全削除
           const success = await safeDeleteFile(filePath);
           if (success) {
-            console.log('完全削除成功:', filePath);
+            safeConsoleLog('Permanently deleted successfully:', filePath);
             results.push({ path: filePath, success: true });
           } else {
-            console.warn('完全削除に失敗、ファイルは残ります:', filePath);
+            safeConsoleLog('Failed to delete permanently:', filePath);
             results.push({ 
               path: filePath, 
               success: false, 
-              error: 'ファイルが使用中のため削除できませんでした',
-              partialSuccess: true,
-              message: 'ファイルは残りますが、操作は完了しました'
+              error: 'Failed to delete permanently'
             });
           }
         }
       } catch (error) {
-        console.error(`ファイル操作エラー (${filePath}):`, error);
+        safeConsoleError(`ファイル操作エラー (${filePath}):`, error);
         results.push({ path: filePath, success: false, error: error.message });
       }
     }
@@ -196,7 +258,7 @@ ipcMain.handle('delete-files', async (event, filePaths, toRecycleBin) => {
     const errorCount = results.filter(r => !r.success && !r.partialSuccess).length;
     const partialSuccessCount = results.filter(r => r.partialSuccess).length;
     
-    console.log(`ファイル操作完了: 成功 ${successCount}件, 部分成功 ${partialSuccessCount}件, 失敗 ${errorCount}件`);
+    safeConsoleLog(`ファイル操作完了: 成功 ${successCount}件, 部分成功 ${partialSuccessCount}件, 失敗 ${errorCount}件`);
     
     return {
       success: true,
@@ -209,7 +271,7 @@ ipcMain.handle('delete-files', async (event, filePaths, toRecycleBin) => {
       }
     };
   } catch (error) {
-    console.error('ファイル操作エラー:', error);
+    safeConsoleError('ファイル操作エラー:', error);
     return {
       success: false,
       error: error.message
@@ -239,14 +301,14 @@ ipcMain.handle('save-file', async (event, options) => {
     // ファイルを保存
     await fs.writeFile(filePath, content, 'utf8');
     
-    console.log('ファイル保存成功:', filePath);
+    safeConsoleLog('ファイル保存成功:', filePath);
     
     return {
       success: true,
       filePath: filePath
     };
   } catch (error) {
-    console.error('ファイル保存エラー:', error);
+    safeConsoleError('ファイル保存エラー:', error);
     return {
       success: false,
       error: error.message
@@ -287,10 +349,10 @@ ipcMain.handle('move-files', async (event, filePaths, destinationPath) => {
         
         // 安全なファイル移動（異なるドライブ間でも動作）
         await safeMoveFile(filePath, finalPath);
-        console.log('移動:', filePath, '→', finalPath);
+        safeConsoleLog('移動:', filePath, '→', finalPath);
         results.push({ path: filePath, newPath: finalPath, success: true });
       } catch (error) {
-        console.error(`ファイル移動エラー (${filePath}):`, error);
+        safeConsoleError(`ファイル移動エラー (${filePath}):`, error);
         
         // EPERMエラーの場合は部分的な成功として扱う
         if (error.code === 'EPERM') {
@@ -312,7 +374,7 @@ ipcMain.handle('move-files', async (event, filePaths, destinationPath) => {
     const errorCount = results.filter(r => !r.success && !r.partialSuccess).length;
     const totalPartialSuccess = results.filter(r => r.partialSuccess).length;
     
-    console.log(`ファイル移動完了: 成功 ${successCount}件, 部分成功 ${totalPartialSuccess}件, 失敗 ${errorCount}件`);
+    safeConsoleLog(`ファイル移動完了: 成功 ${successCount}件, 部分成功 ${totalPartialSuccess}件, 失敗 ${errorCount}件`);
     
     // 操作完了を通知
     if (mainWindow) {
@@ -332,7 +394,7 @@ ipcMain.handle('move-files', async (event, filePaths, destinationPath) => {
       partialSuccessCount: totalPartialSuccess
     };
   } catch (error) {
-    console.error('ファイル移動エラー:', error);
+    safeConsoleError('ファイル移動エラー:', error);
     return { success: false, error: error.message };
   }
 });
@@ -345,7 +407,7 @@ async function safeMoveFile(sourcePath, destinationPath) {
   } catch (error) {
     if (error.code === 'EXDEV') {
       // 異なるドライブ間の場合は、コピーしてから削除
-      console.log('異なるドライブ間の移動を検出、コピー&削除方式を使用');
+      safeConsoleLog('異なるドライブ間の移動を検出、コピー&削除方式を使用');
       await fs.copyFile(sourcePath, destinationPath);
       await safeDeleteFile(sourcePath);
     } else {
@@ -363,14 +425,14 @@ async function safeDeleteFile(filePath) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await fs.unlink(filePath);
-      console.log(`ファイル削除成功 (試行${attempt}回目):`, filePath);
+      safeConsoleLog(`ファイル削除成功 (試行${attempt}回目):`, filePath);
       return true;
     } catch (error) {
       if (error.code === 'EPERM' && attempt < maxRetries) {
-        console.log(`ファイルが使用中です。${retryDelay/1000}秒待機してから再試行します (${attempt}/${maxRetries}):`, filePath);
+        safeConsoleLog(`ファイルが使用中です。${retryDelay/1000}秒待機してから再試行します (${attempt}/${maxRetries}):`, filePath);
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       } else if (error.code === 'EPERM' && attempt === maxRetries) {
-        console.warn(`最大試行回数に達しました。ファイルは残ります:`, filePath);
+        safeConsoleWarn(`最大試行回数に達しました。ファイルは残ります:`, filePath);
         return false;
       } else {
         throw error;
@@ -390,22 +452,22 @@ async function moveToRecycleBin(filePath) {
       // 方法1: PowerShell + Microsoft.VisualBasic（推奨）
       const command1 = `powershell -command "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('${filePath.replace(/\\/g, '\\\\')}', 'OnlyErrorDialogs', 'SendToRecycleBin')"`;
       await execAsync(command1);
-      console.log('PowerShellでのゴミ箱移動成功:', filePath);
+      safeConsoleLog('PowerShellでのゴミ箱移動成功:', filePath);
       return true;
     } catch (error) {
-      console.warn('PowerShellでのゴミ箱移動に失敗、代替方法を試行:', error.message);
+      safeConsoleWarn('PowerShellでのゴミ箱移動に失敗、代替方法を試行:', error.message);
       
       try {
         // 方法2: より安全なPowerShellコマンド（RecycleBinオプション付き）
         const command2 = `powershell -command "$shell = New-Object -ComObject Shell.Application; $shell.NameSpace(0x0a).MoveHere('${filePath.replace(/\\/g, '\\\\')}')"`;
         await execAsync(command2);
-        console.log('代替PowerShellでのゴミ箱移動成功:', filePath);
+        safeConsoleLog('代替PowerShellでのゴミ箱移動成功:', filePath);
         return true;
       } catch (error2) {
-        console.warn('代替PowerShellも失敗、ファイルは残します:', error2.message);
+        safeConsoleWarn('代替PowerShellも失敗、ファイルは残します:', error2.message);
         
         // 方法3: ファイルを残して部分的な成功として扱う
-        console.log('ゴミ箱への移動に失敗したため、ファイルは残します:', filePath);
+        safeConsoleLog('ゴミ箱への移動に失敗したため、ファイルは残します:', filePath);
         return false;
       }
     }
@@ -428,12 +490,12 @@ async function fileExists(filePath) {
 // 画像分析（実際の実装）
 ipcMain.handle('scan-images', async (event, folderPath, includeSubfolders) => {
   try {
-    console.log('スキャン開始:', folderPath);
+    safeConsoleLog('スキャン開始:', folderPath);
     
     // 実際の画像分析を実行
     const results = await imageAnalyzer.scanFolder(folderPath, includeSubfolders);
     
-    console.log('スキャン完了 - 結果:', {
+    safeConsoleLog('スキャン完了 - 結果:', {
       blurImages: results.blurImages?.length || 0,
       similarImages: results.similarImages?.length || 0,
       errors: results.errors?.length || 0
@@ -443,24 +505,24 @@ ipcMain.handle('scan-images', async (event, folderPath, includeSubfolders) => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       try {
         mainWindow.webContents.send('scan-complete', results);
-        console.log('スキャン完了イベントを送信しました');
+        safeConsoleLog('スキャン完了イベントを送信しました');
       } catch (sendError) {
-        console.error('スキャン完了イベント送信エラー:', sendError);
+        safeConsoleError('スキャン完了イベント送信エラー:', sendError);
       }
     } else {
-      console.warn('mainWindowが利用できないため、スキャン完了イベントを送信できません');
+      safeConsoleWarn('mainWindowが利用できないため、スキャン完了イベントを送信できません');
     }
     
     return { success: true };
   } catch (error) {
-    console.error('スキャンエラー:', error);
+    safeConsoleError('スキャンエラー:', error);
     
     // エラーも送信（mainWindowの存在チェック付き）
     if (mainWindow && !mainWindow.isDestroyed()) {
       try {
         mainWindow.webContents.send('scan-error', { message: error.message });
       } catch (sendError) {
-        console.error('スキャンエラーイベント送信エラー:', sendError);
+        safeConsoleError('スキャンエラーイベント送信エラー:', sendError);
       }
     }
     
@@ -469,14 +531,14 @@ ipcMain.handle('scan-images', async (event, folderPath, includeSubfolders) => {
 });
 
 ipcMain.handle('cancel-scan', async () => {
-  console.log('スキャンキャンセル');
+  safeConsoleLog('スキャンキャンセル');
   return { success: true };
 });
 
 // 画像分析（選択エラーのみ再スキャン）
 ipcMain.handle('retry-scan-errors', async (event, filePaths) => {
   try {
-    console.log('選択エラーのみ再スキャン:', filePaths);
+    safeConsoleLog('選択エラーのみ再スキャン:', filePaths);
     // imageAnalyzerに個別ファイルの再分析メソッドがあれば利用、なければscanFolderの一部ロジックを流用
     const results = {
       blurImages: [],
@@ -514,7 +576,7 @@ ipcMain.handle('retry-scan-errors', async (event, filePaths) => {
     }
     return { success: true };
   } catch (error) {
-    console.error('選択エラー再スキャンエラー:', error);
+    safeConsoleError('選択エラー再スキャンエラー:', error);
     return { success: false, error: error.message };
   }
 });
@@ -525,7 +587,7 @@ ipcMain.handle('load-settings', async () => {
         const settings = await loadSettings();
         return settings;
     } catch (error) {
-        console.error('設定の読み込みに失敗しました:', error);
+        safeConsoleError('設定の読み込みに失敗しました:', error);
         return defaultSettings;
     }
 });
@@ -535,24 +597,35 @@ ipcMain.handle('save-settings', async (event, settings) => {
         await saveSettings(settings);
         return { success: true };
     } catch (error) {
-        console.error('設定の保存に失敗しました:', error);
+        safeConsoleError('設定の保存に失敗しました:', error);
+        return { success: false, error: error.message };
+    }
+});
+
+// ログ関連のIPC通信
+ipcMain.handle('write-to-log', async (event, message) => {
+    try {
+        await writeToLog(message);
+        return { success: true };
+    } catch (error) {
+        safeConsoleError('ログ書き込みに失敗しました:', error);
         return { success: false, error: error.message };
     }
 });
 
 // ログ
 ipcMain.handle('log-message', async (event, level, message) => {
-  console.log(`[${level.toUpperCase()}] ${message}`);
+  safeConsoleLog(`[${level.toUpperCase()}] ${message}`);
   return { success: true };
 });
 
 // エラーハンドリング
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  safeConsoleError('Uncaught Exception:', error);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  safeConsoleError('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 async function initializeApp() {
@@ -574,8 +647,8 @@ async function initializeApp() {
             }
         });
         
-        console.log('アプリケーションを初期化しました');
+        safeConsoleLog('アプリケーションを初期化しました');
     } catch (error) {
-        console.error('アプリケーションの初期化に失敗しました:', error);
+        safeConsoleError('アプリケーションの初期化に失敗しました:', error);
     }
 } 

@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // ログ
   logMessage: (level, message) => ipcRenderer.invoke('log-message', level, message),
+  writeToLog: (message) => ipcRenderer.invoke('write-to-log', message),
   
   // イベントリスナー
   onScanProgress: (callback) => {

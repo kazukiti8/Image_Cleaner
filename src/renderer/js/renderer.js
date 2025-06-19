@@ -1,5 +1,48 @@
 // 画像整理アプリ レンダラープロセスメインスクリプト
 
+// 文字化け対策
+function safeConsoleLog(...args) {
+    try {
+        const message = args.join(' ');
+        // ファイルログに出力（メインプロセスに委譲）
+        if (window.electronAPI && window.electronAPI.writeToLog) {
+            window.electronAPI.writeToLog(`LOG: ${message}`);
+        }
+        // コンソールには最小限の情報のみ出力
+        console.log('App running...');
+    } catch (error) {
+        // エラーを無視
+    }
+}
+
+function safeConsoleError(...args) {
+    try {
+        const message = args.join(' ');
+        // ファイルログに出力（メインプロセスに委譲）
+        if (window.electronAPI && window.electronAPI.writeToLog) {
+            window.electronAPI.writeToLog(`ERROR: ${message}`);
+        }
+        // コンソールには最小限の情報のみ出力
+        console.log('Error occurred. Check log file.');
+    } catch (error) {
+        // エラーを無視
+    }
+}
+
+function safeConsoleWarn(...args) {
+    try {
+        const message = args.join(' ');
+        // ファイルログに出力（メインプロセスに委譲）
+        if (window.electronAPI && window.electronAPI.writeToLog) {
+            window.electronAPI.writeToLog(`WARN: ${message}`);
+        }
+        // コンソールには最小限の情報のみ出力
+        console.log('Warning occurred. Check log file.');
+    } catch (error) {
+        // エラーを無視
+    }
+}
+
 // パス操作のためのユーティリティ関数
 function pathBasename(filePath) {
     return filePath.split(/[\\/]/).pop();
@@ -41,12 +84,12 @@ class BatchProcessor {
         this.batchSize = options.batchSize || 10;
         this.delayBetweenBatches = options.delay || 100;
 
-        console.log(`バッチ処理開始: ${operation} - ${this.totalCount}件`);
+        safeConsoleLog(`Batch processing started: ${operation} - ${this.totalCount} items`);
 
         try {
             await this.processBatches();
         } catch (error) {
-            console.error('バッチ処理エラー:', error);
+            safeConsoleError('Batch processing error:', error);
             if (this.errorCallback) {
                 this.errorCallback(error);
             }
@@ -61,7 +104,7 @@ class BatchProcessor {
         while (this.currentBatch.length > 0 && !this.isPaused) {
             const batch = this.currentBatch.splice(0, this.batchSize);
             
-            console.log(`バッチ処理中: ${batch.length}件 (残り: ${this.currentBatch.length}件)`);
+            safeConsoleLog(`Processing batch: ${batch.length} items (remaining: ${this.currentBatch.length} items)`);
             
             // バッチ内の各アイテムを処理
             for (const item of batch) {
@@ -71,7 +114,7 @@ class BatchProcessor {
                     await this.processItem(item);
                     this.successCount++;
                 } catch (error) {
-                    console.error(`アイテム処理エラー:`, error);
+                    safeConsoleError(`Item processing error:`, error);
                     this.errorCount++;
                     this.operationHistory.push({
                         item: item,
@@ -102,7 +145,7 @@ class BatchProcessor {
         
         // 処理完了
         if (!this.isPaused) {
-            console.log(`バッチ処理完了: 成功${this.successCount}件, エラー${this.errorCount}件`);
+            safeConsoleLog(`Batch processing completed: ${this.successCount} successful, ${this.errorCount} errors`);
             if (this.completeCallback) {
                 this.completeCallback({
                     total: this.totalCount,
@@ -160,14 +203,14 @@ class BatchProcessor {
     // 処理の一時停止
     pause() {
         this.isPaused = true;
-        console.log('バッチ処理を一時停止しました');
+        safeConsoleLog('Batch processing paused');
     }
 
     // 処理の再開
     resume() {
         if (this.isProcessing && this.isPaused) {
             this.isPaused = false;
-            console.log('バッチ処理を再開しました');
+            safeConsoleLog('Batch processing resumed');
             this.processBatches();
         }
     }
@@ -177,7 +220,7 @@ class BatchProcessor {
         this.isProcessing = false;
         this.isPaused = false;
         this.currentBatch = [];
-        console.log('バッチ処理を停止しました');
+        safeConsoleLog('Batch processing stopped');
     }
 
     // 遅延関数
@@ -227,7 +270,7 @@ class ImageCleanupApp {
     }
 
     init() {
-        console.log('ImageCleanupApp初期化開始');
+        safeConsoleLog('ImageCleanupApp initialization started');
         
         // イベントリスナーの設定
         this.initializeEventListeners();
@@ -254,7 +297,7 @@ class ImageCleanupApp {
         this.startPerformanceMonitoring();
         this.startMemoryCleanup();
         
-        console.log('ImageCleanupApp初期化完了');
+        safeConsoleLog('ImageCleanupApp initialization completed');
     }
 
     getSettings() {
@@ -284,15 +327,15 @@ class ImageCleanupApp {
         
         // ファイル操作ボタン
         document.getElementById('trashBtn')?.addEventListener('click', () => {
-            console.log('ゴミ箱ボタンがクリックされました');
+            safeConsoleLog('Trash button clicked');
             this.moveToTrash();
         });
         document.getElementById('deleteBtn')?.addEventListener('click', () => {
-            console.log('削除ボタンがクリックされました');
+            safeConsoleLog('Delete button clicked');
             this.deletePermanently();
         });
         document.getElementById('moveBtn')?.addEventListener('click', () => {
-            console.log('移動ボタンがクリックされました');
+            safeConsoleLog('Move button clicked');
             this.moveFiles();
         });
         
@@ -304,6 +347,24 @@ class ImageCleanupApp {
         document.getElementById('showProcessingLog')?.addEventListener('click', () => {
             this.exportReportManager.showProcessingLog();
         });
+        
+        // スキャン関連のイベントリスナー
+        if (window.electronAPI) {
+            // スキャン進捗
+            window.electronAPI.onScanProgress((progress) => {
+                this.updateScanProgress(progress);
+            });
+            
+            // スキャン完了
+            window.electronAPI.onScanComplete((results) => {
+                this.handleScanComplete(results);
+            });
+            
+            // スキャンエラー
+            window.electronAPI.onScanError((error) => {
+                this.handleScanError(error);
+            });
+        }
     }
 
     // スキャン関連のメソッド
@@ -317,7 +378,7 @@ class ImageCleanupApp {
                 this.updateUI();
             }
         } catch (error) {
-            console.error('フォルダ選択エラー:', error);
+            safeConsoleError('Folder selection error:', error);
             this.showError('フォルダの選択に失敗しました');
         }
     }
@@ -332,7 +393,7 @@ class ImageCleanupApp {
                 this.updateUI();
             }
         } catch (error) {
-            console.error('移動先フォルダ選択エラー:', error);
+            safeConsoleError('Output folder selection error:', error);
             this.showError('移動先フォルダの選択に失敗しました');
         }
     }
@@ -368,7 +429,7 @@ class ImageCleanupApp {
             await window.electronAPI.scanImages(this.targetFolder, true);
             
         } catch (error) {
-            console.error('スキャン開始エラー:', error);
+            safeConsoleError('Scan start error:', error);
             this.showError('スキャンの開始に失敗しました');
             this.scanInProgress = false;
             this.updateScanButton();
@@ -392,21 +453,22 @@ class ImageCleanupApp {
                 progressMessage.style.display = 'none';
             }
             
-            console.log('スキャンをキャンセルしました');
+            safeConsoleLog('Scan cancelled');
         } catch (error) {
-            console.error('スキャンキャンセルエラー:', error);
+            safeConsoleError('Scan cancellation error:', error);
         }
     }
 
     updateScanProgress(progress) {
         const progressText = document.getElementById('progressText');
         if (progressText) {
-            progressText.textContent = `スキャン中... ${progress.current}/${progress.total} (${Math.round(progress.progress)}%)`;
+            const percentage = progress.percentage || Math.round((progress.current / progress.total) * 100);
+            progressText.textContent = `スキャン中... ${progress.current}/${progress.total} (${percentage}%) - ${progress.filename || ''}`;
         }
     }
 
     handleScanComplete(results) {
-        console.log('スキャン完了:', results);
+        safeConsoleLog('Scan completed:', results);
         
         this.scanInProgress = false;
         this.updateScanButton();
@@ -429,7 +491,7 @@ class ImageCleanupApp {
     }
 
     handleScanError(error) {
-        console.error('スキャンエラー:', error);
+        safeConsoleError('Scan error:', error);
         
         this.scanInProgress = false;
         this.updateScanButton();
@@ -440,7 +502,7 @@ class ImageCleanupApp {
             progressMessage.style.display = 'none';
         }
         
-        this.showError(`スキャンエラー: ${error.message}`);
+        this.showError('スキャン中にエラーが発生しました');
     }
 
     switchTab(tabName) {
@@ -732,7 +794,7 @@ class ImageCleanupApp {
             }
             
         } catch (error) {
-            console.error('ファイル操作エラー:', error);
+            safeConsoleError('File operation error:', error);
             this.showError(`操作に失敗しました: ${error.message}`);
         }
     }
@@ -740,9 +802,12 @@ class ImageCleanupApp {
     async selectMoveDestination() {
         try {
             const folderPath = await window.electronAPI.selectOutputFolder();
-            return folderPath;
+            if (folderPath) {
+                return folderPath;
+            }
+            return null;
         } catch (error) {
-            console.error('移動先フォルダ選択エラー:', error);
+            safeConsoleError('Move destination folder selection error:', error);
             this.showError('移動先フォルダの選択に失敗しました');
             return null;
         }
@@ -751,86 +816,333 @@ class ImageCleanupApp {
     // その他の必要なメソッド（簡略化）
     initializeFilterEvents() {
         // フィルター関連のイベントリスナー
-        console.log('フィルターイベントを初期化');
+        safeConsoleLog('Filter events initialized');
     }
 
     initializeKeyboardShortcuts() {
         // キーボードショートカット
-        console.log('キーボードショートカットを初期化');
+        safeConsoleLog('Keyboard shortcuts initialized');
     }
 
     initializeBatchEventListeners() {
         // バッチ処理イベントリスナー
-        console.log('バッチ処理イベントを初期化');
+        safeConsoleLog('Batch event listeners initialized');
     }
 
     initializeAdvancedFiltering() {
         // 高度なフィルタリング
-        console.log('高度なフィルタリングを初期化');
+        safeConsoleLog('Advanced filtering initialized');
     }
 
     updateFilterUI() {
         // フィルターUIの更新
-        console.log('フィルターUIを更新');
+        safeConsoleLog('Filter UI updated');
     }
 
     showGuidanceIfNeeded() {
         // ガイダンスの表示
-        console.log('ガイダンスを確認');
+        safeConsoleLog('Guidance checked');
     }
 
     startPerformanceMonitoring() {
         // パフォーマンス監視
-        console.log('パフォーマンス監視を開始');
+        safeConsoleLog('Performance monitoring started');
     }
 
     startMemoryCleanup() {
         // メモリクリーンアップ
-        console.log('メモリクリーンアップを開始');
+        safeConsoleLog('Memory cleanup started');
     }
 
-    // テーブル作成メソッド（簡略化）
+    // テーブル作成メソッド
     createBlurTable(blurImages) {
         const table = document.createElement('table');
-        table.className = 'w-full';
-        table.innerHTML = '<tr><th>ファイル名</th><th>ブレスコア</th><th>操作</th></tr>';
+        table.className = 'w-full border-collapse border border-slate-300';
+        
+        // テーブルヘッダー
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr class="bg-slate-100">
+                <th class="border border-slate-300 px-4 py-2 text-left">
+                    <input type="checkbox" id="selectAllBlur" class="mr-2">
+                    ファイル名
+                </th>
+                <th class="border border-slate-300 px-4 py-2 text-left">サイズ</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">更新日時</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">ブレスコア</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">パス</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // テーブルボディ
+        const tbody = document.createElement('tbody');
+        blurImages.forEach((image, index) => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-50';
+            row.innerHTML = `
+                <td class="border border-slate-300 px-4 py-2">
+                    <input type="checkbox" class="file-checkbox mr-2" data-filepath="${image.filePath}">
+                    ${image.filename}
+                </td>
+                <td class="border border-slate-300 px-4 py-2">${this.formatFileSize(image.size)}</td>
+                <td class="border border-slate-300 px-4 py-2">${this.formatDate(image.modifiedDate)}</td>
+                <td class="border border-slate-300 px-4 py-2">
+                    <span class="px-2 py-1 rounded text-sm ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                        ${image.blurScore}
+                    </span>
+                </td>
+                <td class="border border-slate-300 px-4 py-2 text-sm text-slate-600" title="${image.filePath}">
+                    ${this.getDisplayPath(image.filePath)}
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        
+        // チェックボックスのイベントリスナーを設定
+        this.setupTableCheckboxes(table, 'blur');
+        
         return table;
     }
 
     createSimilarTable(similarImages) {
         const table = document.createElement('table');
-        table.className = 'w-full';
-        table.innerHTML = '<tr><th>類似画像ペア</th><th>類似度</th><th>操作</th></tr>';
+        table.className = 'w-full border-collapse border border-slate-300';
+        
+        // テーブルヘッダー
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr class="bg-slate-100">
+                <th class="border border-slate-300 px-4 py-2 text-left">
+                    <input type="checkbox" id="selectAllSimilar" class="mr-2">
+                    類似画像ペア
+                </th>
+                <th class="border border-slate-300 px-4 py-2 text-left">類似度</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">サイズ</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">更新日時</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">パス</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // テーブルボディ
+        const tbody = document.createElement('tbody');
+        similarImages.forEach((group, index) => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-50';
+            
+            const file1 = group.files[0];
+            const file2 = group.files[1];
+            const pairKey = `${file1.filePath}|${file2.filePath}`;
+            
+            row.innerHTML = `
+                <td class="border border-slate-300 px-4 py-2">
+                    <input type="checkbox" class="similar-checkbox mr-2" data-pair="${pairKey}">
+                    <div class="text-sm">
+                        <div>${file1.filename}</div>
+                        <div class="text-slate-500">${file2.filename}</div>
+                    </div>
+                </td>
+                <td class="border border-slate-300 px-4 py-2">
+                    <span class="px-2 py-1 rounded text-sm ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
+                        ${group.similarity}%
+                    </span>
+                </td>
+                <td class="border border-slate-300 px-4 py-2 text-sm">
+                    <div>${this.formatFileSize(file1.size)}</div>
+                    <div class="text-slate-500">${this.formatFileSize(file2.size)}</div>
+                </td>
+                <td class="border border-slate-300 px-4 py-2 text-sm">
+                    <div>${this.formatDate(file1.modifiedDate)}</div>
+                    <div class="text-slate-500">${this.formatDate(file2.modifiedDate)}</div>
+                </td>
+                <td class="border border-slate-300 px-4 py-2 text-sm text-slate-600">
+                    <div title="${file1.filePath}">${this.getDisplayPath(file1.filePath)}</div>
+                    <div title="${file2.filePath}" class="text-slate-500">${this.getDisplayPath(file2.filePath)}</div>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        
+        // チェックボックスのイベントリスナーを設定
+        this.setupTableCheckboxes(table, 'similar');
+        
         return table;
     }
 
     createErrorTable(errors) {
         const table = document.createElement('table');
-        table.className = 'w-full';
-        table.innerHTML = '<tr><th>エラー</th><th>詳細</th><th>操作</th></tr>';
+        table.className = 'w-full border-collapse border border-slate-300';
+        
+        // テーブルヘッダー
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr class="bg-slate-100">
+                <th class="border border-slate-300 px-4 py-2 text-left">
+                    <input type="checkbox" id="selectAllError" class="mr-2">
+                    ファイル名
+                </th>
+                <th class="border border-slate-300 px-4 py-2 text-left">エラー詳細</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">パス</th>
+            </tr>
+        `;
+        table.appendChild(thead);
+        
+        // テーブルボディ
+        const tbody = document.createElement('tbody');
+        errors.forEach((error, index) => {
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-slate-50';
+            row.innerHTML = `
+                <td class="border border-slate-300 px-4 py-2">
+                    <input type="checkbox" class="error-checkbox mr-2" data-filepath="${error.filePath}">
+                    ${error.filename}
+                </td>
+                <td class="border border-slate-300 px-4 py-2 text-red-600">${error.error}</td>
+                <td class="border border-slate-300 px-4 py-2 text-sm text-slate-600" title="${error.filePath}">
+                    ${this.getDisplayPath(error.filePath)}
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+        table.appendChild(tbody);
+        
+        // チェックボックスのイベントリスナーを設定
+        this.setupTableCheckboxes(table, 'error');
+        
         return table;
+    }
+
+    // テーブルのチェックボックスイベントを設定
+    setupTableCheckboxes(table, type) {
+        // 全選択チェックボックス
+        const selectAllCheckbox = table.querySelector(`#selectAll${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        if (selectAllCheckbox) {
+            selectAllCheckbox.addEventListener('change', (e) => {
+                const checkboxes = table.querySelectorAll(`.${type}-checkbox`);
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = e.target.checked;
+                    this.handleCheckboxChange(checkbox, type);
+                });
+            });
+        }
+        
+        // 個別チェックボックス
+        const checkboxes = table.querySelectorAll(`.${type}-checkbox`);
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                this.handleCheckboxChange(e.target, type);
+            });
+        });
+    }
+
+    // チェックボックスの変更を処理
+    handleCheckboxChange(checkbox, type) {
+        switch (type) {
+            case 'blur':
+            case 'error':
+                const filePath = checkbox.dataset.filepath;
+                if (checkbox.checked) {
+                    this.selectedFiles.add(filePath);
+                } else {
+                    this.selectedFiles.delete(filePath);
+                }
+                break;
+            case 'similar':
+                const pairKey = checkbox.dataset.pair;
+                if (checkbox.checked) {
+                    this.selectedSimilarPairs.add(pairKey);
+                } else {
+                    this.selectedSimilarPairs.delete(pairKey);
+                }
+                break;
+        }
+        
+        this.updateSelectedCount();
+        this.updateActionButtons();
     }
 
     // 選択操作メソッド
     selectAll() {
-        console.log('全選択');
+        const checkboxes = document.querySelectorAll(`.${this.currentTab}-checkbox`);
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = true;
+            this.handleCheckboxChange(checkbox, this.currentTab);
+        });
+        
+        // 全選択チェックボックスも更新
+        const selectAllCheckbox = document.querySelector(`#selectAll${this.currentTab.charAt(0).toUpperCase() + this.currentTab.slice(1)}`);
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = true;
+        }
     }
 
     deselectAll() {
-        console.log('選択解除');
+        const checkboxes = document.querySelectorAll(`.${this.currentTab}-checkbox`);
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+            this.handleCheckboxChange(checkbox, this.currentTab);
+        });
+        
+        // 全選択チェックボックスも更新
+        const selectAllCheckbox = document.querySelector(`#selectAll${this.currentTab.charAt(0).toUpperCase() + this.currentTab.slice(1)}`);
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
+        }
     }
 
     removeTableRows(filePaths) {
-        console.log('テーブル行を削除');
+        // 選択されたファイルの行を削除
+        filePaths.forEach(filePath => {
+            const row = document.querySelector(`[data-filepath="${filePath}"]`)?.closest('tr');
+            if (row) {
+                row.remove();
+            }
+        });
+        
+        // 選択状態をクリア
+        this.selectedFiles.clear();
+        this.selectedSimilarPairs.clear();
+        this.selectedErrors.clear();
+        this.updateSelectedCount();
+        this.updateActionButtons();
     }
 
     updateActionButtons() {
-        console.log('アクションボタンを更新');
+        let count = 0;
+        
+        switch (this.currentTab) {
+            case 'blur':
+                count = this.selectedFiles.size;
+                break;
+            case 'similar':
+                count = this.selectedSimilarPairs.size;
+                break;
+            case 'error':
+                count = this.selectedErrors.size;
+                break;
+        }
+        
+        // アクションボタンの有効/無効を切り替え
+        const actionButtons = document.querySelectorAll('#trashBtn, #deleteBtn, #moveBtn');
+        actionButtons.forEach(button => {
+            if (count > 0) {
+                button.disabled = false;
+                button.classList.remove('opacity-50', 'cursor-not-allowed');
+                button.classList.add('cursor-pointer');
+            } else {
+                button.disabled = true;
+                button.classList.add('opacity-50', 'cursor-not-allowed');
+                button.classList.remove('cursor-pointer');
+            }
+        });
     }
 }
 
 // アプリケーションの初期化
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM読み込み完了');
+    safeConsoleLog('DOM content loaded');
     window.imageCleanupApp = new ImageCleanupApp();
 }); 

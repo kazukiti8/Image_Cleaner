@@ -296,17 +296,27 @@ class ImageAnalyzer {
     }
 
     /**
-     * 類似画像検出（本格実装）
+     * 類似画像検出（最適化版）
      */
     async detectSimilarImages(imageFiles) {
         try {
             console.log('類似画像検出開始...');
             
+            // 画像数が多い場合は処理を制限
+            const maxImagesForSimilarity = 50; // 類似画像検出の最大画像数
+            const imagesToProcess = imageFiles.length > maxImagesForSimilarity 
+                ? imageFiles.slice(0, maxImagesForSimilarity) 
+                : imageFiles;
+            
+            if (imageFiles.length > maxImagesForSimilarity) {
+                console.log(`画像数が多いため、類似画像検出は最初の${maxImagesForSimilarity}件のみ実行します`);
+            }
+            
             // 1. 完全同一画像の検出（SHA256ハッシュ比較）
             const hashMap = new Map();
             
-            for (let i = 0; i < imageFiles.length; i++) {
-                const filePath = imageFiles[i];
+            for (let i = 0; i < imagesToProcess.length; i++) {
+                const filePath = imagesToProcess[i];
                 try {
                     const fileHash = await this.calculateFileHash(filePath);
                     const fileStats = await fs.stat(filePath);
@@ -350,11 +360,11 @@ class ImageAnalyzer {
             
             console.log(`重複画像グループ数: ${duplicateGroups.length}`);
             
-            // 2. 類似画像の検出（知覚ハッシュ比較）
+            // 2. 類似画像の検出（知覚ハッシュ比較）- 最適化版
             const perceptualHashes = [];
             
-            for (let i = 0; i < imageFiles.length; i++) {
-                const filePath = imageFiles[i];
+            for (let i = 0; i < imagesToProcess.length; i++) {
+                const filePath = imagesToProcess[i];
                 try {
                     const perceptualHash = await this.calculatePerceptualHash(filePath);
                     const fileStats = await fs.stat(filePath);
@@ -370,12 +380,24 @@ class ImageAnalyzer {
                 }
             }
             
-            // 3. 知覚ハッシュの比較
+            // 3. 知覚ハッシュの比較（最適化版）
             const similarGroups = [];
             const processedPairs = new Set();
+            const totalComparisons = (perceptualHashes.length * (perceptualHashes.length - 1)) / 2;
+            let currentComparison = 0;
+            
+            console.log(`類似度比較開始: ${totalComparisons}回の比較を実行`);
             
             for (let i = 0; i < perceptualHashes.length; i++) {
                 for (let j = i + 1; j < perceptualHashes.length; j++) {
+                    currentComparison++;
+                    
+                    // 進捗を表示（10%ごと）
+                    if (currentComparison % Math.max(1, Math.floor(totalComparisons / 10)) === 0) {
+                        const progress = Math.round((currentComparison / totalComparisons) * 100);
+                        console.log(`類似度比較進捗: ${progress}% (${currentComparison}/${totalComparisons})`);
+                    }
+                    
                     const pairKey = `${i}-${j}`;
                     if (processedPairs.has(pairKey)) continue;
                     
@@ -386,10 +408,7 @@ class ImageAnalyzer {
                     const hammingDistance = this.calculateHammingDistance(hash1, hash2);
                     const similarity = this.calculateSimilarityFromHammingDistance(hammingDistance);
                     
-                    // デバッグ情報を出力
-                    console.log(`類似度計算: ${perceptualHashes[i].filename} vs ${perceptualHashes[j].filename} - ハミング距離: ${hammingDistance}, 類似度: ${similarity}%`);
-                    
-                    // 類似度が閾値を超える場合
+                    // 類似度が閾値を超える場合のみ詳細ログを出力
                     if (similarity >= this.similarityThreshold) {
                         console.log(`類似画像検出: ${perceptualHashes[i].filename} と ${perceptualHashes[j].filename} (類似度: ${similarity}%)`);
                         
