@@ -332,6 +332,11 @@ class ImageCleanupApp {
         document.getElementById('selectAllBtn')?.addEventListener('click', () => this.selectAll());
         document.getElementById('deselectAllBtn')?.addEventListener('click', () => this.deselectAll());
         
+        // ファイル操作ボタン
+        document.getElementById('copyBtn')?.addEventListener('click', () => this.copyFiles());
+        document.getElementById('deleteBtn')?.addEventListener('click', () => this.deletePermanently());
+        document.getElementById('moveBtn')?.addEventListener('click', () => this.moveFiles());
+        
         // エクスポート・レポート関連のイベントリスナー
         document.getElementById('showExportReport')?.addEventListener('click', () => {
             this.exportReportManager.showExportReportPanel();
@@ -758,6 +763,10 @@ class ImageCleanupApp {
         this.performFileOperation('move');
     }
 
+    copyFiles() {
+        this.performFileOperation('copy');
+    }
+
     async performFileOperation(operation) {
         let filePaths = [];
         let count = 0;
@@ -799,7 +808,8 @@ class ImageCleanupApp {
         const operationNames = {
             'trash': 'ゴミ箱へ移動',
             'delete': '完全削除',
-            'move': '移動'
+            'move': '移動',
+            'copy': 'コピー'
         };
         
         const message = `${operationNames[operation]}を実行しますか？\n対象: ${fileCount}件`;
@@ -824,6 +834,13 @@ class ImageCleanupApp {
                         if (!destinationPath) return;
                     }
                     result = await window.electronAPI.moveFiles(filePaths, destinationPath);
+                    break;
+                case 'copy':
+                    if (!destinationPath) {
+                        destinationPath = await this.selectCopyDestination();
+                        if (!destinationPath) return;
+                    }
+                    result = await window.electronAPI.copyFiles(filePaths, destinationPath);
                     break;
                 default:
                     throw new Error(`未対応の操作: ${operation}`);
@@ -865,6 +882,32 @@ class ImageCleanupApp {
         } catch (error) {
             safeConsoleError('Move destination folder selection error:', error);
             this.showError('移動先フォルダの選択に失敗しました');
+            return null;
+        }
+    }
+
+    async selectCopyDestination() {
+        try {
+            // 設定からコピー先フォルダを取得
+            const settings = this.getSettings();
+            let outputFolder = '';
+            if (settings && settings.defaultOutputFolder) {
+                outputFolder = settings.defaultOutputFolder;
+            }
+            
+            // 設定にコピー先フォルダが設定されていない場合はダイアログを表示
+            if (!outputFolder) {
+                const folderPath = await window.electronAPI.selectOutputFolder();
+                if (folderPath) {
+                    return folderPath;
+                }
+                return null;
+            }
+            
+            return outputFolder;
+        } catch (error) {
+            safeConsoleError('Copy destination folder selection error:', error);
+            this.showError('コピー先フォルダの選択に失敗しました');
             return null;
         }
     }
@@ -1227,7 +1270,7 @@ class ImageCleanupApp {
         }
         
         // アクションボタンの有効/無効を切り替え
-        const actionButtons = document.querySelectorAll('#trashBtn, #deleteBtn, #moveBtn');
+        const actionButtons = document.querySelectorAll('#copyBtn, #deleteBtn, #moveBtn');
         actionButtons.forEach(button => {
             if (count > 0) {
                 button.disabled = false;

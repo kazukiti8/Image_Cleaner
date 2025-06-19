@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ファイル操作
   deleteFiles: (filePaths, toRecycleBin) => ipcRenderer.invoke('delete-files', filePaths, toRecycleBin),
   moveFiles: (filePaths, destinationPath) => ipcRenderer.invoke('move-files', filePaths, destinationPath),
+  copyFiles: (filePaths, destinationPath) => ipcRenderer.invoke('copy-files', filePaths, destinationPath),
   
   // ファイル保存
   saveFile: (options) => ipcRenderer.invoke('save-file', options),

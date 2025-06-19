@@ -653,4 +653,75 @@ async function initializeApp() {
     } catch (error) {
         safeConsoleError('アプリケーションの初期化に失敗しました:', error);
     }
-} 
+}
+
+ipcMain.handle('copy-files', async (event, filePaths, destinationPath) => {
+  try {
+    const results = [];
+    
+    for (let i = 0; i < filePaths.length; i++) {
+      const filePath = filePaths[i];
+      try {
+        // 進捗を送信
+        if (mainWindow) {
+          mainWindow.webContents.send('file-operation-progress', {
+            current: i + 1,
+            total: filePaths.length,
+            filename: path.basename(filePath),
+            operation: 'copy'
+          });
+        }
+        
+        const fileName = path.basename(filePath);
+        const newPath = path.join(destinationPath, fileName);
+        
+        // 同名ファイルが存在する場合の処理
+        let finalPath = newPath;
+        let counter = 1;
+        while (await fileExists(finalPath)) {
+          const nameWithoutExt = path.parse(fileName).name;
+          const ext = path.parse(fileName).ext;
+          finalPath = path.join(destinationPath, `${nameWithoutExt}_${counter}${ext}`);
+          counter++;
+        }
+        
+        // ファイルコピー
+        await fs.copyFile(filePath, finalPath);
+        safeConsoleLog('コピー:', filePath, '→', finalPath);
+        results.push({ path: filePath, newPath: finalPath, success: true });
+      } catch (error) {
+        safeConsoleError(`ファイルコピーエラー (${filePath}):`, error);
+        results.push({ path: filePath, success: false, error: error.message });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    const errorCount = results.filter(r => !r.success).length;
+    
+    safeConsoleLog(`ファイルコピー完了: 成功 ${successCount}件, 失敗 ${errorCount}件`);
+    
+    // 操作完了を通知
+    if (mainWindow) {
+      mainWindow.webContents.send('file-operation-complete', {
+        operation: 'copy',
+        successCount: successCount,
+        errorCount: errorCount,
+        partialSuccessCount: 0
+      });
+    }
+    
+    return { 
+      success: errorCount === 0, 
+      results: results,
+      successCount: successCount,
+      errorCount: errorCount,
+      partialSuccessCount: 0
+    };
+  } catch (error) {
+    safeConsoleError('ファイルコピーエラー:', error);
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
+}); 

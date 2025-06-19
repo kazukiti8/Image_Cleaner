@@ -280,9 +280,6 @@
 
                 <!-- ファイル操作ボタン -->
                 <div class="flex space-x-2 mb-4">
-                    <button id="copySelected" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                        コピー
-                    </button>
                     <div class="border-l border-gray-300 mx-2"></div>
                     <button id="showBatchSettings" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm">
                         バッチ設定
@@ -302,6 +299,12 @@
             <div class="footer-actions-responsive">
                 <!-- 通常タブ用アクションボタン -->
                 <div id="normalActions" class="flex flex-row space-x-2">
+                    <button id="copyBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-green-500 hover:bg-green-600 text-white rounded-md shadow-sm transition-colors" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                        </svg>
+                        コピー
+                    </button>
                     <button id="deleteBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md shadow-sm transition-colors" disabled>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
                             <path d="M14.12 10.47L12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12-1.41-1.41zM15.5 4l-1-1h-5l-1 1H5v2h14V4h-3.5l-1-1zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/>
