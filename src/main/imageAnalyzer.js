@@ -14,7 +14,7 @@ class ImageAnalyzer {
         this.supportedFormats = ['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif'];
         this.blurThreshold = 60; // デフォルトのブレ検出閾値
         this.onProgress = null; // 進捗コールバック
-        this.similarityThreshold = 80; // 類似度の閾値（%）
+        this.similarityThreshold = 80; // 類似度の閾値（%）を80%に設定（より厳しい判定）
     }
 
     /**
@@ -386,8 +386,13 @@ class ImageAnalyzer {
                     const hammingDistance = this.calculateHammingDistance(hash1, hash2);
                     const similarity = this.calculateSimilarityFromHammingDistance(hammingDistance);
                     
+                    // デバッグ情報を出力
+                    console.log(`類似度計算: ${perceptualHashes[i].filename} vs ${perceptualHashes[j].filename} - ハミング距離: ${hammingDistance}, 類似度: ${similarity}%`);
+                    
                     // 類似度が閾値を超える場合
                     if (similarity >= this.similarityThreshold) {
+                        console.log(`類似画像検出: ${perceptualHashes[i].filename} と ${perceptualHashes[j].filename} (類似度: ${similarity}%)`);
+                        
                         // 完全同一画像でないことを確認
                         const isDuplicate = duplicateGroups.some(group => 
                             group.files.some(f => f.filePath === perceptualHashes[i].filePath) &&
@@ -414,6 +419,8 @@ class ImageAnalyzer {
                                 similarity: similarity,
                                 type: 'similar'
                             });
+                        } else {
+                            console.log(`重複画像のため除外: ${perceptualHashes[i].filename} と ${perceptualHashes[j].filename}`);
                         }
                         
                         processedPairs.add(pairKey);
@@ -502,15 +509,18 @@ class ImageAnalyzer {
      */
     calculateSimilarityFromHammingDistance(hammingDistance) {
         // 64ビットハッシュの場合、最大ハミング距離は64
-        // ハミング距離3以下で類似度100%、ハミング距離6で約50%、ハミング距離15以上で類似度0%
+        // より厳しい閾値で類似度を計算（本当に類似している画像のみ検出）
         if (hammingDistance <= 3) {
-            return 100;
-        } else if (hammingDistance >= 15) {
-            return 0;
+            return 100; // ハミング距離3以下で類似度100%
+        } else if (hammingDistance <= 6) {
+            return 90; // ハミング距離4-6で類似度90%
+        } else if (hammingDistance <= 10) {
+            return 80; // ハミング距離7-10で類似度80%
+        } else if (hammingDistance <= 15) {
+            return 70; // ハミング距離11-15で類似度70%
         } else {
-            // 線形補間で類似度を計算
-            const similarity = Math.max(0, 100 - ((hammingDistance - 3) * 100 / 12));
-            return Math.round(similarity);
+            // ハミング距離15以上は類似度0%（類似していない）
+            return 0;
         }
     }
 
