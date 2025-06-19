@@ -91,7 +91,7 @@
                 <div id="previewAreaContainer" class="flex-grow bg-slate-100 rounded text-slate-500 text-sm min-h-[400px] sm:min-h-[500px] flex items-center justify-center border-2 border-dashed border-slate-300">
                     <div class="text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
-                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                            <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H8V7h11v14z"/>
                         </svg>
                         <p>画像を選択して<br>プレビューを表示</p>
                     </div>
@@ -280,13 +280,7 @@
 
                 <!-- ファイル操作ボタン -->
                 <div class="flex space-x-2 mb-4">
-                    <div class="border-l border-gray-300 mx-2"></div>
-                    <button id="showBatchSettings" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm">
-                        バッチ設定
-                    </button>
-                    <button id="showBatchHistory" class="px-3 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm">
-                        履歴
-                    </button>
+                    <!-- バッチ設定と履歴ボタンを削除 -->
                 </div>
             </div>
         </div>

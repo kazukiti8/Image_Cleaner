@@ -91,7 +91,9 @@ const defaultSettings = {
     defaultOutputFolder: '',
     logLevel: 'normal',
     logFilePath: path.join(app.getPath('userData'), 'logs'),
-    showFirstTimeGuide: true
+    showFirstTimeGuide: true,
+    blurThreshold: 15, // ブレ検出閾値
+    similarityThreshold: 70 // 類似度閾値
 };
 
 // 設定を読み込み
@@ -638,9 +640,15 @@ async function initializeApp() {
         // ImageAnalyzerを初期化
         imageAnalyzer = new ImageAnalyzer();
         
-        // 設定をImageAnalyzerに適用
-        imageAnalyzer.setSimilarityThreshold(settings.similarityThreshold);
-        imageAnalyzer.setBlurThreshold(settings.blurThreshold);
+        // 設定をImageAnalyzerに適用（デフォルト値を設定）
+        const similarityThreshold = settings.similarityThreshold || 70;
+        const blurThreshold = settings.blurThreshold || 15;
+        
+        imageAnalyzer.setSimilarityThreshold(similarityThreshold);
+        imageAnalyzer.setBlurThreshold(blurThreshold);
+        
+        // デバッグ情報を出力
+        safeConsoleLog(`ImageAnalyzer初期化 - 類似度閾値: ${similarityThreshold}, ブレ閾値: ${blurThreshold}`);
         
         // 進捗コールバックを設定
         imageAnalyzer.setProgressCallback((progress) => {

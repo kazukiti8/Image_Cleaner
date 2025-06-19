@@ -12,9 +12,9 @@ if (process.platform === 'win32') {
 class ImageAnalyzer {
     constructor() {
         this.supportedFormats = ['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif'];
-        this.blurThreshold = 60; // デフォルトのブレ検出閾値
+        this.blurThreshold = 15; // デフォルトのブレ検出閾値を15に下げる
         this.onProgress = null; // 進捗コールバック
-        this.similarityThreshold = 80; // 類似度の閾値（%）を80%に設定（より厳しい判定）
+        this.similarityThreshold = 70; // 類似度の閾値（%）を70%に下げる
     }
 
     /**
@@ -58,6 +58,9 @@ class ImageAnalyzer {
                     
                     // ブレ検出
                     const blurScore = await this.detectBlur(filePath);
+                    
+                    // デバッグ情報を追加
+                    console.log(`ブレ検出判定: ${path.basename(filePath)} - スコア: ${Math.round(blurScore)}, 閾値: ${this.blurThreshold}, 判定: ${blurScore > this.blurThreshold ? 'ブレ検出' : '正常'}`);
                     
                     // ブレ画像の判定（閾値を調整）
                     if (blurScore > this.blurThreshold) { // 設定可能な閾値を使用
@@ -105,6 +108,7 @@ class ImageAnalyzer {
      */
     async findImageFiles(folderPath, includeSubfolders = true) {
         const imageFiles = [];
+        const supportedFormats = this.supportedFormats; // thisをローカル変数に保存
         
         async function scanDirectory(dirPath) {
             try {
@@ -118,7 +122,7 @@ class ImageAnalyzer {
                         await scanDirectory(fullPath);
                     } else if (stats.isFile()) {
                         const ext = path.extname(item).toLowerCase();
-                        if (this.supportedFormats.includes(ext)) {
+                        if (supportedFormats.includes(ext)) {
                             imageFiles.push(fullPath);
                         }
                     }
@@ -128,7 +132,7 @@ class ImageAnalyzer {
             }
         }
         
-        await scanDirectory.call(this, folderPath);
+        await scanDirectory(folderPath);
         return imageFiles;
     }
 
@@ -303,7 +307,7 @@ class ImageAnalyzer {
             console.log('類似画像検出開始...');
             
             // 画像数が多い場合は処理を制限
-            const maxImagesForSimilarity = 50; // 類似画像検出の最大画像数
+            const maxImagesForSimilarity = 100; // 類似画像検出の最大画像数を100に増加
             const imagesToProcess = imageFiles.length > maxImagesForSimilarity 
                 ? imageFiles.slice(0, maxImagesForSimilarity) 
                 : imageFiles;
