@@ -13,76 +13,29 @@ class ImageCleanupApp {
         this.targetFolder = null;
         this.outputFolder = null;
         this.confirmResolve = null;
-        
-        // フィルター設定
+        this.currentResults = null;
         this.filters = {
-            blur: {
-                scoreMin: 0,
-                scoreMax: 100,
-                sizeMin: 0,
-                sizeMax: Infinity,
-                dateFrom: null,
-                dateTo: null
-            },
-            similar: {
-                similarityMin: 0,
-                similarityMax: 100,
-                sizeMin: 0,
-                sizeMax: Infinity,
-                dateFrom: null,
-                dateTo: null,
-                type: ''
-            },
-            error: {
-                errorType: '',
-                sizeMin: 0,
-                sizeMax: Infinity,
-                dateFrom: null,
-                dateTo: null
-            }
+            blur: { minScore: 0, maxScore: 100, minSize: 0, maxSize: 100 },
+            similar: { similarityMin: 0, similarityMax: 100, type: '', minSize: 0, maxSize: 100 },
+            error: { minSize: 0, maxSize: 100 }
         };
+        this.settingsManager = null;
+        this.init();
+    }
+
+    async init() {
+        // 設定マネージャーを初期化
+        this.settingsManager = new SettingsManager();
         
-        // 元のデータ（フィルタリング前）
-        this.originalData = {
-            blur: [],
-            similar: [],
-            error: []
-        };
-        
-        // 保存されたフィルター設定を読み込み
-        this.loadFilterSettings();
-        
-        this.initializeEventListeners();
-        this.initializeScanEventListeners();
+        this.bindEvents();
         this.updateUI();
     }
 
-    loadFilterSettings() {
-        try {
-            const savedFilters = localStorage.getItem('imageCleaner_filters');
-            if (savedFilters) {
-                const parsed = JSON.parse(savedFilters);
-                // 各タブのフィルター設定を復元
-                Object.keys(parsed).forEach(tabName => {
-                    if (this.filters[tabName]) {
-                        this.filters[tabName] = { ...this.filters[tabName], ...parsed[tabName] };
-                    }
-                });
-            }
-        } catch (error) {
-            console.warn('フィルター設定の読み込みに失敗しました:', error);
-        }
+    getSettings() {
+        return this.settingsManager ? this.settingsManager.getSettings() : null;
     }
 
-    saveFilterSettings() {
-        try {
-            localStorage.setItem('imageCleaner_filters', JSON.stringify(this.filters));
-        } catch (error) {
-            console.warn('フィルター設定の保存に失敗しました:', error);
-        }
-    }
-
-    initializeEventListeners() {
+    bindEvents() {
         // フォルダ選択ボタン
         document.getElementById('targetFolder').addEventListener('click', () => this.selectTargetFolder());
         document.getElementById('outputFolder').addEventListener('click', () => this.selectOutputFolder());
@@ -121,97 +74,6 @@ class ImageCleanupApp {
         
         // キーボードショートカット
         this.initializeKeyboardShortcuts();
-    }
-
-    initializeScanEventListeners() {
-        console.log('スキャンイベントリスナーを初期化中...');
-        
-        // イベントリスナーを設定（重複を防ぐため一度削除してから設定）
-        try {
-            window.electronAPI.removeAllListeners('scan-progress');
-            window.electronAPI.removeAllListeners('scan-complete');
-            window.electronAPI.removeAllListeners('scan-error');
-            window.electronAPI.removeAllListeners('file-operation-progress');
-            window.electronAPI.removeAllListeners('file-operation-complete');
-        } catch (error) {
-            console.warn('イベントリスナー削除エラー:', error);
-        }
-        
-        // スキャン進捗
-        try {
-            const progressHandler = (progress) => {
-                console.log('スキャン進捗イベント受信:', progress);
-                this.updateScanProgress(progress);
-            };
-            window.electronAPI.onScanProgress(progressHandler);
-            console.log('スキャン進捗イベントリスナー設定完了');
-        } catch (error) {
-            console.error('スキャン進捗イベントリスナー設定エラー:', error);
-        }
-        
-        // スキャン完了
-        try {
-            const completeHandler = (results) => {
-                try {
-                    console.log('スキャン完了イベント受信:', results);
-                    console.log('結果の型:', typeof results);
-                    console.log('結果のキー:', results ? Object.keys(results) : 'null');
-                    this.handleScanComplete(results);
-                } catch (error) {
-                    console.error('スキャン完了ハンドラー内でエラー:', error);
-                    console.error('エラーの詳細:', {
-                        message: error.message,
-                        stack: error.stack,
-                        resultsType: typeof results,
-                        resultsKeys: results ? Object.keys(results) : 'null'
-                    });
-                }
-            };
-            window.electronAPI.onScanComplete(completeHandler);
-            console.log('スキャン完了イベントリスナー設定完了');
-        } catch (error) {
-            console.error('スキャン完了イベントリスナー設定エラー:', error);
-            console.error('エラーの詳細:', {
-                message: error.message,
-                stack: error.stack
-            });
-        }
-        
-        // スキャンエラー
-        try {
-            const errorHandler = (error) => {
-                console.log('スキャンエラーイベント受信:', error);
-                this.handleScanError(error);
-            };
-            window.electronAPI.onScanError(errorHandler);
-            console.log('スキャンエラーイベントリスナー設定完了');
-        } catch (error) {
-            console.error('スキャンエラーイベントリスナー設定エラー:', error);
-        }
-        
-        // ファイル操作の進捗
-        try {
-            const fileProgressHandler = (progress) => {
-                this.updateFileOperationProgress(progress);
-            };
-            window.electronAPI.onFileOperationProgress(fileProgressHandler);
-            console.log('ファイル操作進捗イベントリスナー設定完了');
-        } catch (error) {
-            console.error('ファイル操作進捗イベントリスナー設定エラー:', error);
-        }
-        
-        // ファイル操作の完了
-        try {
-            const fileCompleteHandler = (result) => {
-                this.handleFileOperationComplete(result);
-            };
-            window.electronAPI.onFileOperationComplete(fileCompleteHandler);
-            console.log('ファイル操作完了イベントリスナー設定完了');
-        } catch (error) {
-            console.error('ファイル操作完了イベントリスナー設定エラー:', error);
-        }
-        
-        console.log('すべてのスキャンイベントリスナー初期化完了');
     }
 
     initializeModalListeners() {
@@ -643,11 +505,11 @@ class ImageCleanupApp {
                 <td class="p-2 text-slate-600">${this.formatFileSize(image.size)}</td>
                 <td class="p-2 text-slate-600">${this.formatDate(image.modifiedDate)}</td>
                 <td class="p-2">
-<span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
-    ${image.blurScore}
-</span>
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
+                        ${image.blurScore}
+                    </span>
                 </td>
-            `;
+            </tr>`;
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -729,7 +591,7 @@ class ImageCleanupApp {
                         ${typeText}
                     </span>
                 </td>
-            `;
+            </tr>`;
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -770,7 +632,7 @@ class ImageCleanupApp {
                 </td>
                 <td class="p-2 font-medium text-slate-800">${error.filename}</td>
                 <td class="p-2 text-red-600">${error.error}</td>
-            `;
+            </tr>`;
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -808,24 +670,17 @@ class ImageCleanupApp {
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">ブレスコア範囲:</label>
                             <div class="flex items-center space-x-2">
-                                <input type="number" id="blurScoreMin" step="1" min="0" max="100" value="${this.filters.blur.scoreMin}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="blurScoreMin" step="1" min="0" max="100" value="${this.filters.blur.minScore}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                 <span class="text-xs text-slate-500">-</span>
-                                <input type="number" id="blurScoreMax" step="1" min="0" max="100" value="${this.filters.blur.scoreMax}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="blurScoreMax" step="1" min="0" max="100" value="${this.filters.blur.maxScore}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">ファイルサイズ (MB):</label>
                             <div class="flex items-center space-x-2">
-                                <input type="number" id="blurSizeMin" step="0.1" min="0" value="${this.filters.blur.sizeMin}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="blurSizeMin" step="0.1" min="0" value="${this.filters.blur.minSize}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                 <span class="text-xs text-slate-500">-</span>
-                                <input type="number" id="blurSizeMax" step="0.1" min="0" value="${this.filters.blur.sizeMax === Infinity ? '' : this.filters.blur.sizeMax}" placeholder="∞" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">日付範囲:</label>
-                            <div class="space-y-1">
-                                <input type="date" id="blurDateFrom" value="${this.filters.blur.dateFrom || ''}" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                <input type="date" id="blurDateTo" value="${this.filters.blur.dateTo || ''}" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="blurSizeMax" step="0.1" min="0" value="${this.filters.blur.maxSize === 100 ? '' : this.filters.blur.maxSize}" placeholder="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
                         <div class="flex space-x-2">
@@ -861,16 +716,9 @@ class ImageCleanupApp {
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">ファイルサイズ (MB):</label>
                             <div class="flex items-center space-x-2">
-                                <input type="number" id="similarSizeMin" step="0.1" min="0" value="${this.filters.similar.sizeMin}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="similarSizeMin" step="0.1" min="0" value="${this.filters.similar.minSize}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                 <span class="text-xs text-slate-500">-</span>
-                                <input type="number" id="similarSizeMax" step="0.1" min="0" value="${this.filters.similar.sizeMax === Infinity ? '' : this.filters.similar.sizeMax}" placeholder="∞" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">日付範囲:</label>
-                            <div class="space-y-1">
-                                <input type="date" id="similarDateFrom" value="${this.filters.similar.dateFrom || ''}" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                <input type="date" id="similarDateTo" value="${this.filters.similar.dateTo || ''}" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="similarSizeMax" step="0.1" min="0" value="${this.filters.similar.maxSize === 100 ? '' : this.filters.similar.maxSize}" placeholder="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
                         <div class="flex space-x-2">
@@ -900,16 +748,9 @@ class ImageCleanupApp {
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">ファイルサイズ (MB):</label>
                             <div class="flex items-center space-x-2">
-                                <input type="number" id="errorSizeMin" step="0.1" min="0" value="${this.filters.error.sizeMin}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="errorSizeMin" step="0.1" min="0" value="${this.filters.error.minSize}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                 <span class="text-xs text-slate-500">-</span>
-                                <input type="number" id="errorSizeMax" step="0.1" min="0" value="${this.filters.error.sizeMax === Infinity ? '' : this.filters.error.sizeMax}" placeholder="∞" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                            </div>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">日付範囲:</label>
-                            <div class="space-y-1">
-                                <input type="date" id="errorDateFrom" value="${this.filters.error.dateFrom || ''}" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                <input type="date" id="errorDateTo" value="${this.filters.error.dateTo || ''}" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <input type="number" id="errorSizeMax" step="0.1" min="0" value="${this.filters.error.maxSize === 100 ? '' : this.filters.error.maxSize}" placeholder="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
                         <div class="flex space-x-2">
@@ -1577,26 +1418,26 @@ class ImageCleanupApp {
         
         switch (tabName) {
             case 'blur':
-                filter.scoreMin = parseFloat(document.getElementById('blurScoreMin').value) || 0;
-                filter.scoreMax = parseFloat(document.getElementById('blurScoreMax').value) || 100;
-                filter.sizeMin = parseFloat(document.getElementById('blurSizeMin').value) || 0;
-                filter.sizeMax = document.getElementById('blurSizeMax').value === '' ? Infinity : parseFloat(document.getElementById('blurSizeMax').value);
+                filter.minScore = parseFloat(document.getElementById('blurScoreMin').value) || 0;
+                filter.maxScore = parseFloat(document.getElementById('blurScoreMax').value) || 100;
+                filter.minSize = parseFloat(document.getElementById('blurSizeMin').value) || 0;
+                filter.maxSize = document.getElementById('blurSizeMax').value === '' ? 100 : parseFloat(document.getElementById('blurSizeMax').value);
                 filter.dateFrom = document.getElementById('blurDateFrom').value || null;
                 filter.dateTo = document.getElementById('blurDateTo').value || null;
                 break;
             case 'similar':
                 filter.similarityMin = parseFloat(document.getElementById('similarityMin').value) || 0;
                 filter.similarityMax = parseFloat(document.getElementById('similarityMax').value) || 100;
-                filter.sizeMin = parseFloat(document.getElementById('similarSizeMin').value) || 0;
-                filter.sizeMax = document.getElementById('similarSizeMax').value === '' ? Infinity : parseFloat(document.getElementById('similarSizeMax').value);
+                filter.minSize = parseFloat(document.getElementById('similarSizeMin').value) || 0;
+                filter.maxSize = document.getElementById('similarSizeMax').value === '' ? 100 : parseFloat(document.getElementById('similarSizeMax').value);
                 filter.dateFrom = document.getElementById('similarDateFrom').value || null;
                 filter.dateTo = document.getElementById('similarDateTo').value || null;
                 filter.type = document.getElementById('similarType').value;
                 break;
             case 'error':
                 filter.errorType = document.getElementById('errorType').value;
-                filter.sizeMin = parseFloat(document.getElementById('errorSizeMin').value) || 0;
-                filter.sizeMax = document.getElementById('errorSizeMax').value === '' ? Infinity : parseFloat(document.getElementById('errorSizeMax').value);
+                filter.minSize = parseFloat(document.getElementById('errorSizeMin').value) || 0;
+                filter.maxSize = document.getElementById('errorSizeMax').value === '' ? 100 : parseFloat(document.getElementById('errorSizeMax').value);
                 filter.dateFrom = document.getElementById('errorDateFrom').value || null;
                 filter.dateTo = document.getElementById('errorDateTo').value || null;
                 break;
@@ -1608,26 +1449,26 @@ class ImageCleanupApp {
         
         switch (tabName) {
             case 'blur':
-                filter.scoreMin = 0;
-                filter.scoreMax = 100;
-                filter.sizeMin = 0;
-                filter.sizeMax = Infinity;
+                filter.minScore = 0;
+                filter.maxScore = 100;
+                filter.minSize = 0;
+                filter.maxSize = 100;
                 filter.dateFrom = null;
                 filter.dateTo = null;
                 break;
             case 'similar':
                 filter.similarityMin = 0;
                 filter.similarityMax = 100;
-                filter.sizeMin = 0;
-                filter.sizeMax = Infinity;
+                filter.minSize = 0;
+                filter.maxSize = 100;
                 filter.dateFrom = null;
                 filter.dateTo = null;
                 filter.type = '';
                 break;
             case 'error':
                 filter.errorType = '';
-                filter.sizeMin = 0;
-                filter.sizeMax = Infinity;
+                filter.minSize = 0;
+                filter.maxSize = 100;
                 filter.dateFrom = null;
                 filter.dateTo = null;
                 break;
@@ -1648,8 +1489,8 @@ class ImageCleanupApp {
                 const size = (item.size || 0) / (1024 * 1024); // MBに変換
                 const date = item.modifiedDate ? new Date(item.modifiedDate) : null;
                 
-                if (score < filter.scoreMin || score > filter.scoreMax) return false;
-                if (size < filter.sizeMin || (filter.sizeMax !== Infinity && size > filter.sizeMax)) return false;
+                if (score < filter.minScore || score > filter.maxScore) return false;
+                if (size < filter.minSize || (filter.maxSize !== 100 && size > filter.maxSize)) return false;
                 if (filter.dateFrom && date && date < new Date(filter.dateFrom)) return false;
                 if (filter.dateTo && date && date > new Date(filter.dateTo)) return false;
             }
@@ -1672,8 +1513,8 @@ class ImageCleanupApp {
                     const size1 = (file1.size || 0) / (1024 * 1024);
                     const size2 = (file2.size || 0) / (1024 * 1024);
                     
-                    if ((size1 < filter.sizeMin || (filter.sizeMax !== Infinity && size1 > filter.sizeMax)) &&
-                        (size2 < filter.sizeMin || (filter.sizeMax !== Infinity && size2 > filter.sizeMax))) {
+                    if ((size1 < filter.minSize || (filter.maxSize !== 100 && size1 > filter.maxSize)) &&
+                        (size2 < filter.minSize || (filter.maxSize !== 100 && size2 > filter.maxSize))) {
                         return false;
                     }
                 }
@@ -1700,7 +1541,7 @@ class ImageCleanupApp {
                 const date = item.modifiedDate ? new Date(item.modifiedDate) : null;
                 
                 if (filter.errorType && !item.error.toLowerCase().includes(filter.errorType.toLowerCase())) return false;
-                if (size < filter.sizeMin || (filter.sizeMax !== Infinity && size > filter.sizeMax)) return false;
+                if (size < filter.minSize || (filter.maxSize !== 100 && size > filter.maxSize)) return false;
                 if (filter.dateFrom && date && date < new Date(filter.dateFrom)) return false;
                 if (filter.dateTo && date && date > new Date(filter.dateTo)) return false;
             }

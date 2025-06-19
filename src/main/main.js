@@ -17,6 +17,42 @@ if (process.platform === 'win32') {
 let mainWindow;
 let imageAnalyzer;
 
+// 設定ファイルのパス
+const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+// デフォルト設定
+const defaultSettings = {
+    similarityThreshold: 80,
+    blurThreshold: 60,
+    includeSubfolders: true,
+    deleteConfirmation: 'always',
+    moveDestination: '',
+    enableDebugLog: false,
+    saveLogFile: false
+};
+
+// 設定を読み込み
+async function loadSettings() {
+    try {
+        const data = await fs.readFile(settingsPath, 'utf8');
+        return { ...defaultSettings, ...JSON.parse(data) };
+    } catch (error) {
+        console.log('設定ファイルが見つからないため、デフォルト設定を使用します');
+        return defaultSettings;
+    }
+}
+
+// 設定を保存
+async function saveSettings(settings) {
+    try {
+        await fs.writeFile(settingsPath, JSON.stringify(settings, null, 2));
+        console.log('設定を保存しました');
+    } catch (error) {
+        console.error('設定の保存に失敗しました:', error);
+        throw error;
+    }
+}
+
 function createWindow() {
   // メインウィンドウを作成
   mainWindow = new BrowserWindow({
@@ -59,15 +95,7 @@ function createWindow() {
 
 // アプリが準備できたときにウィンドウを作成
 app.whenReady().then(() => {
-  imageAnalyzer = new ImageAnalyzer();
-  
-  // 進捗コールバックを設定
-  imageAnalyzer.setProgressCallback((progress) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('scan-progress', progress);
-    }
-  });
-  
+  initializeApp();
   createWindow();
 });
 
@@ -88,10 +116,10 @@ app.on('activate', () => {
 ipcMain.handle('select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
-    title: 'フォルダを選択'
+    title: '移動先フォルダを選択'
   });
   
-  if (!result.canceled) {
+  if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
   return null;
@@ -429,15 +457,32 @@ ipcMain.handle('get-settings', async () => {
   };
 });
 
+// 設定関連のIPC通信
+ipcMain.handle('load-settings', async () => {
+    try {
+        const settings = await loadSettings();
+        return settings;
+    } catch (error) {
+        console.error('設定の読み込みに失敗しました:', error);
+        return defaultSettings;
+    }
+});
+
 ipcMain.handle('save-settings', async (event, settings) => {
-  try {
-    // 設定を保存（実装予定）
-    console.log('設定保存:', settings);
-    return { success: true };
-  } catch (error) {
-    console.error('設定保存エラー:', error);
-    return { success: false, error: error.message };
-  }
+    try {
+        await saveSettings(settings);
+        
+        // ImageAnalyzerの設定を更新
+        if (imageAnalyzer) {
+            imageAnalyzer.setSimilarityThreshold(settings.similarityThreshold);
+            imageAnalyzer.setBlurThreshold(settings.blurThreshold);
+        }
+        
+        return { success: true };
+    } catch (error) {
+        console.error('設定の保存に失敗しました:', error);
+        return { success: false, error: error.message };
+    }
 });
 
 // ログ
@@ -453,4 +498,29 @@ process.on('uncaughtException', (error) => {
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-}); 
+});
+
+async function initializeApp() {
+    try {
+        // 設定を読み込み
+        const settings = await loadSettings();
+        
+        // ImageAnalyzerを初期化
+        imageAnalyzer = new ImageAnalyzer();
+        
+        // 設定をImageAnalyzerに適用
+        imageAnalyzer.setSimilarityThreshold(settings.similarityThreshold);
+        imageAnalyzer.setBlurThreshold(settings.blurThreshold);
+        
+        // 進捗コールバックを設定
+        imageAnalyzer.setProgressCallback((progress) => {
+            if (mainWindow) {
+                mainWindow.webContents.send('scan-progress', progress);
+            }
+        });
+        
+        console.log('アプリケーションを初期化しました');
+    } catch (error) {
+        console.error('アプリケーションの初期化に失敗しました:', error);
+    }
+} 
