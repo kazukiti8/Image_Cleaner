@@ -656,6 +656,12 @@ class ImageCleanupApp {
             return;
         }
         
+        // タブのカウント表示を更新
+        const countElement = document.getElementById('countBlur');
+        if (countElement) {
+            countElement.textContent = blurImages.length;
+        }
+        
         if (blurImages.length === 0) {
             safeConsoleLog('No blur images found, showing empty message');
             container.innerHTML = '<div class="text-center text-slate-500 py-8">ブレ画像は見つかりませんでした</div>';
@@ -673,6 +679,12 @@ class ImageCleanupApp {
         const container = document.getElementById('contentSimilar');
         if (!container) return;
         
+        // タブのカウント表示を更新
+        const countElement = document.getElementById('countSimilar');
+        if (countElement) {
+            countElement.textContent = similarImages.length;
+        }
+        
         if (similarImages.length === 0) {
             container.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像は見つかりませんでした</div>';
             return;
@@ -686,6 +698,12 @@ class ImageCleanupApp {
     displayErrorResults(errors) {
         const container = document.getElementById('contentError');
         if (!container) return;
+        
+        // タブのカウント表示を更新
+        const countElement = document.getElementById('countError');
+        if (countElement) {
+            countElement.textContent = errors.length;
+        }
         
         if (errors.length === 0) {
             container.innerHTML = '<div class="text-center text-slate-500 py-8">エラーはありません</div>';
@@ -712,6 +730,15 @@ class ImageCleanupApp {
             const container = document.getElementById(`content${tab}`);
             if (container) {
                 container.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
+            }
+        });
+        
+        // タブのカウント表示をリセット
+        const countElements = ['countBlur', 'countSimilar', 'countError'];
+        countElements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = '0';
             }
         });
         
