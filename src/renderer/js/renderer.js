@@ -30,7 +30,8 @@ class ImageCleanupApp {
                 sizeMin: 0,
                 sizeMax: Infinity,
                 dateFrom: null,
-                dateTo: null
+                dateTo: null,
+                type: ''
             },
             error: {
                 errorType: '',
@@ -642,9 +643,9 @@ class ImageCleanupApp {
                 <td class="p-2 text-slate-600">${this.formatFileSize(image.size)}</td>
                 <td class="p-2 text-slate-600">${this.formatDate(image.modifiedDate)}</td>
                 <td class="p-2">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
-                        ${image.blurScore}
-                    </span>
+<span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
+    ${image.blurScore}
+</span>
                 </td>
             `;
             tbody.appendChild(row);
@@ -671,6 +672,7 @@ class ImageCleanupApp {
                 <th class="p-2 text-left">ファイル1</th>
                 <th class="p-2 text-left">ファイル2</th>
                 <th class="p-2 text-left">類似度</th>
+                <th class="p-2 text-left">タイプ</th>
             </tr>
         `;
         table.appendChild(thead);
@@ -680,17 +682,51 @@ class ImageCleanupApp {
         similarImages.forEach(pair => {
             const row = document.createElement('tr');
             row.className = 'border-b border-slate-100 hover:bg-slate-50';
-            row.dataset.filePath = pair.filePath1 || pair.file1; // 最初のファイルをプレビュー用に設定
+            
+            // 新しいデータ構造に対応
+            if (!pair.files || pair.files.length < 2) {
+                console.warn('無効な類似画像データ:', pair);
+                return; // このアイテムをスキップ
+            }
+            
+            const file1 = pair.files[0];
+            const file2 = pair.files[1];
+            const similarity = pair.similarity || 0;
+            const type = pair.type || 'similar';
+            
+            // 最初のファイルをプレビュー用に設定
+            row.dataset.filePath = file1.filePath;
+            
+            // タイプに応じた表示色を決定
+            let typeColor = 'bg-blue-100 text-blue-800';
+            let typeText = '類似';
+            if (type === 'duplicate') {
+                typeColor = 'bg-red-100 text-red-800';
+                typeText = '重複';
+            }
+            
+            // 類似度に応じた表示色を決定
+            let similarityColor = 'bg-orange-100 text-orange-800';
+            if (similarity >= 95) {
+                similarityColor = 'bg-red-100 text-red-800';
+            } else if (similarity >= 85) {
+                similarityColor = 'bg-yellow-100 text-yellow-800';
+            }
             
             row.innerHTML = `
                 <td class="p-2">
-                    <input type="checkbox" value="${pair.filePath1 || pair.file1}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                    <input type="checkbox" value="${file1.filePath}" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
                 </td>
-                <td class="p-2 font-medium text-slate-800">${pair.filename1 || pair.file1}</td>
-                <td class="p-2 font-medium text-slate-800">${pair.filename2 || pair.file2}</td>
+                <td class="p-2 font-medium text-slate-800">${file1.filename}</td>
+                <td class="p-2 font-medium text-slate-800">${file2.filename}</td>
                 <td class="p-2">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${pair.similarity > 90 ? 'bg-red-100 text-red-800' : pair.similarity > 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
-                        ${pair.similarity}%
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${similarityColor}">
+                        ${similarity}%
+                    </span>
+                </td>
+                <td class="p-2">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${typeColor}">
+                        ${typeText}
                     </span>
                 </td>
             `;
@@ -813,6 +849,14 @@ class ImageCleanupApp {
                                 <span class="text-xs text-slate-500">-</span>
                                 <input type="number" id="similarityMax" step="1" min="0" max="100" value="${this.filters.similar.similarityMax}" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                             </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">タイプ:</label>
+                            <select id="similarType" class="w-full px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                <option value="">すべて</option>
+                                <option value="duplicate" ${this.filters.similar.type === 'duplicate' ? 'selected' : ''}>重複画像</option>
+                                <option value="similar" ${this.filters.similar.type === 'similar' ? 'selected' : ''}>類似画像</option>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">ファイルサイズ (MB):</label>
@@ -1547,6 +1591,7 @@ class ImageCleanupApp {
                 filter.sizeMax = document.getElementById('similarSizeMax').value === '' ? Infinity : parseFloat(document.getElementById('similarSizeMax').value);
                 filter.dateFrom = document.getElementById('similarDateFrom').value || null;
                 filter.dateTo = document.getElementById('similarDateTo').value || null;
+                filter.type = document.getElementById('similarType').value;
                 break;
             case 'error':
                 filter.errorType = document.getElementById('errorType').value;
@@ -1577,6 +1622,7 @@ class ImageCleanupApp {
                 filter.sizeMax = Infinity;
                 filter.dateFrom = null;
                 filter.dateTo = null;
+                filter.type = '';
                 break;
             case 'error':
                 filter.errorType = '';
@@ -1611,16 +1657,41 @@ class ImageCleanupApp {
             // 類似画像のフィルタリング
             else if (tabName === 'similar') {
                 const similarity = parseFloat(item.similarity) || 0;
-                const size1 = (item.size1 || 0) / (1024 * 1024);
-                const size2 = (item.size2 || 0) / (1024 * 1024);
-                const date1 = item.modifiedDate1 ? new Date(item.modifiedDate1) : null;
-                const date2 = item.modifiedDate2 ? new Date(item.modifiedDate2) : null;
+                const type = item.type || '';
                 
+                // 類似度フィルター
                 if (similarity < filter.similarityMin || similarity > filter.similarityMax) return false;
-                if ((size1 < filter.sizeMin || (filter.sizeMax !== Infinity && size1 > filter.sizeMax)) &&
-                    (size2 < filter.sizeMin || (filter.sizeMax !== Infinity && size2 > filter.sizeMax))) return false;
-                if (filter.dateFrom && date1 && date1 < new Date(filter.dateFrom) && date2 && date2 < new Date(filter.dateFrom)) return false;
-                if (filter.dateTo && date1 && date1 > new Date(filter.dateTo) && date2 && date2 > new Date(filter.dateTo)) return false;
+                
+                // タイプフィルター
+                if (filter.type && type !== filter.type) return false;
+                
+                // ファイルサイズフィルター（両方のファイルをチェック）
+                if (item.files && item.files.length >= 2) {
+                    const file1 = item.files[0];
+                    const file2 = item.files[1];
+                    const size1 = (file1.size || 0) / (1024 * 1024);
+                    const size2 = (file2.size || 0) / (1024 * 1024);
+                    
+                    if ((size1 < filter.sizeMin || (filter.sizeMax !== Infinity && size1 > filter.sizeMax)) &&
+                        (size2 < filter.sizeMin || (filter.sizeMax !== Infinity && size2 > filter.sizeMax))) {
+                        return false;
+                    }
+                }
+                
+                // 日付フィルター（両方のファイルをチェック）
+                if (item.files && item.files.length >= 2) {
+                    const file1 = item.files[0];
+                    const file2 = item.files[1];
+                    const date1 = file1.modifiedDate ? new Date(file1.modifiedDate) : null;
+                    const date2 = file2.modifiedDate ? new Date(file2.modifiedDate) : null;
+                    
+                    if (filter.dateFrom && date1 && date1 < new Date(filter.dateFrom) && date2 && date2 < new Date(filter.dateFrom)) {
+                        return false;
+                    }
+                    if (filter.dateTo && date1 && date1 > new Date(filter.dateTo) && date2 && date2 > new Date(filter.dateTo)) {
+                        return false;
+                    }
+                }
             }
             
             // エラーのフィルタリング

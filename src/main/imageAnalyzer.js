@@ -1,6 +1,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const sharp = require('sharp');
+const crypto = require('crypto');
 
 // コンソール出力の文字エンコーディングを設定
 if (process.platform === 'win32') {
@@ -13,6 +14,7 @@ class ImageAnalyzer {
         this.supportedFormats = ['.jpg', '.jpeg', '.png', '.gif', '.tiff', '.tif'];
         this.blurThreshold = 60; // デフォルトのブレ検出閾値
         this.onProgress = null; // 進捗コールバック
+        this.similarityThreshold = 80; // 類似度の閾値（%）
     }
 
     /**
@@ -83,6 +85,11 @@ class ImageAnalyzer {
                     });
                 }
             }
+
+            // 類似画像検出（全画像の分析が完了してから実行）
+            console.log('類似画像検出を開始...');
+            const similarResults = await this.detectSimilarImages(imageFiles);
+            results.similarImages = similarResults;
 
             console.log('画像分析完了');
             return results;
@@ -289,35 +296,230 @@ class ImageAnalyzer {
     }
 
     /**
-     * 類似画像検出（簡易実装）
+     * 類似画像検出（本格実装）
      */
     async detectSimilarImages(imageFiles) {
-        // 簡易実装：ファイルサイズとファイル名の類似性で判定
-        const similarGroups = [];
-        
-        for (let i = 0; i < imageFiles.length; i++) {
-            for (let j = i + 1; j < imageFiles.length; j++) {
-                const file1 = imageFiles[i];
-                const file2 = imageFiles[j];
-                
-                const stats1 = await fs.stat(file1);
-                const stats2 = await fs.stat(file2);
-                
-                // ファイルサイズが近い場合を類似と判定
-                const sizeDiff = Math.abs(stats1.size - stats2.size);
-                const sizeRatio = sizeDiff / Math.max(stats1.size, stats2.size);
-                
-                if (sizeRatio < 0.1) { // 10%以内のサイズ差
-                    similarGroups.push({
-                        file1: path.basename(file1),
-                        file2: path.basename(file2),
-                        similarity: Math.round((1 - sizeRatio) * 100)
-                    });
+        try {
+            console.log('類似画像検出開始...');
+            
+            // 1. 完全同一画像の検出（SHA256ハッシュ比較）
+            const hashMap = new Map();
+            
+            for (let i = 0; i < imageFiles.length; i++) {
+                const filePath = imageFiles[i];
+                try {
+                    const fileHash = await this.calculateFileHash(filePath);
+                    const fileStats = await fs.stat(filePath);
+                    
+                    if (hashMap.has(fileHash)) {
+                        // 既に同じハッシュのファイルが存在する場合
+                        const existingGroup = hashMap.get(fileHash);
+                        existingGroup.files.push({
+                            filePath: filePath,
+                            filename: path.basename(filePath),
+                            size: fileStats.size,
+                            modifiedDate: fileStats.mtime.toISOString()
+                        });
+                    } else {
+                        // 新しいハッシュの場合
+                        const newGroup = {
+                            id: `duplicate_${hashMap.size}`,
+                            files: [{
+                                filePath: filePath,
+                                filename: path.basename(filePath),
+                                size: fileStats.size,
+                                modifiedDate: fileStats.mtime.toISOString()
+                            }],
+                            similarity: 100, // 完全同一
+                            type: 'duplicate'
+                        };
+                        hashMap.set(fileHash, newGroup);
+                    }
+                } catch (error) {
+                    console.error(`ハッシュ計算エラー (${filePath}):`, error);
                 }
+            }
+            
+            // 重複画像グループを作成（2つ以上のファイルがある場合のみ）
+            const duplicateGroups = [];
+            for (const [hash, group] of hashMap.entries()) {
+                if (group.files.length >= 2) {
+                    duplicateGroups.push(group);
+                }
+            }
+            
+            console.log(`重複画像グループ数: ${duplicateGroups.length}`);
+            
+            // 2. 類似画像の検出（知覚ハッシュ比較）
+            const perceptualHashes = [];
+            
+            for (let i = 0; i < imageFiles.length; i++) {
+                const filePath = imageFiles[i];
+                try {
+                    const perceptualHash = await this.calculatePerceptualHash(filePath);
+                    const fileStats = await fs.stat(filePath);
+                    perceptualHashes.push({
+                        filePath: filePath,
+                        filename: path.basename(filePath),
+                        hash: perceptualHash,
+                        size: fileStats.size,
+                        modifiedDate: fileStats.mtime.toISOString()
+                    });
+                } catch (error) {
+                    console.error(`知覚ハッシュ計算エラー (${filePath}):`, error);
+                }
+            }
+            
+            // 3. 知覚ハッシュの比較
+            const similarGroups = [];
+            const processedPairs = new Set();
+            
+            for (let i = 0; i < perceptualHashes.length; i++) {
+                for (let j = i + 1; j < perceptualHashes.length; j++) {
+                    const pairKey = `${i}-${j}`;
+                    if (processedPairs.has(pairKey)) continue;
+                    
+                    const hash1 = perceptualHashes[i].hash;
+                    const hash2 = perceptualHashes[j].hash;
+                    
+                    // ハミング距離を計算
+                    const hammingDistance = this.calculateHammingDistance(hash1, hash2);
+                    const similarity = this.calculateSimilarityFromHammingDistance(hammingDistance);
+                    
+                    // 類似度が閾値を超える場合
+                    if (similarity >= this.similarityThreshold) {
+                        // 完全同一画像でないことを確認
+                        const isDuplicate = duplicateGroups.some(group => 
+                            group.files.some(f => f.filePath === perceptualHashes[i].filePath) &&
+                            group.files.some(f => f.filePath === perceptualHashes[j].filePath)
+                        );
+                        
+                        if (!isDuplicate) {
+                            similarGroups.push({
+                                id: `similar_${similarGroups.length}`,
+                                files: [
+                                    {
+                                        filePath: perceptualHashes[i].filePath,
+                                        filename: perceptualHashes[i].filename,
+                                        size: perceptualHashes[i].size,
+                                        modifiedDate: perceptualHashes[i].modifiedDate
+                                    },
+                                    {
+                                        filePath: perceptualHashes[j].filePath,
+                                        filename: perceptualHashes[j].filename,
+                                        size: perceptualHashes[j].size,
+                                        modifiedDate: perceptualHashes[j].modifiedDate
+                                    }
+                                ],
+                                similarity: similarity,
+                                type: 'similar'
+                            });
+                        }
+                        
+                        processedPairs.add(pairKey);
+                    }
+                }
+            }
+            
+            // 4. 結果を統合（重複画像 + 類似画像）
+            const allResults = [...duplicateGroups, ...similarGroups];
+            
+            console.log(`類似画像検出完了: 重複画像 ${duplicateGroups.length}件, 類似画像 ${similarGroups.length}件`);
+            
+            return allResults;
+            
+        } catch (error) {
+            console.error('類似画像検出エラー:', error);
+            return [];
+        }
+    }
+
+    /**
+     * ファイルのSHA256ハッシュを計算
+     */
+    async calculateFileHash(filePath) {
+        try {
+            const fileBuffer = await fs.readFile(filePath);
+            return crypto.createHash('sha256').update(fileBuffer).digest('hex');
+        } catch (error) {
+            console.error(`ファイルハッシュ計算エラー (${filePath}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * 知覚ハッシュ（Average Hash）を計算
+     */
+    async calculatePerceptualHash(imagePath) {
+        try {
+            // 画像を8x8のグレースケールにリサイズ
+            const buffer = await sharp(imagePath)
+                .grayscale()
+                .resize(8, 8, { fit: 'fill' })
+                .raw()
+                .toBuffer();
+            
+            // 平均値を計算
+            let sum = 0;
+            for (let i = 0; i < buffer.length; i++) {
+                sum += buffer[i];
+            }
+            const average = sum / buffer.length;
+            
+            // ハッシュ値を生成（平均値より大きいピクセルは1、小さいピクセルは0）
+            let hash = '';
+            for (let i = 0; i < buffer.length; i++) {
+                hash += buffer[i] > average ? '1' : '0';
+            }
+            
+            return hash;
+        } catch (error) {
+            console.error(`知覚ハッシュ計算エラー (${imagePath}):`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * ハミング距離を計算
+     */
+    calculateHammingDistance(hash1, hash2) {
+        if (hash1.length !== hash2.length) {
+            throw new Error('ハッシュの長さが異なります');
+        }
+        
+        let distance = 0;
+        for (let i = 0; i < hash1.length; i++) {
+            if (hash1[i] !== hash2[i]) {
+                distance++;
             }
         }
         
-        return similarGroups;
+        return distance;
+    }
+
+    /**
+     * ハミング距離から類似度を計算
+     */
+    calculateSimilarityFromHammingDistance(hammingDistance) {
+        // 64ビットハッシュの場合、最大ハミング距離は64
+        // ハミング距離3以下で類似度100%、ハミング距離6で約50%、ハミング距離15以上で類似度0%
+        if (hammingDistance <= 3) {
+            return 100;
+        } else if (hammingDistance >= 15) {
+            return 0;
+        } else {
+            // 線形補間で類似度を計算
+            const similarity = Math.max(0, 100 - ((hammingDistance - 3) * 100 / 12));
+            return Math.round(similarity);
+        }
+    }
+
+    /**
+     * 類似度閾値を設定
+     */
+    setSimilarityThreshold(threshold) {
+        this.similarityThreshold = threshold;
+        console.log(`類似度閾値を ${threshold}% に設定しました`);
     }
 
     /**
