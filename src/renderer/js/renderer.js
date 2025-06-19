@@ -468,7 +468,12 @@ class ImageCleanupApp {
     }
 
     handleScanComplete(results) {
-        safeConsoleLog('Scan completed:', results);
+        safeConsoleLog('Scan completed - Results received:', {
+            blurImages: results.blurImages?.length || 0,
+            similarImages: results.similarImages?.length || 0,
+            errors: results.errors?.length || 0,
+            results: results
+        });
         
         this.scanInProgress = false;
         this.updateScanButton();
@@ -483,8 +488,13 @@ class ImageCleanupApp {
         this.scanResults = results;
         
         // 結果を表示
+        safeConsoleLog('Displaying blur results:', results.blurImages?.length || 0);
         this.displayBlurResults(results.blurImages || []);
+        
+        safeConsoleLog('Displaying similar results:', results.similarImages?.length || 0);
         this.displaySimilarResults(results.similarImages || []);
+        
+        safeConsoleLog('Displaying error results:', results.errors?.length || 0);
         this.displayErrorResults(results.errors || []);
         
         this.showSuccess(`スキャン完了: ブレ画像${results.blurImages?.length || 0}件, 類似画像${results.similarImages?.length || 0}件, エラー${results.errors?.length || 0}件`);
@@ -638,17 +648,25 @@ class ImageCleanupApp {
 
     // 結果表示メソッド
     displayBlurResults(blurImages) {
+        safeConsoleLog('displayBlurResults called with:', blurImages.length, 'images');
+        
         const container = document.getElementById('contentBlur');
-        if (!container) return;
+        if (!container) {
+            safeConsoleError('contentBlur container not found');
+            return;
+        }
         
         if (blurImages.length === 0) {
+            safeConsoleLog('No blur images found, showing empty message');
             container.innerHTML = '<div class="text-center text-slate-500 py-8">ブレ画像は見つかりませんでした</div>';
             return;
         }
         
+        safeConsoleLog('Creating blur table for', blurImages.length, 'images');
         const table = this.createBlurTable(blurImages);
         container.innerHTML = '';
         container.appendChild(table);
+        safeConsoleLog('Blur table created and added to container');
     }
 
     displaySimilarResults(similarImages) {
@@ -854,7 +872,35 @@ class ImageCleanupApp {
         safeConsoleLog('Memory cleanup started');
     }
 
-    // テーブル作成メソッド
+    // プレビュー表示
+    showImagePreview(image) {
+        const previewContainer = document.getElementById('previewAreaContainer');
+        if (!previewContainer) return;
+        previewContainer.innerHTML = '';
+        
+        // 画像要素
+        const img = document.createElement('img');
+        img.src = image.filePath;
+        img.alt = image.filename;
+        img.className = 'max-w-full max-h-[300px] rounded shadow';
+        previewContainer.appendChild(img);
+        
+        // 画像情報
+        document.getElementById('infoFileName').textContent = image.filename || '';
+        document.getElementById('infoFilePath').textContent = image.filePath || '';
+        document.getElementById('infoFilePath').title = image.filePath || '';
+        document.getElementById('infoFileSize').textContent = this.formatFileSize(image.size || 0);
+        document.getElementById('infoResolution').textContent = image.resolution || '';
+        document.getElementById('infoTakenDate').textContent = image.takenDate || '';
+        if (typeof image.blurScore !== 'undefined') {
+            document.getElementById('infoBlurScoreContainer').style.display = '';
+            document.getElementById('infoBlurScore').textContent = image.blurScore;
+        } else {
+            document.getElementById('infoBlurScoreContainer').style.display = 'none';
+        }
+    }
+
+    // テーブル作成メソッド（ブレ画像）
     createBlurTable(blurImages) {
         const table = document.createElement('table');
         table.className = 'w-full border-collapse border border-slate-300';
@@ -879,7 +925,7 @@ class ImageCleanupApp {
         const tbody = document.createElement('tbody');
         blurImages.forEach((image, index) => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50';
+            row.className = 'hover:bg-slate-50 cursor-pointer';
             row.innerHTML = `
                 <td class="border border-slate-300 px-4 py-2">
                     <input type="checkbox" class="file-checkbox mr-2" data-filepath="${image.filePath}">
@@ -896,6 +942,12 @@ class ImageCleanupApp {
                     ${this.getDisplayPath(image.filePath)}
                 </td>
             `;
+            // プレビュー表示イベント
+            row.addEventListener('click', (e) => {
+                // チェックボックスクリック時は無視
+                if (e.target.tagName.toLowerCase() === 'input') return;
+                this.showImagePreview(image);
+            });
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
@@ -906,6 +958,7 @@ class ImageCleanupApp {
         return table;
     }
 
+    // 類似画像テーブルにも同様のプレビューイベントを追加
     createSimilarTable(similarImages) {
         const table = document.createElement('table');
         table.className = 'w-full border-collapse border border-slate-300';
@@ -930,12 +983,10 @@ class ImageCleanupApp {
         const tbody = document.createElement('tbody');
         similarImages.forEach((group, index) => {
             const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50';
-            
+            row.className = 'hover:bg-slate-50 cursor-pointer';
             const file1 = group.files[0];
             const file2 = group.files[1];
             const pairKey = `${file1.filePath}|${file2.filePath}`;
-            
             row.innerHTML = `
                 <td class="border border-slate-300 px-4 py-2">
                     <input type="checkbox" class="similar-checkbox mr-2" data-pair="${pairKey}">
@@ -962,6 +1013,18 @@ class ImageCleanupApp {
                     <div title="${file2.filePath}" class="text-slate-500">${this.getDisplayPath(file2.filePath)}</div>
                 </td>
             `;
+            // プレビュー表示イベント（ペアの1枚目クリックで1枚目、2枚目クリックで2枚目）
+            row.addEventListener('click', (e) => {
+                // チェックボックスクリック時は無視
+                if (e.target.tagName.toLowerCase() === 'input') return;
+                // クリック位置でどちらの画像か判定
+                const y = e.offsetY;
+                if (y < row.offsetHeight / 2) {
+                    this.showImagePreview(file1);
+                } else {
+                    this.showImagePreview(file2);
+                }
+            });
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
