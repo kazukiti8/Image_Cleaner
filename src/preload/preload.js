@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // 設定
   getSettings: () => ipcRenderer.invoke('get-settings'),
+  loadSettings: () => ipcRenderer.invoke('load-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   
   // ログ
