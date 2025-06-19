@@ -100,37 +100,12 @@
         <div class="flex-grow flex p-3 space-x-3 overflow-hidden">
             <!-- 左ペイン: プレビューエリア -->
             <div class="w-1/4 min-w-[220px] bg-white p-3 rounded-lg shadow flex flex-col space-y-2 overflow-y-auto">
-                <div id="previewAreaContainer" class="flex-grow bg-slate-100 rounded text-slate-500 text-sm min-h-[200px] sm:min-h-[300px] flex items-center justify-center border-2 border-dashed border-slate-300">
+                <div id="previewAreaContainer" class="flex-grow bg-slate-100 rounded text-slate-500 text-sm min-h-[400px] sm:min-h-[500px] flex items-center justify-center border-2 border-dashed border-slate-300">
                     <div class="text-center">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
                             <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
                         </svg>
                         <p>画像を選択して<br>プレビューを表示</p>
-                    </div>
-                </div>
-                <!-- 倍率調整UI -->
-                <div id="zoomControls" class="pt-2 border-t border-slate-200 space-y-2">
-                    <div class="flex items-center justify-between text-xs text-slate-600">
-                        <span>倍率: <span id="zoomValueDisplay">100</span>%</span>
-                        <button id="resetZoomBtn" class="p-1 rounded hover:bg-slate-200" title="100%にリセット">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                <path d="M5 15H3v4c0 1.1.9 2 2 2h4v-2H5v-4zm0-8H3V3c0-1.1.9-2 2-2h4v2H5v4zm11-5h-4v2h4v4h2V3c0-1.1-.9-2-2-2zm-7 1C7.67 4 4 7.67 4 12s3.67 8 8 8 8-3.67 8-8-3.67-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm4-4h-4v-4h2v2h2v2z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <input type="range" id="zoomSlider" min="1" max="150" value="100" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500">
-                    <div class="flex items-center justify-center space-x-2">
-                        <button id="zoomOutBtn" class="p-1 rounded hover:bg-slate-200" title="縮小 (Ctrl + -)">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                <path d="M7 11v2h10v-2H7zm5-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                            </svg>
-                        </button>
-                        <input type="number" id="zoomInput" min="1" max="150" value="100" class="w-16 px-2 py-1 text-xs border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 text-center">
-                        <button id="zoomInBtn" class="p-1 rounded hover:bg-slate-200" title="拡大 (Ctrl + +)">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5">
-                                <path d="M13 7h-2v4H7v2h4v4h2v-4h4v-2h-4V7zm-1-5C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/>
-                            </svg>
-                        </button>
                     </div>
                 </div>
                 <!-- 画像情報表示エリア -->
