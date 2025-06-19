@@ -981,6 +981,69 @@ class ImageCleanupApp {
         }
     }
 
+    // 類似画像ペアプレビュー表示
+    showSimilarImagePreview(file1, file2, similarity) {
+        const previewContainer = document.getElementById('previewAreaContainer');
+        if (!previewContainer) return;
+        previewContainer.innerHTML = '';
+        
+        // 類似度表示
+        const similarityDiv = document.createElement('div');
+        similarityDiv.className = 'text-center mb-2 p-2 bg-slate-100 rounded';
+        similarityDiv.innerHTML = `
+            <span class="text-sm font-medium text-slate-700">類似度: </span>
+            <span class="px-2 py-1 rounded text-sm font-bold ${similarity >= 90 ? 'bg-red-100 text-red-800' : similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
+                ${similarity}%
+            </span>
+        `;
+        previewContainer.appendChild(similarityDiv);
+        
+        // 2つの画像を横に並べて表示
+        const imagesContainer = document.createElement('div');
+        imagesContainer.className = 'flex space-x-2';
+        
+        // 画像1
+        const img1Container = document.createElement('div');
+        img1Container.className = 'flex-1 text-center';
+        const img1 = document.createElement('img');
+        img1.src = file1.filePath;
+        img1.alt = file1.filename;
+        img1.className = 'max-w-full max-h-[500px] rounded shadow mx-auto';
+        img1Container.appendChild(img1);
+        
+        const label1 = document.createElement('div');
+        label1.className = 'text-xs text-slate-600 mt-1 truncate';
+        label1.textContent = file1.filename;
+        img1Container.appendChild(label1);
+        
+        // 画像2
+        const img2Container = document.createElement('div');
+        img2Container.className = 'flex-1 text-center';
+        const img2 = document.createElement('img');
+        img2.src = file2.filePath;
+        img2.alt = file2.filename;
+        img2.className = 'max-w-full max-h-[500px] rounded shadow mx-auto';
+        img2Container.appendChild(img2);
+        
+        const label2 = document.createElement('div');
+        label2.className = 'text-xs text-slate-600 mt-1 truncate';
+        label2.textContent = file2.filename;
+        img2Container.appendChild(label2);
+        
+        imagesContainer.appendChild(img1Container);
+        imagesContainer.appendChild(img2Container);
+        previewContainer.appendChild(imagesContainer);
+        
+        // 画像情報（1枚目の情報を表示）
+        document.getElementById('infoFileName').textContent = `${file1.filename} / ${file2.filename}`;
+        document.getElementById('infoFilePath').textContent = file1.filePath;
+        document.getElementById('infoFilePath').title = `${file1.filePath}\n${file2.filePath}`;
+        document.getElementById('infoFileSize').textContent = `${this.formatFileSize(file1.size)} / ${this.formatFileSize(file2.size)}`;
+        document.getElementById('infoResolution').textContent = `${file1.resolution || 'N/A'} / ${file2.resolution || 'N/A'}`;
+        document.getElementById('infoTakenDate').textContent = `${file1.takenDate || 'N/A'} / ${file2.takenDate || 'N/A'}`;
+        document.getElementById('infoBlurScoreContainer').style.display = 'none';
+    }
+
     // テーブル作成メソッド（ブレ画像）
     createBlurTable(blurImages) {
         // ブレ画像をスコアの降順でソート
@@ -1100,17 +1163,12 @@ class ImageCleanupApp {
                     <div title="${file2.filePath}" class="text-slate-500">${this.getDisplayPath(file2.filePath)}</div>
                 </td>
             `;
-            // プレビュー表示イベント（ペアの1枚目クリックで1枚目、2枚目クリックで2枚目）
+            // プレビュー表示イベント（ペア全体をクリックで両方の画像を表示）
             row.addEventListener('click', (e) => {
                 // チェックボックスクリック時は無視
                 if (e.target.tagName.toLowerCase() === 'input') return;
-                // クリック位置でどちらの画像か判定
-                const y = e.offsetY;
-                if (y < row.offsetHeight / 2) {
-                    this.showImagePreview(file1);
-                } else {
-                    this.showImagePreview(file2);
-                }
+                // 類似画像ペアの両方を表示
+                this.showSimilarImagePreview(file1, file2, group.similarity);
             });
             tbody.appendChild(row);
         });
