@@ -14,6 +14,11 @@ class ImageCleanupApp {
         this.outputFolder = null;
         this.confirmResolve = null;
         this.currentResults = null;
+        this.originalData = {
+            blur: [],
+            similar: [],
+            error: []
+        };
         this.filters = {
             blur: { minScore: 0, maxScore: 100, minSize: 0, maxSize: 100 },
             similar: { similarityMin: 0, similarityMax: 100, type: '', minSize: 0, maxSize: 100 },
@@ -65,6 +70,15 @@ class ImageCleanupApp {
         document.getElementById('trashBtn').addEventListener('click', () => this.moveToTrash());
         document.getElementById('deleteBtn').addEventListener('click', () => this.deletePermanently());
         document.getElementById('moveBtn').addEventListener('click', () => this.moveFiles());
+        
+        // スキャン関連のイベントリスナー
+        window.electronAPI.onScanProgress((progress) => this.updateScanProgress(progress));
+        window.electronAPI.onScanComplete((results) => this.handleScanComplete(results));
+        window.electronAPI.onScanError((error) => this.handleScanError(error));
+        
+        // ファイル操作関連のイベントリスナー
+        window.electronAPI.onFileOperationProgress((progress) => this.updateFileOperationProgress(progress));
+        window.electronAPI.onFileOperationComplete((result) => this.handleFileOperationComplete(result));
         
         // モーダル関連
         this.initializeModalListeners();
@@ -505,7 +519,7 @@ class ImageCleanupApp {
                 <td class="p-2 text-slate-600">${this.formatFileSize(image.size)}</td>
                 <td class="p-2 text-slate-600">${this.formatDate(image.modifiedDate)}</td>
                 <td class="p-2">
-                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800'}">
+                    <span class="px-2 py-1 text-xs font-semibold rounded-full ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-orange-100 text-orange-800"}">
                         ${image.blurScore}
                     </span>
                 </td>
