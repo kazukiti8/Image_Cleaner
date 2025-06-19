@@ -121,7 +121,7 @@ class ImageCleanupApp {
             if (folderPath) {
                 this.outputFolder = folderPath;
                 document.getElementById('outputFolderPathDisplay').textContent = this.getDisplayPath(folderPath);
-                document.getElementById('outputFolderPathDisplay').title = folderPath;
+                document.getElementById('outputFolderPathDisplay').title = this.outputFolder;
                 this.updateUI();
             }
         } catch (error) {
@@ -305,6 +305,9 @@ class ImageCleanupApp {
         if (!path) return '';
         const parts = path.split(/[\\/]/);
         if (parts.length <= 2) return path;
+        
+        // プラットフォームに応じたパスセパレータを使用
+        const pathSeparator = navigator.platform.includes('Win') ? '\\' : '/';
         return `...${pathSeparator}${parts.slice(-2).join(pathSeparator)}`;
     }
 
@@ -325,12 +328,74 @@ class ImageCleanupApp {
 
     showError(message) {
         console.error(message);
-        // エラーメッセージを表示する実装
+        this.showNotification(message, 'error');
     }
 
     showSuccess(message) {
         console.log(message);
-        // 成功メッセージを表示する実装
+        this.showNotification(message, 'success');
+    }
+
+    // 通知メッセージの表示
+    showNotification(message, type = 'info') {
+        // 既存の通知を削除
+        const existingNotification = document.querySelector('.notification');
+        if (existingNotification) {
+            existingNotification.remove();
+        }
+
+        // 通知要素を作成
+        const notification = document.createElement('div');
+        notification.className = `notification fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 max-w-md transform transition-all duration-300 translate-x-full`;
+        
+        // タイプに応じたスタイルを設定
+        let bgColor = 'bg-blue-500';
+        let textColor = 'text-white';
+        let icon = 'ℹ️';
+        
+        switch (type) {
+            case 'error':
+                bgColor = 'bg-red-500';
+                icon = '❌';
+                break;
+            case 'success':
+                bgColor = 'bg-green-500';
+                icon = '✅';
+                break;
+            case 'warning':
+                bgColor = 'bg-yellow-500';
+                icon = '⚠️';
+                break;
+        }
+        
+        notification.className += ` ${bgColor} ${textColor}`;
+        notification.innerHTML = `
+            <div class="flex items-center">
+                <span class="mr-2">${icon}</span>
+                <span class="flex-1">${message}</span>
+                <button class="ml-2 text-white hover:text-gray-200" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        // 通知を表示
+        document.body.appendChild(notification);
+        
+        // アニメーション
+        setTimeout(() => {
+            notification.classList.remove('translate-x-full');
+        }, 100);
+        
+        // 自動で非表示（5秒後）
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.classList.add('translate-x-full');
+                setTimeout(() => {
+                    if (notification.parentElement) {
+                        notification.remove();
+                    }
+                }, 300);
+            }
+        }, 5000);
     }
 
     // 結果表示メソッド
@@ -671,7 +736,28 @@ class ImageCleanupApp {
     }
 
     updateFilterCounts() {
-        // フィルターカウントの更新
+        // 各タブのカウントを更新
+        const countBlur = document.getElementById('countBlur');
+        const countSimilar = document.getElementById('countSimilar');
+        const countError = document.getElementById('countError');
+        
+        if (countBlur) {
+            const blurContainer = document.getElementById('contentBlur');
+            const blurRows = blurContainer ? blurContainer.querySelectorAll('tbody tr').length : 0;
+            countBlur.textContent = blurRows;
+        }
+        
+        if (countSimilar) {
+            const similarContainer = document.getElementById('contentSimilar');
+            const similarRows = similarContainer ? similarContainer.querySelectorAll('tbody tr').length : 0;
+            countSimilar.textContent = similarRows;
+        }
+        
+        if (countError) {
+            const errorContainer = document.getElementById('contentError');
+            const errorRows = errorContainer ? errorContainer.querySelectorAll('tbody tr').length : 0;
+            countError.textContent = errorRows;
+        }
     }
 
     showFilterHelp() {
@@ -683,23 +769,296 @@ class ImageCleanupApp {
     }
 
     moveToTrash() {
-        // ゴミ箱に移動
+        this.performFileOperation('trash');
     }
 
     deletePermanently() {
-        // 完全削除
+        this.performFileOperation('delete');
     }
 
     moveFiles() {
-        // ファイル移動
+        this.performFileOperation('move');
     }
 
+    // ファイル操作の共通処理
+    async performFileOperation(operation) {
+        const selectedFiles = Array.from(this.selectedItems);
+        
+        if (selectedFiles.length === 0) {
+            this.showError('操作するファイルが選択されていません');
+            return;
+        }
+
+        // 操作確認
+        const confirmed = await this.showOperationConfirmation(operation, selectedFiles.length);
+        if (!confirmed) return;
+
+        // 移動操作の場合は移動先フォルダを選択
+        let destinationPath = null;
+        if (operation === 'move') {
+            destinationPath = await this.selectMoveDestination();
+            if (!destinationPath) return;
+        }
+
+        // ファイル操作を実行
+        await this.executeFileOperation(operation, selectedFiles, destinationPath);
+    }
+
+    // 操作確認ダイアログの表示
+    async showOperationConfirmation(operation, fileCount) {
+        const modal = document.getElementById('confirmModal');
+        const title = document.getElementById('confirmTitle');
+        const message = document.getElementById('confirmMessage');
+        const okBtn = document.getElementById('confirmOkBtn');
+        const cancelBtn = document.getElementById('confirmCancelBtn');
+
+        if (!modal || !title || !message || !okBtn || !cancelBtn) {
+            return confirm(`${operation === 'trash' ? 'ゴミ箱へ移動' : operation === 'delete' ? '完全削除' : '移動'}しますか？`);
+        }
+
+        // 操作に応じたメッセージを設定
+        let operationText = '';
+        let buttonText = '';
+        let buttonClass = '';
+
+        switch (operation) {
+            case 'trash':
+                operationText = 'ゴミ箱へ移動';
+                buttonText = '移動';
+                buttonClass = 'bg-amber-600 hover:bg-amber-700';
+                break;
+            case 'delete':
+                operationText = '完全に削除';
+                buttonText = '削除';
+                buttonClass = 'bg-red-600 hover:bg-red-700';
+                break;
+            case 'move':
+                operationText = '移動';
+                buttonText = '移動';
+                buttonClass = 'bg-sky-600 hover:bg-sky-700';
+                break;
+        }
+
+        title.textContent = `${operationText}の確認`;
+        message.textContent = `選択された ${fileCount}件 のファイルを${operationText}します。この操作は取り消せません。`;
+        
+        okBtn.textContent = buttonText;
+        okBtn.className = `px-4 py-2 text-sm ${buttonClass} text-white rounded-md transition-colors`;
+
+        // モーダルを表示
+        modal.classList.remove('hidden');
+
+        // Promiseで結果を待つ
+        return new Promise((resolve) => {
+            const handleConfirm = () => {
+                modal.classList.add('hidden');
+                cleanup();
+                resolve(true);
+            };
+
+            const handleCancel = () => {
+                modal.classList.add('hidden');
+                cleanup();
+                resolve(false);
+            };
+
+            const cleanup = () => {
+                okBtn.removeEventListener('click', handleConfirm);
+                cancelBtn.removeEventListener('click', handleCancel);
+            };
+
+            okBtn.addEventListener('click', handleConfirm);
+            cancelBtn.addEventListener('click', handleCancel);
+        });
+    }
+
+    // 移動先フォルダの選択
+    async selectMoveDestination() {
+        try {
+            const destinationPath = await window.electronAPI.selectOutputFolder();
+            if (!destinationPath) {
+                this.showError('移動先フォルダが選択されませんでした');
+                return null;
+            }
+            return destinationPath;
+        } catch (error) {
+            console.error('移動先フォルダ選択エラー:', error);
+            this.showError('移動先フォルダの選択に失敗しました');
+            return null;
+        }
+    }
+
+    // ファイル操作の実行
+    async executeFileOperation(operation, filePaths, destinationPath = null) {
+        try {
+            // 操作ボタンを無効化
+            this.setOperationButtonsEnabled(false);
+            
+            // 進捗メッセージを表示
+            this.showFileOperationProgress(operation, filePaths.length);
+
+            let result;
+            switch (operation) {
+                case 'trash':
+                case 'delete':
+                    result = await window.electronAPI.deleteFiles(filePaths, operation === 'trash');
+                    break;
+                case 'move':
+                    result = await window.electronAPI.moveFiles(filePaths, destinationPath);
+                    break;
+                default:
+                    throw new Error(`不明な操作: ${operation}`);
+            }
+
+            // 操作完了の処理
+            this.handleFileOperationComplete(result, operation);
+
+        } catch (error) {
+            console.error('ファイル操作エラー:', error);
+            this.showError(`ファイル操作に失敗しました: ${error.message}`);
+            this.hideFileOperationProgress();
+            this.setOperationButtonsEnabled(true);
+        }
+    }
+
+    // 操作ボタンの有効/無効切り替え
+    setOperationButtonsEnabled(enabled) {
+        const buttons = ['trashBtn', 'deleteBtn', 'moveBtn'];
+        buttons.forEach(btnId => {
+            const button = document.getElementById(btnId);
+            if (button) {
+                button.disabled = !enabled;
+                button.style.opacity = enabled ? '1' : '0.5';
+            }
+        });
+    }
+
+    // ファイル操作進捗の表示
+    showFileOperationProgress(operation, totalFiles) {
+        const progressMessage = document.getElementById('fileOperationProgressMessage');
+        const progressText = document.getElementById('fileOperationProgressText');
+        
+        if (progressMessage && progressText) {
+            let operationText = '';
+            switch (operation) {
+                case 'trash': operationText = 'ゴミ箱へ移動中'; break;
+                case 'delete': operationText = '削除中'; break;
+                case 'move': operationText = '移動中'; break;
+            }
+            
+            progressText.textContent = `${operationText} (0/${totalFiles})`;
+            progressMessage.style.display = 'block';
+        }
+    }
+
+    // ファイル操作進捗の更新
     updateFileOperationProgress(progress) {
-        // ファイル操作の進捗更新
+        const progressText = document.getElementById('fileOperationProgressText');
+        
+        if (progressText) {
+            let operationText = '';
+            switch (progress.operation) {
+                case 'trash': operationText = 'ゴミ箱へ移動中'; break;
+                case 'delete': operationText = '削除中'; break;
+                case 'move': operationText = '移動中'; break;
+            }
+            
+            progressText.textContent = `${operationText} (${progress.current}/${progress.total}): ${progress.filename}`;
+        }
     }
 
-    handleFileOperationComplete(result) {
-        // ファイル操作完了の処理
+    // ファイル操作進捗の非表示
+    hideFileOperationProgress() {
+        const progressMessage = document.getElementById('fileOperationProgressMessage');
+        if (progressMessage) {
+            progressMessage.style.display = 'none';
+        }
+    }
+
+    // ファイル操作完了の処理
+    handleFileOperationComplete(result, operation) {
+        console.log('ファイル操作完了:', result);
+        
+        // 進捗メッセージを非表示
+        this.hideFileOperationProgress();
+        
+        // 操作ボタンを有効化
+        this.setOperationButtonsEnabled(true);
+        
+        // 結果に応じたメッセージを表示
+        if (result.success) {
+            let operationText = '';
+            switch (operation) {
+                case 'trash': operationText = 'ゴミ箱へ移動'; break;
+                case 'delete': operationText = '削除'; break;
+                case 'move': operationText = '移動'; break;
+            }
+            
+            this.showSuccess(`${operationText}が完了しました (${result.successCount}件)`);
+            
+            // 選択をクリア
+            this.selectedItems.clear();
+            this.updateSelectedCount();
+            
+            // 結果から操作されたファイルを削除
+            this.removeProcessedFiles(result.results);
+            
+        } else {
+            // エラーがある場合
+            const errorCount = result.errorCount || 0;
+            const partialSuccessCount = result.partialSuccessCount || 0;
+            
+            if (errorCount > 0) {
+                this.showError(`${errorCount}件のファイルでエラーが発生しました`);
+            }
+            
+            if (partialSuccessCount > 0) {
+                this.showSuccess(`${partialSuccessCount}件のファイルは部分的な成功でした`);
+            }
+        }
+    }
+
+    // 処理されたファイルを結果から削除
+    removeProcessedFiles(results) {
+        if (!results || !Array.isArray(results)) return;
+        
+        // 成功したファイルのパスを取得
+        const processedPaths = results
+            .filter(r => r.success)
+            .map(r => r.path);
+        
+        // 選択から削除
+        processedPaths.forEach(path => {
+            this.selectedItems.delete(path);
+        });
+        
+        // テーブルから該当行を削除
+        this.removeTableRows(processedPaths);
+        
+        // カウントを更新
+        this.updateFilterCounts();
+    }
+
+    // テーブルから行を削除
+    removeTableRows(filePaths) {
+        const currentTab = this.currentTab;
+        const container = document.getElementById(`content${currentTab.charAt(0).toUpperCase() + currentTab.slice(1)}`);
+        
+        if (!container) return;
+        
+        filePaths.forEach(filePath => {
+            const row = container.querySelector(`[data-file-path="${filePath}"]`);
+            if (row) {
+                row.remove();
+            }
+        });
+        
+        // カウントを更新
+        const countElement = document.getElementById(`count${currentTab.charAt(0).toUpperCase() + currentTab.slice(1)}`);
+        if (countElement) {
+            const remainingRows = container.querySelectorAll('tbody tr').length;
+            countElement.textContent = remainingRows;
+        }
     }
 
     // プレビュー機能の初期化
