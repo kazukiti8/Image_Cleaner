@@ -271,6 +271,17 @@ class ImageCleanupApp {
             debounceTimer: null // デバウンス用タイマー
         };
         
+        // 高度なフィルタリング用のプロパティ
+        this.advancedFilters = {
+            dateRange: { from: null, to: null },
+            filenamePattern: { pattern: '', useRegex: false },
+            sizeRange: { from: null, to: null },
+            resolutionRange: { min: null, max: null },
+            customCondition: '',
+            sortBy: 'name',
+            sortOrder: 'asc'
+        };
+        
         // バッチ処理マネージャー
         this.batchProcessor = new BatchProcessor();
         this.batchProcessor.progressCallback = (progress) => this.updateBatchProgress(progress);
@@ -297,6 +308,9 @@ class ImageCleanupApp {
         
         // バッチ処理関連のイベントリスナー
         this.initializeBatchEventListeners();
+        
+        // 高度なフィルタリング機能の初期化
+        this.initializeAdvancedFiltering();
         
         // 初期UIの設定
         this.updateFilterUI();
@@ -3930,6 +3944,611 @@ class ImageCleanupApp {
         } catch (error) {
             console.error('コピーエラー:', error);
             this.showNotification('コピーエラー', error.message, 'error');
+        }
+    }
+
+    // 高度なフィルタリング機能
+    initializeAdvancedFiltering() {
+        // 高度なフィルタリングパネルの表示/非表示
+        document.getElementById('showAdvancedFilter')?.addEventListener('click', () => {
+            this.toggleAdvancedFilterPanel();
+        });
+
+        document.getElementById('closeAdvancedFilter')?.addEventListener('click', () => {
+            this.hideAdvancedFilterPanel();
+        });
+
+        // フィルター適用ボタン
+        document.getElementById('applyAdvancedFilter')?.addEventListener('click', () => {
+            this.applyAdvancedFilter();
+        });
+
+        // フィルターリセットボタン
+        document.getElementById('resetAdvancedFilter')?.addEventListener('click', () => {
+            this.resetAdvancedFilter();
+        });
+
+        // プリセット関連のイベント
+        document.getElementById('saveFilterPreset')?.addEventListener('click', () => {
+            this.showPresetDialog('save');
+        });
+
+        document.getElementById('loadFilterPreset')?.addEventListener('click', () => {
+            this.showPresetDialog('load');
+        });
+
+        // プリセットダイアログの制御
+        this.initializePresetDialogEvents();
+
+        // 高度なフィルター条件の変更監視
+        this.initializeAdvancedFilterEvents();
+    }
+
+    // 高度なフィルタリングパネルの表示/非表示
+    toggleAdvancedFilterPanel() {
+        const panel = document.getElementById('advancedFilterPanel');
+        if (panel.classList.contains('hidden')) {
+            this.showAdvancedFilterPanel();
+        } else {
+            this.hideAdvancedFilterPanel();
+        }
+    }
+
+    showAdvancedFilterPanel() {
+        const panel = document.getElementById('advancedFilterPanel');
+        panel.classList.remove('hidden');
+        this.updateAdvancedFilterCount();
+    }
+
+    hideAdvancedFilterPanel() {
+        const panel = document.getElementById('advancedFilterPanel');
+        panel.classList.add('hidden');
+    }
+
+    // 高度なフィルター条件の変更監視
+    initializeAdvancedFilterEvents() {
+        const filterInputs = [
+            'dateFrom', 'dateTo', 'filenamePattern', 'sizeFrom', 'sizeTo',
+            'resolutionMin', 'resolutionMax', 'customCondition', 'sortBy'
+        ];
+
+        filterInputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('change', () => {
+                    this.updateAdvancedFilterCount();
+                });
+                element.addEventListener('input', () => {
+                    this.updateAdvancedFilterCount();
+                });
+            }
+        });
+
+        // ラジオボタンとチェックボックス
+        document.querySelectorAll('input[name="sortOrder"], #useRegex').forEach(element => {
+            element.addEventListener('change', () => {
+                this.updateAdvancedFilterCount();
+            });
+        });
+    }
+
+    // 高度なフィルター条件数の更新
+    updateAdvancedFilterCount() {
+        const conditions = this.getActiveAdvancedFilterConditions();
+        const countElement = document.getElementById('advancedFilterCount');
+        if (countElement) {
+            countElement.textContent = conditions.length;
+        }
+    }
+
+    // アクティブな高度なフィルター条件を取得
+    getActiveAdvancedFilterConditions() {
+        const conditions = [];
+
+        // 日時範囲
+        const dateFrom = document.getElementById('dateFrom')?.value;
+        const dateTo = document.getElementById('dateTo')?.value;
+        if (dateFrom || dateTo) {
+            conditions.push('日時範囲');
+        }
+
+        // ファイル名パターン
+        const filenamePattern = document.getElementById('filenamePattern')?.value;
+        if (filenamePattern) {
+            conditions.push('ファイル名パターン');
+        }
+
+        // ファイルサイズ範囲
+        const sizeFrom = document.getElementById('sizeFrom')?.value;
+        const sizeTo = document.getElementById('sizeTo')?.value;
+        if (sizeFrom || sizeTo) {
+            conditions.push('ファイルサイズ範囲');
+        }
+
+        // 解像度範囲
+        const resolutionMin = document.getElementById('resolutionMin')?.value;
+        const resolutionMax = document.getElementById('resolutionMax')?.value;
+        if (resolutionMin || resolutionMax) {
+            conditions.push('解像度範囲');
+        }
+
+        // カスタム条件
+        const customCondition = document.getElementById('customCondition')?.value;
+        if (customCondition) {
+            conditions.push('カスタム条件');
+        }
+
+        // ソート設定
+        const sortBy = document.getElementById('sortBy')?.value;
+        if (sortBy && sortBy !== 'name') {
+            conditions.push('ソート設定');
+        }
+
+        return conditions;
+    }
+
+    // 高度なフィルターの適用
+    applyAdvancedFilter() {
+        console.log('高度なフィルターを適用中...');
+        const startTime = performance.now();
+
+        // 現在のフィルター設定を更新
+        this.updateAdvancedFilterSettings();
+
+        // フィルタリングを実行
+        this.performAdvancedFiltering();
+
+        // 結果を表示
+        this.displayFilteredResults();
+
+        const endTime = performance.now();
+        console.log(`高度なフィルター適用完了: ${(endTime - startTime).toFixed(2)}ms`);
+    }
+
+    // 高度なフィルター設定の更新
+    updateAdvancedFilterSettings() {
+        this.advancedFilters = {
+            dateRange: {
+                from: document.getElementById('dateFrom')?.value || null,
+                to: document.getElementById('dateTo')?.value || null
+            },
+            filenamePattern: {
+                pattern: document.getElementById('filenamePattern')?.value || '',
+                useRegex: document.getElementById('useRegex')?.checked || false
+            },
+            sizeRange: {
+                from: parseFloat(document.getElementById('sizeFrom')?.value) || null,
+                to: parseFloat(document.getElementById('sizeTo')?.value) || null
+            },
+            resolutionRange: {
+                min: this.parseResolution(document.getElementById('resolutionMin')?.value),
+                max: this.parseResolution(document.getElementById('resolutionMax')?.value)
+            },
+            customCondition: document.getElementById('customCondition')?.value || '',
+            sortBy: document.getElementById('sortBy')?.value || 'name',
+            sortOrder: document.querySelector('input[name="sortOrder"]:checked')?.value || 'asc'
+        };
+    }
+
+    // 高度なフィルタリングの実行
+    performAdvancedFiltering() {
+        const data = this.originalData[this.currentTab];
+        let filteredData = [...data];
+
+        // 日時範囲フィルター
+        if (this.advancedFilters.dateRange.from || this.advancedFilters.dateRange.to) {
+            filteredData = filteredData.filter(item => {
+                const itemDate = new Date(item.modifiedDate || item.files?.[0]?.modifiedDate);
+                const fromDate = this.advancedFilters.dateRange.from ? new Date(this.advancedFilters.dateRange.from) : null;
+                const toDate = this.advancedFilters.dateRange.to ? new Date(this.advancedFilters.dateRange.to) : null;
+
+                if (fromDate && itemDate < fromDate) return false;
+                if (toDate && itemDate > toDate) return false;
+                return true;
+            });
+        }
+
+        // ファイル名パターンフィルター
+        if (this.advancedFilters.filenamePattern.pattern) {
+            filteredData = filteredData.filter(item => {
+                const filename = item.filename || item.files?.[0]?.filename;
+                if (!filename) return false;
+
+                if (this.advancedFilters.filenamePattern.useRegex) {
+                    try {
+                        const regex = new RegExp(this.advancedFilters.filenamePattern.pattern);
+                        return regex.test(filename);
+                    } catch (error) {
+                        console.warn('正規表現エラー:', error);
+                        return false;
+                    }
+                } else {
+                    // ワイルドカードパターンの処理
+                    const pattern = this.advancedFilters.filenamePattern.pattern.toLowerCase();
+                    const name = filename.toLowerCase();
+                    
+                    if (pattern.includes('*')) {
+                        const regexPattern = pattern.replace(/\*/g, '.*');
+                        try {
+                            const regex = new RegExp(regexPattern);
+                            return regex.test(name);
+                        } catch (error) {
+                            return name.includes(pattern.replace(/\*/g, ''));
+                        }
+                    } else {
+                        return name.includes(pattern);
+                    }
+                }
+            });
+        }
+
+        // ファイルサイズ範囲フィルター
+        if (this.advancedFilters.sizeRange.from || this.advancedFilters.sizeRange.to) {
+            filteredData = filteredData.filter(item => {
+                const sizeMB = (item.size || item.files?.[0]?.size || 0) / (1024 * 1024);
+                const fromSize = this.advancedFilters.sizeRange.from;
+                const toSize = this.advancedFilters.sizeRange.to;
+
+                if (fromSize && sizeMB < fromSize) return false;
+                if (toSize && sizeMB > toSize) return false;
+                return true;
+            });
+        }
+
+        // 解像度範囲フィルター
+        if (this.advancedFilters.resolutionRange.min || this.advancedFilters.resolutionRange.max) {
+            filteredData = filteredData.filter(item => {
+                const resolution = this.parseResolution(item.resolution || item.files?.[0]?.resolution);
+                if (!resolution) return false;
+
+                const pixels = resolution.width * resolution.height;
+                const minPixels = this.advancedFilters.resolutionRange.min ? 
+                    this.advancedFilters.resolutionRange.min.width * this.advancedFilters.resolutionRange.min.height : 0;
+                const maxPixels = this.advancedFilters.resolutionRange.max ? 
+                    this.advancedFilters.resolutionRange.max.width * this.advancedFilters.resolutionRange.max.height : Infinity;
+
+                if (minPixels && pixels < minPixels) return false;
+                if (maxPixels !== Infinity && pixels > maxPixels) return false;
+                return true;
+            });
+        }
+
+        // カスタム条件フィルター
+        if (this.advancedFilters.customCondition) {
+            filteredData = filteredData.filter(item => {
+                return this.applyCustomCondition(item, this.advancedFilters.customCondition);
+            });
+        }
+
+        // ソート
+        filteredData = this.sortData(filteredData, this.advancedFilters.sortBy, this.advancedFilters.sortOrder);
+
+        // 結果を保存
+        this.filteredData[this.currentTab] = filteredData;
+    }
+
+    // カスタム条件の適用
+    applyCustomCondition(item, condition) {
+        const now = new Date();
+        const itemDate = new Date(item.modifiedDate || item.files?.[0]?.modifiedDate);
+        const sizeMB = (item.size || item.files?.[0]?.size || 0) / (1024 * 1024);
+        const resolution = this.parseResolution(item.resolution || item.files?.[0]?.resolution);
+        const pixels = resolution ? resolution.width * resolution.height : 0;
+
+        switch (condition) {
+            case 'recent':
+                const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                return itemDate >= sevenDaysAgo;
+            case 'old':
+                const oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+                return itemDate <= oneYearAgo;
+            case 'large':
+                return sizeMB >= 10;
+            case 'small':
+                return sizeMB <= 1;
+            case 'highRes':
+                return pixels >= 3840 * 2160; // 4K
+            case 'lowRes':
+                return pixels <= 1920 * 1080; // HD
+            default:
+                return true;
+        }
+    }
+
+    // データのソート
+    sortData(data, sortBy, sortOrder) {
+        return data.sort((a, b) => {
+            let aValue, bValue;
+
+            switch (sortBy) {
+                case 'name':
+                    aValue = a.filename || a.files?.[0]?.filename || '';
+                    bValue = b.filename || b.files?.[0]?.filename || '';
+                    break;
+                case 'size':
+                    aValue = a.size || a.files?.[0]?.size || 0;
+                    bValue = b.size || b.files?.[0]?.size || 0;
+                    break;
+                case 'date':
+                    aValue = new Date(a.modifiedDate || a.files?.[0]?.modifiedDate);
+                    bValue = new Date(b.modifiedDate || b.files?.[0]?.modifiedDate);
+                    break;
+                case 'blurScore':
+                    aValue = parseFloat(a.blurScore) || 0;
+                    bValue = parseFloat(b.blurScore) || 0;
+                    break;
+                case 'similarity':
+                    aValue = parseFloat(a.similarity) || 0;
+                    bValue = parseFloat(b.similarity) || 0;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (sortOrder === 'desc') {
+                return bValue > aValue ? 1 : bValue < aValue ? -1 : 0;
+            } else {
+                return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+            }
+        });
+    }
+
+    // 高度なフィルターのリセット
+    resetAdvancedFilter() {
+        const inputs = [
+            'dateFrom', 'dateTo', 'filenamePattern', 'sizeFrom', 'sizeTo',
+            'resolutionMin', 'resolutionMax', 'customCondition'
+        ];
+
+        inputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.value = '';
+            }
+        });
+
+        // チェックボックスとラジオボタンのリセット
+        document.getElementById('useRegex').checked = false;
+        document.querySelector('input[name="sortOrder"][value="asc"]').checked = true;
+        document.getElementById('sortBy').value = 'name';
+
+        this.updateAdvancedFilterCount();
+        this.applyAdvancedFilter();
+    }
+
+    // フィルタープリセット機能
+    initializePresetDialogEvents() {
+        // プリセットダイアログの制御
+        document.getElementById('closeFilterPreset')?.addEventListener('click', () => {
+            document.getElementById('filterPresetDialog').classList.add('hidden');
+        });
+
+        // プリセット保存
+        document.getElementById('savePreset')?.addEventListener('click', () => {
+            this.saveFilterPreset();
+        });
+
+        // プリセット読み込み/保存の切り替え
+        document.getElementById('switchToLoad')?.addEventListener('click', () => {
+            this.switchPresetDialog('load');
+        });
+
+        document.getElementById('switchToSave')?.addEventListener('click', () => {
+            this.switchPresetDialog('save');
+        });
+    }
+
+    // プリセットダイアログの表示
+    showPresetDialog(mode) {
+        this.switchPresetDialog(mode);
+        document.getElementById('filterPresetDialog').classList.remove('hidden');
+    }
+
+    // プリセットダイアログのモード切り替え
+    switchPresetDialog(mode) {
+        const saveForm = document.getElementById('savePresetForm');
+        const loadForm = document.getElementById('loadPresetForm');
+
+        if (mode === 'save') {
+            saveForm.classList.remove('hidden');
+            loadForm.classList.add('hidden');
+            this.clearPresetForm();
+        } else {
+            saveForm.classList.add('hidden');
+            loadForm.classList.remove('hidden');
+            this.loadPresetList();
+        }
+    }
+
+    // プリセットフォームのクリア
+    clearPresetForm() {
+        document.getElementById('presetName').value = '';
+        document.getElementById('presetDescription').value = '';
+    }
+
+    // フィルタープリセットの保存
+    saveFilterPreset() {
+        const name = document.getElementById('presetName').value.trim();
+        const description = document.getElementById('presetDescription').value.trim();
+
+        if (!name) {
+            this.showNotification('エラー', 'プリセット名を入力してください', 'error');
+            return;
+        }
+
+        // 現在のフィルター設定を取得
+        const currentSettings = this.getCurrentFilterSettings();
+
+        // プリセットを保存
+        const presets = this.settingsManager.getSetting('filterPresets', []);
+        const newPreset = {
+            id: Date.now().toString(),
+            name: name,
+            description: description,
+            settings: currentSettings,
+            createdAt: new Date().toISOString(),
+            tab: this.currentTab
+        };
+
+        presets.push(newPreset);
+        this.settingsManager.setSetting('filterPresets', presets);
+
+        this.showNotification('保存完了', 'フィルタープリセットを保存しました', 'success');
+        document.getElementById('filterPresetDialog').classList.add('hidden');
+    }
+
+    // 現在のフィルター設定を取得
+    getCurrentFilterSettings() {
+        return {
+            // 基本フィルター
+            basic: { ...this.currentFilters },
+            // 高度なフィルター
+            advanced: {
+                dateRange: {
+                    from: document.getElementById('dateFrom')?.value || null,
+                    to: document.getElementById('dateTo')?.value || null
+                },
+                filenamePattern: {
+                    pattern: document.getElementById('filenamePattern')?.value || '',
+                    useRegex: document.getElementById('useRegex')?.checked || false
+                },
+                sizeRange: {
+                    from: parseFloat(document.getElementById('sizeFrom')?.value) || null,
+                    to: parseFloat(document.getElementById('sizeTo')?.value) || null
+                },
+                resolutionRange: {
+                    min: document.getElementById('resolutionMin')?.value || null,
+                    max: document.getElementById('resolutionMax')?.value || null
+                },
+                customCondition: document.getElementById('customCondition')?.value || '',
+                sortBy: document.getElementById('sortBy')?.value || 'name',
+                sortOrder: document.querySelector('input[name="sortOrder"]:checked')?.value || 'asc'
+            }
+        };
+    }
+
+    // プリセット一覧の読み込み
+    loadPresetList() {
+        const presets = this.settingsManager.getSetting('filterPresets', []);
+        const presetList = document.getElementById('presetList');
+
+        if (presets.length === 0) {
+            presetList.innerHTML = '<p class="text-gray-500 text-center py-8">保存されたプリセットがありません</p>';
+            return;
+        }
+
+        presetList.innerHTML = '';
+        presets.forEach(preset => {
+            const presetItem = document.createElement('div');
+            presetItem.className = 'preset-item';
+            presetItem.innerHTML = `
+                <div class="preset-name">${preset.name}</div>
+                <div class="preset-description">${preset.description || '説明なし'}</div>
+                <div class="preset-meta">
+                    <span>${new Date(preset.createdAt).toLocaleDateString()}</span>
+                    <span>${preset.tab || '全タブ'}</span>
+                </div>
+                <div class="preset-actions">
+                    <button class="preset-action-btn load" data-preset-id="${preset.id}">読み込み</button>
+                    <button class="preset-action-btn delete" data-preset-id="${preset.id}">削除</button>
+                </div>
+            `;
+
+            // イベントリスナーを追加
+            presetItem.querySelector('.load').addEventListener('click', () => {
+                this.loadFilterPreset(preset.id);
+            });
+
+            presetItem.querySelector('.delete').addEventListener('click', () => {
+                this.deleteFilterPreset(preset.id);
+            });
+
+            presetList.appendChild(presetItem);
+        });
+    }
+
+    // フィルタープリセットの読み込み
+    loadFilterPreset(presetId) {
+        const presets = this.settingsManager.getSetting('filterPresets', []);
+        const preset = presets.find(p => p.id === presetId);
+
+        if (!preset) {
+            this.showNotification('エラー', 'プリセットが見つかりません', 'error');
+            return;
+        }
+
+        // 基本フィルターの適用
+        if (preset.settings.basic) {
+            this.currentFilters = { ...preset.settings.basic };
+            this.updateFilterUI();
+        }
+
+        // 高度なフィルターの適用
+        if (preset.settings.advanced) {
+            const advanced = preset.settings.advanced;
+            
+            // 日時範囲
+            if (advanced.dateRange) {
+                document.getElementById('dateFrom').value = advanced.dateRange.from || '';
+                document.getElementById('dateTo').value = advanced.dateRange.to || '';
+            }
+
+            // ファイル名パターン
+            if (advanced.filenamePattern) {
+                document.getElementById('filenamePattern').value = advanced.filenamePattern.pattern || '';
+                document.getElementById('useRegex').checked = advanced.filenamePattern.useRegex || false;
+            }
+
+            // ファイルサイズ範囲
+            if (advanced.sizeRange) {
+                document.getElementById('sizeFrom').value = advanced.sizeRange.from || '';
+                document.getElementById('sizeTo').value = advanced.sizeRange.to || '';
+            }
+
+            // 解像度範囲
+            if (advanced.resolutionRange) {
+                document.getElementById('resolutionMin').value = advanced.resolutionRange.min || '';
+                document.getElementById('resolutionMax').value = advanced.resolutionRange.max || '';
+            }
+
+            // カスタム条件
+            if (advanced.customCondition) {
+                document.getElementById('customCondition').value = advanced.customCondition;
+            }
+
+            // ソート設定
+            if (advanced.sortBy) {
+                document.getElementById('sortBy').value = advanced.sortBy;
+            }
+            if (advanced.sortOrder) {
+                document.querySelector(`input[name="sortOrder"][value="${advanced.sortOrder}"]`).checked = true;
+            }
+        }
+
+        // フィルターを適用
+        this.updateAdvancedFilterCount();
+        this.applyAdvancedFilter();
+
+        this.showNotification('読み込み完了', `プリセット「${preset.name}」を読み込みました`, 'success');
+        document.getElementById('filterPresetDialog').classList.add('hidden');
+    }
+
+    // フィルタープリセットの削除
+    deleteFilterPreset(presetId) {
+        const presets = this.settingsManager.getSetting('filterPresets', []);
+        const preset = presets.find(p => p.id === presetId);
+
+        if (!preset) {
+            this.showNotification('エラー', 'プリセットが見つかりません', 'error');
+            return;
+        }
+
+        if (confirm(`プリセット「${preset.name}」を削除しますか？`)) {
+            const updatedPresets = presets.filter(p => p.id !== presetId);
+            this.settingsManager.setSetting('filterPresets', updatedPresets);
+            
+            this.showNotification('削除完了', 'プリセットを削除しました', 'success');
+            this.loadPresetList();
         }
     }
 }
