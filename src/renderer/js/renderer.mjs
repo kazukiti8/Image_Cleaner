@@ -19,6 +19,21 @@ class ImageCleanupApp {
             similar: [],
             error: []
         };
+        this.filteredData = {
+            blur: [],
+            similar: [],
+            error: []
+        };
+        this.currentFilters = {
+            blur: { minScore: 0, maxScore: 100 },
+            similar: { minScore: 0, maxScore: 100 },
+            error: { 
+                fileNotFound: true, 
+                permissionDenied: true, 
+                corrupted: true, 
+                unsupported: true 
+            }
+        };
         this.filters = {
             blur: { minScore: 0, maxScore: 100, minSize: 0, maxSize: 100 },
             similar: { similarityMin: 0, similarityMax: 100, type: '', minSize: 0, maxSize: 100 },
@@ -109,6 +124,9 @@ class ImageCleanupApp {
         
         // プレビュー機能の初期化
         this.initializePreviewFeatures();
+        
+        // フィルター関連のイベントリスナー
+        this.initializeFilterEvents();
     }
 
     // スキャン関連のメソッド
@@ -231,17 +249,15 @@ class ImageCleanupApp {
         this.originalData.similar = results.similarImages || [];
         this.originalData.error = results.errors || [];
         
-        // 結果を表示
-        this.displayBlurResults(this.originalData.blur);
-        this.displaySimilarResults(this.originalData.similar);
-        this.displayErrorResults(this.originalData.error);
+        // フィルタリングを実行
+        this.performFiltering();
+        
+        // フィルタリング結果を表示
+        this.displayFilteredResults();
         
         // 成功メッセージを表示
         const totalCount = (results.blurImages?.length || 0) + (results.similarImages?.length || 0) + (results.errors?.length || 0);
         this.showSuccess(`スキャン完了: ブレ ${results.blurImages?.length || 0}件, 類似 ${results.similarImages?.length || 0}件, エラー ${results.errors?.length || 0}件`);
-        
-        // フィルターカウントを更新
-        this.updateFilterCounts();
     }
 
     handleScanError(error) {
@@ -745,39 +761,305 @@ class ImageCleanupApp {
 
     initializeKeyboardShortcuts() {
         // キーボードショートカットの初期化
+        document.addEventListener('keydown', (e) => {
+            // Ctrl+F: フィルター適用
+            if (e.ctrlKey && e.key === 'f') {
+                e.preventDefault();
+                this.applyFilter();
+            }
+            
+            // Ctrl+R: フィルターリセット
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                this.resetFilter();
+            }
+            
+            // Ctrl+Shift+F: フィルターパネルにフォーカス
+            if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+                e.preventDefault();
+                const filterInput = document.getElementById('blurMinScore');
+                if (filterInput) {
+                    filterInput.focus();
+                }
+            }
+            
+            // ESC: 選択解除
+            if (e.key === 'Escape') {
+                this.deselectAll();
+            }
+            
+            // Ctrl+A: 全選択
+            if (e.ctrlKey && e.key === 'a') {
+                e.preventDefault();
+                this.selectAll();
+            }
+        });
     }
 
     updateFilterContent() {
-        // フィルターコンテンツの更新
+        // すべてのフィルターセクションを非表示
+        document.querySelectorAll('.filter-section').forEach(section => {
+            section.classList.add('hidden');
+        });
+        
+        // 現在のタブに応じたフィルターセクションを表示
+        switch (this.currentTab) {
+            case 'blur':
+                document.getElementById('blurFilter').classList.remove('hidden');
+                break;
+            case 'similar':
+                document.getElementById('similarFilter').classList.remove('hidden');
+                break;
+            case 'error':
+                document.getElementById('errorFilter').classList.remove('hidden');
+                break;
+        }
+        
+        // フィルター値をUIに反映
+        this.updateFilterUI();
+    }
+
+    updateFilterUI() {
+        // ブレ画像フィルター
+        const blurMinScore = document.getElementById('blurMinScore');
+        const blurMaxScore = document.getElementById('blurMaxScore');
+        if (blurMinScore && blurMaxScore) {
+            blurMinScore.value = this.currentFilters.blur.minScore;
+            blurMaxScore.value = this.currentFilters.blur.maxScore;
+        }
+        
+        // 類似画像フィルター
+        const similarMinScore = document.getElementById('similarMinScore');
+        const similarMaxScore = document.getElementById('similarMaxScore');
+        if (similarMinScore && similarMaxScore) {
+            similarMinScore.value = this.currentFilters.similar.minScore;
+            similarMaxScore.value = this.currentFilters.similar.maxScore;
+        }
+        
+        // エラーフィルター
+        const errorFileNotFound = document.getElementById('errorFileNotFound');
+        const errorPermissionDenied = document.getElementById('errorPermissionDenied');
+        const errorCorrupted = document.getElementById('errorCorrupted');
+        const errorUnsupported = document.getElementById('errorUnsupported');
+        
+        if (errorFileNotFound) errorFileNotFound.checked = this.currentFilters.error.fileNotFound;
+        if (errorPermissionDenied) errorPermissionDenied.checked = this.currentFilters.error.permissionDenied;
+        if (errorCorrupted) errorCorrupted.checked = this.currentFilters.error.corrupted;
+        if (errorUnsupported) errorUnsupported.checked = this.currentFilters.error.unsupported;
+    }
+
+    applyFilter() {
+        console.log('フィルターを適用します');
+        
+        // 現在のフィルター値を取得
+        this.updateCurrentFilters();
+        
+        // フィルタリングを実行
+        this.performFiltering();
+        
+        // 結果を表示
+        this.displayFilteredResults();
+        
+        this.showSuccess('フィルターを適用しました');
+    }
+
+    resetFilter() {
+        console.log('フィルターをリセットします');
+        
+        // フィルター値をデフォルトにリセット
+        this.currentFilters = {
+            blur: { minScore: 0, maxScore: 100 },
+            similar: { minScore: 0, maxScore: 100 },
+            error: { 
+                fileNotFound: true, 
+                permissionDenied: true, 
+                corrupted: true, 
+                unsupported: true 
+            }
+        };
+        
+        // UIを更新
+        this.updateFilterUI();
+        
+        // フィルタリングを実行
+        this.performFiltering();
+        
+        // 結果を表示
+        this.displayFilteredResults();
+        
+        this.showSuccess('フィルターをリセットしました');
+    }
+
+    updateCurrentFilters() {
+        // ブレ画像フィルター
+        const blurMinScore = document.getElementById('blurMinScore');
+        const blurMaxScore = document.getElementById('blurMaxScore');
+        if (blurMinScore && blurMaxScore) {
+            this.currentFilters.blur.minScore = parseInt(blurMinScore.value) || 0;
+            this.currentFilters.blur.maxScore = parseInt(blurMaxScore.value) || 100;
+        }
+        
+        // 類似画像フィルター
+        const similarMinScore = document.getElementById('similarMinScore');
+        const similarMaxScore = document.getElementById('similarMaxScore');
+        if (similarMinScore && similarMaxScore) {
+            this.currentFilters.similar.minScore = parseInt(similarMinScore.value) || 0;
+            this.currentFilters.similar.maxScore = parseInt(similarMaxScore.value) || 100;
+        }
+        
+        // エラーフィルター
+        const errorFileNotFound = document.getElementById('errorFileNotFound');
+        const errorPermissionDenied = document.getElementById('errorPermissionDenied');
+        const errorCorrupted = document.getElementById('errorCorrupted');
+        const errorUnsupported = document.getElementById('errorUnsupported');
+        
+        if (errorFileNotFound) this.currentFilters.error.fileNotFound = errorFileNotFound.checked;
+        if (errorPermissionDenied) this.currentFilters.error.permissionDenied = errorPermissionDenied.checked;
+        if (errorCorrupted) this.currentFilters.error.corrupted = errorCorrupted.checked;
+        if (errorUnsupported) this.currentFilters.error.unsupported = errorUnsupported.checked;
+    }
+
+    updateErrorFilter() {
+        // エラーフィルターのチェックボックスが変更された時の処理
+        this.updateCurrentFilters();
+        this.performFiltering();
+        this.displayFilteredResults();
+    }
+
+    performFiltering() {
+        // ブレ画像のフィルタリング
+        this.filteredData.blur = this.originalData.blur.filter(item => {
+            const score = parseFloat(item.blurScore) || 0;
+            return score >= this.currentFilters.blur.minScore && 
+                   score <= this.currentFilters.blur.maxScore;
+        });
+        
+        // 類似画像のフィルタリング
+        this.filteredData.similar = this.originalData.similar.filter(item => {
+            const score = parseFloat(item.similarityScore) || 0;
+            return score >= this.currentFilters.similar.minScore && 
+                   score <= this.currentFilters.similar.maxScore;
+        });
+        
+        // エラーのフィルタリング
+        this.filteredData.error = this.originalData.error.filter(item => {
+            const errorType = item.errorType || 'unknown';
+            switch (errorType) {
+                case 'fileNotFound':
+                    return this.currentFilters.error.fileNotFound;
+                case 'permissionDenied':
+                    return this.currentFilters.error.permissionDenied;
+                case 'corrupted':
+                    return this.currentFilters.error.corrupted;
+                case 'unsupported':
+                    return this.currentFilters.error.unsupported;
+                default:
+                    return true;
+            }
+        });
+        
+        console.log('フィルタリング結果:', {
+            blur: this.filteredData.blur.length,
+            similar: this.filteredData.similar.length,
+            error: this.filteredData.error.length
+        });
+    }
+
+    displayFilteredResults() {
+        // 現在のタブに応じてフィルタリング結果を表示
+        switch (this.currentTab) {
+            case 'blur':
+                this.displayBlurResults(this.filteredData.blur);
+                break;
+            case 'similar':
+                this.displaySimilarResults(this.filteredData.similar);
+                break;
+            case 'error':
+                this.displayErrorResults(this.filteredData.error);
+                break;
+        }
+        
+        // カウントを更新
+        this.updateFilterCounts();
     }
 
     updateFilterCounts() {
         // 各タブのカウントを更新
-        const countBlur = document.getElementById('countBlur');
-        const countSimilar = document.getElementById('countSimilar');
-        const countError = document.getElementById('countError');
-        
-        if (countBlur) {
-            const blurContainer = document.getElementById('contentBlur');
-            const blurRows = blurContainer ? blurContainer.querySelectorAll('tbody tr').length : 0;
-            countBlur.textContent = blurRows;
-        }
-        
-        if (countSimilar) {
-            const similarContainer = document.getElementById('contentSimilar');
-            const similarRows = similarContainer ? similarContainer.querySelectorAll('tbody tr').length : 0;
-            countSimilar.textContent = similarRows;
-        }
-        
-        if (countError) {
-            const errorContainer = document.getElementById('contentError');
-            const errorRows = errorContainer ? errorContainer.querySelectorAll('tbody tr').length : 0;
-            countError.textContent = errorRows;
-        }
+        document.getElementById('countBlur').textContent = this.filteredData.blur.length;
+        document.getElementById('countSimilar').textContent = this.filteredData.similar.length;
+        document.getElementById('countError').textContent = this.filteredData.error.length;
     }
 
     showFilterHelp() {
         // フィルターヘルプの表示
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        modal.innerHTML = `
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between p-6 border-b border-slate-200">
+                    <h2 class="text-xl font-semibold text-slate-800">フィルターの使い方</h2>
+                    <button class="text-slate-400 hover:text-slate-600" onclick="this.parentElement.parentElement.parentElement.remove()">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-6 space-y-6">
+                    <div>
+                        <h3 class="text-lg font-medium text-slate-800 mb-3">ブレ画像フィルター</h3>
+                        <div class="text-sm text-slate-600 space-y-2">
+                            <p>• <strong>ブレスコア範囲</strong>: 0-100の範囲でブレの程度を指定</p>
+                            <p>• 数値が高いほどブレが強い画像</p>
+                            <p>• 例: 50-100で設定すると、中程度以上のブレ画像のみ表示</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-medium text-slate-800 mb-3">類似画像フィルター</h3>
+                        <div class="text-sm text-slate-600 space-y-2">
+                            <p>• <strong>類似度範囲</strong>: 0-100の範囲で類似度を指定</p>
+                            <p>• 数値が高いほど類似度が高い</p>
+                            <p>• 例: 80-100で設定すると、非常に類似度の高い画像のみ表示</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-medium text-slate-800 mb-3">エラーフィルター</h3>
+                        <div class="text-sm text-slate-600 space-y-2">
+                            <p>• <strong>エラーの種類</strong>: 表示したいエラーの種類をチェック</p>
+                            <p>• ファイルが見つからない: 削除されたファイル</p>
+                            <p>• アクセス権限エラー: 読み取り権限がないファイル</p>
+                            <p>• 破損ファイル: 画像ファイルが破損している</p>
+                            <p>• 未対応形式: サポートされていない画像形式</p>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <h3 class="text-lg font-medium text-slate-800 mb-3">キーボードショートカット</h3>
+                        <div class="text-sm text-slate-600 space-y-1">
+                            <p>• <strong>Ctrl+F</strong>: フィルター適用</p>
+                            <p>• <strong>Ctrl+R</strong>: フィルターリセット</p>
+                            <p>• <strong>Ctrl+Shift+F</strong>: フィルターパネルにフォーカス</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // モーダル外クリックで閉じる
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+        
+        // ESCキーで閉じる
+        const closeModal = () => modal.remove();
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        }, { once: true });
     }
 
     openSettings() {
@@ -1473,6 +1755,43 @@ class ImageCleanupApp {
         } else {
             console.log('originalDataが見つかりません');
         }
+    }
+
+    // フィルター関連のイベントリスナー
+    initializeFilterEvents() {
+        // フィルターボタン
+        document.getElementById('applyFilter').addEventListener('click', () => this.applyFilter());
+        document.getElementById('resetFilter').addEventListener('click', () => this.resetFilter());
+        
+        // フィルター入力フィールドのEnterキーイベント
+        const filterInputs = [
+            'blurMinScore', 'blurMaxScore',
+            'similarMinScore', 'similarMaxScore'
+        ];
+        
+        filterInputs.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.applyFilter();
+                    }
+                });
+            }
+        });
+        
+        // エラーフィルターのチェックボックス
+        const errorCheckboxes = [
+            'errorFileNotFound', 'errorPermissionDenied', 
+            'errorCorrupted', 'errorUnsupported'
+        ];
+        
+        errorCheckboxes.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.addEventListener('change', () => this.updateErrorFilter());
+            }
+        });
     }
 }
 

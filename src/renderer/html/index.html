@@ -181,8 +181,73 @@
                             </svg>
                         </button>
                     </div>
-                    <div id="filterContent" class="text-center text-slate-500 py-4">
-                        タブを選択してください
+                    <div id="filterContent" class="space-y-4">
+                        <!-- ブレ画像フィルター -->
+                        <div id="blurFilter" class="filter-section">
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-slate-700 mb-2">ブレスコア範囲</label>
+                                <div class="flex items-center space-x-2">
+                                    <input type="number" id="blurMinScore" min="0" max="100" value="0" 
+                                           class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
+                                    <span class="text-xs text-slate-500">〜</span>
+                                    <input type="number" id="blurMaxScore" min="0" max="100" value="100" 
+                                           class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 類似画像フィルター -->
+                        <div id="similarFilter" class="filter-section hidden">
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-slate-700 mb-2">類似度範囲</label>
+                                <div class="flex items-center space-x-2">
+                                    <input type="number" id="similarMinScore" min="0" max="100" value="0" 
+                                           class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
+                                    <span class="text-xs text-slate-500">〜</span>
+                                    <input type="number" id="similarMaxScore" min="0" max="100" value="100" 
+                                           class="w-16 px-2 py-1 text-xs border border-slate-300 rounded focus:ring-1 focus:ring-blue-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- エラーフィルター -->
+                        <div id="errorFilter" class="filter-section hidden">
+                            <div class="mb-3">
+                                <label class="block text-xs font-medium text-slate-700 mb-2">エラーの種類</label>
+                                <div class="space-y-1">
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="errorFileNotFound" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">ファイルが見つからない</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="errorPermissionDenied" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">アクセス権限エラー</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="errorCorrupted" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">破損ファイル</span>
+                                    </label>
+                                    <label class="flex items-center">
+                                        <input type="checkbox" id="errorUnsupported" checked 
+                                               class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                        <span class="ml-2 text-xs text-slate-700">未対応形式</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- フィルターボタン -->
+                        <div class="flex space-x-2 pt-2 border-t border-slate-200">
+                            <button id="applyFilter" class="flex-1 px-3 py-1.5 text-xs bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors">
+                                適用
+                            </button>
+                            <button id="resetFilter" class="flex-1 px-3 py-1.5 text-xs bg-slate-400 hover:bg-slate-500 text-white rounded-md shadow-sm transition-colors">
+                                リセット
+                            </button>
+                        </div>
                     </div>
                     <div class="mt-3 pt-3 border-t border-slate-200">
                         <div class="text-xs text-slate-500 space-y-1">
