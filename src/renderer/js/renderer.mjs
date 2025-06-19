@@ -93,7 +93,10 @@ class ImageCleanupApp {
         
         // ファイル操作関連のイベントリスナー
         window.electronAPI.onFileOperationProgress((progress) => this.updateFileOperationProgress(progress));
-        window.electronAPI.onFileOperationComplete((result) => this.handleFileOperationComplete(result));
+        window.electronAPI.onFileOperationComplete((result) => {
+            console.log('ファイル操作完了イベントを受信:', result);
+            this.handleFileOperationComplete(result, result.operation);
+        });
         
         // モーダル関連
         this.initializeModalListeners();
@@ -998,6 +1001,7 @@ class ImageCleanupApp {
     // ファイル操作完了の処理
     handleFileOperationComplete(result, operation) {
         console.log('ファイル操作完了:', result);
+        console.log('操作タイプ:', operation);
         
         // 進捗メッセージを非表示
         this.hideFileOperationProgress();
@@ -1023,6 +1027,19 @@ class ImageCleanupApp {
             // 結果から操作されたファイルを削除
             this.removeProcessedFiles(result.results);
             
+            // originalDataから該当ファイルを削除
+            if (result.results && Array.isArray(result.results)) {
+                const processedPaths = result.results
+                    .filter(r => r.success)
+                    .map(r => r.path);
+                
+                console.log('originalDataから削除するファイル:', processedPaths);
+                this.removeFromOriginalData(processedPaths);
+            }
+            
+            // 代替措置: 現在のタブを強制再描画
+            this.refreshCurrentTab();
+            
         } else {
             // エラーがある場合
             const errorCount = result.errorCount || 0;
@@ -1040,12 +1057,19 @@ class ImageCleanupApp {
 
     // 処理されたファイルを結果から削除
     removeProcessedFiles(results) {
-        if (!results || !Array.isArray(results)) return;
+        console.log('removeProcessedFilesが呼び出されました:', results);
+        
+        if (!results || !Array.isArray(results)) {
+            console.log('結果が無効です:', results);
+            return;
+        }
         
         // 成功したファイルのパスを取得
         const processedPaths = results
             .filter(r => r.success)
             .map(r => r.path);
+        
+        console.log('処理されたファイルパス:', processedPaths);
         
         // 選択から削除
         processedPaths.forEach(path => {
@@ -1061,15 +1085,29 @@ class ImageCleanupApp {
 
     // テーブルから行を削除
     removeTableRows(filePaths) {
+        console.log('removeTableRowsが呼び出されました:', filePaths);
+        
         const currentTab = this.currentTab;
         const container = document.getElementById(`content${currentTab.charAt(0).toUpperCase() + currentTab.slice(1)}`);
         
-        if (!container) return;
+        console.log('現在のタブ:', currentTab);
+        console.log('コンテナ要素:', container);
+        
+        if (!container) {
+            console.log('コンテナが見つかりません');
+            return;
+        }
         
         filePaths.forEach(filePath => {
+            console.log('ファイルパスを検索中:', filePath);
             const row = container.querySelector(`[data-file-path="${filePath}"]`);
+            console.log('見つかった行:', row);
+            
             if (row) {
+                console.log('行を削除します:', filePath);
                 row.remove();
+            } else {
+                console.log('行が見つかりませんでした:', filePath);
             }
         });
         
@@ -1077,6 +1115,7 @@ class ImageCleanupApp {
         const countElement = document.getElementById(`count${currentTab.charAt(0).toUpperCase() + currentTab.slice(1)}`);
         if (countElement) {
             const remainingRows = container.querySelectorAll('tbody tr').length;
+            console.log('残りの行数:', remainingRows);
             countElement.textContent = remainingRows;
         }
     }
@@ -1364,6 +1403,60 @@ class ImageCleanupApp {
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeModal();
         }, { once: true });
+    }
+
+    // 代替措置: 現在のタブを強制再描画
+    refreshCurrentTab() {
+        console.log('代替措置: 現在のタブを強制再描画します');
+        const currentTab = this.currentTab;
+        
+        // originalDataから現在のタブのデータを再取得
+        if (this.originalData && this.originalData[currentTab]) {
+            console.log('originalDataから再描画:', this.originalData[currentTab].length, '件');
+            
+            // 現在のタブのテーブルを再描画
+            switch (currentTab) {
+                case 'blur':
+                    this.createBlurTable(this.originalData.blur);
+                    break;
+                case 'similar':
+                    this.createSimilarTable(this.originalData.similar);
+                    break;
+                case 'errors':
+                    this.createErrorTable(this.originalData.error);
+                    break;
+            }
+            
+            // カウントを更新
+            this.updateFilterCounts();
+        } else {
+            console.log('originalDataが見つかりません');
+        }
+    }
+
+    // originalDataから該当ファイルを削除
+    removeFromOriginalData(paths) {
+        console.log('originalDataから削除するファイル:', paths);
+        
+        if (!paths || !Array.isArray(paths)) {
+            console.log('削除するファイルが無効です:', paths);
+            return;
+        }
+        
+        const currentTab = this.currentTab;
+        if (this.originalData && this.originalData[currentTab]) {
+            console.log('originalDataから削除:', this.originalData[currentTab].length, '件');
+            
+            // 削除するファイルをoriginalDataから削除
+            this.originalData[currentTab] = this.originalData[currentTab].filter(item => !paths.includes(item.filePath));
+            
+            console.log('削除後のoriginalData:', this.originalData[currentTab].length, '件');
+            
+            // テーブルを再描画
+            this.refreshCurrentTab();
+        } else {
+            console.log('originalDataが見つかりません');
+        }
     }
 }
 
