@@ -257,6 +257,7 @@ class ImageCleanupApp {
         this.currentTab = 'blur';
         this.selectedFiles = new Set();
         this.selectedSimilarPairs = new Set();
+        this.selectedIndividualFiles = new Set(); // 個別ファイル選択用
         this.selectedErrors = new Set();
         this.batchProcessor = new BatchProcessor();
         
@@ -584,23 +585,50 @@ class ImageCleanupApp {
 
     updateSelectedCount() {
         let count = 0;
+        let totalSize = 0;
         
         switch (this.currentTab) {
             case 'blur':
                 count = this.selectedFiles.size;
+                // 選択されたファイルのサイズを計算
+                this.scanResults.blurImages.forEach(image => {
+                    if (this.selectedFiles.has(image.filePath)) {
+                        totalSize += image.size;
+                    }
+                });
                 break;
             case 'similar':
-                count = this.selectedSimilarPairs.size;
+                count = this.selectedSimilarPairs.size + this.selectedIndividualFiles.size;
+                // 選択されたペアと個別ファイルのサイズを計算
+                this.scanResults.similarImages.forEach(group => {
+                    const pairKey = `${group.files[0].filePath}|${group.files[1].filePath}`;
+                    if (this.selectedSimilarPairs.has(pairKey)) {
+                        totalSize += group.files[0].size + group.files[1].size;
+                    } else {
+                        // 個別ファイルの選択をチェック
+                        if (this.selectedIndividualFiles.has(group.files[0].filePath)) {
+                            totalSize += group.files[0].size;
+                        }
+                        if (this.selectedIndividualFiles.has(group.files[1].filePath)) {
+                            totalSize += group.files[1].size;
+                        }
+                    }
+                });
                 break;
             case 'error':
                 count = this.selectedErrors.size;
+                // エラーファイルのサイズは計算しない（エラーのため）
                 break;
         }
         
         // 選択数を表示
         const countElement = document.getElementById('selectedCount');
+        const sizeElement = document.getElementById('selectedSize');
         if (countElement) {
-            countElement.textContent = count;
+            countElement.textContent = `${count}件`;
+        }
+        if (sizeElement) {
+            sizeElement.textContent = this.formatFileSize(totalSize);
         }
     }
 
@@ -694,8 +722,9 @@ class ImageCleanupApp {
             return;
         }
         
-        const table = this.createSimilarTable(similarImages);
+        const { filterContainer, table } = this.createSimilarTable(similarImages);
         container.innerHTML = '';
+        container.appendChild(filterContainer);
         container.appendChild(table);
     }
 
@@ -727,6 +756,7 @@ class ImageCleanupApp {
         };
         this.selectedFiles.clear();
         this.selectedSimilarPairs.clear();
+        this.selectedIndividualFiles.clear(); // 個別ファイル選択もクリア
         this.selectedErrors.clear();
         
         // 各タブのコンテンツをクリア
@@ -1178,6 +1208,34 @@ class ImageCleanupApp {
         // 類似画像を類似度の降順でソート
         const sortedSimilarImages = [...similarImages].sort((a, b) => b.similarity - a.similarity);
         
+        // 類似度フィルタリング用のUIを追加
+        const filterContainer = document.createElement('div');
+        filterContainer.className = 'mb-4 p-3 bg-slate-50 rounded-lg border border-slate-200';
+        filterContainer.innerHTML = `
+            <div class="flex flex-wrap items-center gap-4 text-sm">
+                <div class="flex items-center space-x-2">
+                    <span class="font-medium text-slate-700">類似度フィルター:</span>
+                    <label class="flex items-center space-x-1">
+                        <input type="checkbox" id="filter90plus" class="similarity-filter" data-min="90" checked>
+                        <span class="px-2 py-1 rounded text-xs bg-red-100 text-red-800">90%以上</span>
+                    </label>
+                    <label class="flex items-center space-x-1">
+                        <input type="checkbox" id="filter80plus" class="similarity-filter" data-min="80" checked>
+                        <span class="px-2 py-1 rounded text-xs bg-yellow-100 text-yellow-800">80-89%</span>
+                    </label>
+                    <label class="flex items-center space-x-1">
+                        <input type="checkbox" id="filter70plus" class="similarity-filter" data-min="70" checked>
+                        <span class="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">70-79%</span>
+                    </label>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="font-medium text-slate-700">表示:</span>
+                    <span id="filteredCount" class="font-semibold text-blue-600">${sortedSimilarImages.length}</span>
+                    <span class="text-slate-500">/ ${sortedSimilarImages.length}</span>
+                </div>
+            </div>
+        `;
+        
         const table = document.createElement('table');
         table.className = 'w-full border-collapse border border-slate-300';
         
@@ -1185,14 +1243,13 @@ class ImageCleanupApp {
         const thead = document.createElement('thead');
         thead.innerHTML = `
             <tr class="bg-slate-100">
-                <th class="border border-slate-300 px-4 py-2 text-left">
+                <th class="border border-slate-300 px-4 py-2 text-left w-8">
                     <input type="checkbox" id="selectAllSimilar" class="mr-2">
-                    類似画像ペア
                 </th>
-                <th class="border border-slate-300 px-4 py-2 text-left">類似度</th>
-                <th class="border border-slate-300 px-4 py-2 text-left">サイズ</th>
-                <th class="border border-slate-300 px-4 py-2 text-left">更新日時</th>
-                <th class="border border-slate-300 px-4 py-2 text-left">パス</th>
+                <th class="border border-slate-300 px-4 py-2 text-left w-16">類似度</th>
+                <th class="border border-slate-300 px-4 py-2 text-left w-32">画像1</th>
+                <th class="border border-slate-300 px-4 py-2 text-left w-32">画像2</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">詳細情報</th>
             </tr>
         `;
         table.appendChild(thead);
@@ -1200,52 +1257,196 @@ class ImageCleanupApp {
         // テーブルボディ
         const tbody = document.createElement('tbody');
         sortedSimilarImages.forEach((group, index) => {
-            const row = document.createElement('tr');
-            row.className = 'hover:bg-slate-50 cursor-pointer';
             const file1 = group.files[0];
             const file2 = group.files[1];
             const pairKey = `${file1.filePath}|${file2.filePath}`;
+            
+            const row = document.createElement('tr');
+            row.className = 'similarity-row hover:bg-slate-50';
+            row.dataset.similarity = group.similarity;
+            row.dataset.pairKey = pairKey;
+            
+            // 類似度に基づく行の色分け
+            if (group.similarity >= 90) {
+                row.classList.add('bg-red-50');
+            } else if (group.similarity >= 80) {
+                row.classList.add('bg-yellow-50');
+            } else {
+                row.classList.add('bg-blue-50');
+            }
+            
             row.innerHTML = `
-                <td class="border border-slate-300 px-4 py-2">
-                    <input type="checkbox" class="similar-checkbox mr-2" data-pair="${pairKey}">
-                    <div class="text-sm">
-                        <div>${file1.filename}</div>
-                        <div class="text-slate-500">${file2.filename}</div>
-                    </div>
+                <td class="border border-slate-300 px-2 py-2 text-center">
+                    <input type="checkbox" class="similar-checkbox" data-pair="${pairKey}">
                 </td>
-                <td class="border border-slate-300 px-4 py-2">
-                    <span class="px-2 py-1 rounded text-sm ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
+                <td class="border border-slate-300 px-3 py-2 text-center">
+                    <span class="px-2 py-1 rounded text-sm font-semibold ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
                         ${group.similarity}%
                     </span>
                 </td>
-                <td class="border border-slate-300 px-4 py-2 text-sm">
-                    <div>${this.formatFileSize(file1.size)}</div>
-                    <div class="text-slate-500">${this.formatFileSize(file2.size)}</div>
+                <td class="border border-slate-300 px-3 py-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                            <img src="file://${file1.filePath}" alt="${file1.filename}" 
+                                 class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium truncate" title="${file1.filename}">${file1.filename}</div>
+                            <div class="text-xs text-slate-500">${this.formatFileSize(file1.size)}</div>
+                            <div class="text-xs text-slate-400">${this.formatDate(file1.modifiedDate)}</div>
+                        </div>
+                        <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file1.filePath}" data-pair="${pairKey}">
+                    </div>
                 </td>
-                <td class="border border-slate-300 px-4 py-2 text-sm">
-                    <div>${this.formatDate(file1.modifiedDate)}</div>
-                    <div class="text-slate-500">${this.formatDate(file2.modifiedDate)}</div>
+                <td class="border border-slate-300 px-3 py-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                            <img src="file://${file2.filePath}" alt="${file2.filename}" 
+                                 class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium truncate" title="${file2.filename}">${file2.filename}</div>
+                            <div class="text-xs text-slate-500">${this.formatFileSize(file2.size)}</div>
+                            <div class="text-xs text-slate-400">${this.formatDate(file2.modifiedDate)}</div>
+                        </div>
+                        <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file2.filePath}" data-pair="${pairKey}">
+                    </div>
                 </td>
-                <td class="border border-slate-300 px-4 py-2 text-sm text-slate-600">
-                    <div title="${file1.filePath}">${this.getDisplayPath(file1.filePath)}</div>
-                    <div title="${file2.filePath}" class="text-slate-500">${this.getDisplayPath(file2.filePath)}</div>
+                <td class="border border-slate-300 px-3 py-2 text-xs text-slate-600">
+                    <div class="space-y-1">
+                        <div><span class="font-medium">サイズ差:</span> ${this.getSizeDifference(file1.size, file2.size)}</div>
+                        <div><span class="font-medium">パス1:</span> <span class="truncate block" title="${file1.filePath}">${this.getDisplayPath(file1.filePath)}</span></div>
+                        <div><span class="font-medium">パス2:</span> <span class="truncate block" title="${file2.filePath}">${this.getDisplayPath(file2.filePath)}</span></div>
+                    </div>
                 </td>
             `;
-            // プレビュー表示イベント（ペア全体をクリックで両方の画像を表示）
-            row.addEventListener('click', (e) => {
-                // チェックボックスクリック時は無視
-                if (e.target.tagName.toLowerCase() === 'input') return;
-                // 類似画像ペアの両方を表示
-                this.showSimilarImagePreview(file1, file2, group.similarity);
+            
+            // プレビュー表示イベント（画像クリックで両方表示）
+            const images = row.querySelectorAll('img');
+            images.forEach(img => {
+                img.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.showSimilarImagePreview(file1, file2, group.similarity);
+                });
             });
+            
+            // 行クリックでペア全体を選択
+            row.addEventListener('click', (e) => {
+                if (e.target.tagName.toLowerCase() === 'input') return;
+                const pairCheckbox = row.querySelector('.similar-checkbox');
+                pairCheckbox.checked = !pairCheckbox.checked;
+                this.handleCheckboxChange(pairCheckbox, 'similar');
+            });
+            
             tbody.appendChild(row);
         });
         table.appendChild(tbody);
         
+        // フィルタリング機能を設定
+        this.setupSimilarityFiltering(filterContainer, tbody);
+        
         // チェックボックスのイベントリスナーを設定
         this.setupTableCheckboxes(table, 'similar');
         
-        return table;
+        // 個別ファイル選択のイベントリスナーを設定
+        this.setupIndividualCheckboxes(table);
+        
+        return { filterContainer, table };
+    }
+
+    // 類似度フィルタリング機能
+    setupSimilarityFiltering(filterContainer, tbody) {
+        const filters = filterContainer.querySelectorAll('.similarity-filter');
+        const filteredCountSpan = filterContainer.querySelector('#filteredCount');
+        const totalCount = tbody.children.length;
+        
+        filters.forEach(filter => {
+            filter.addEventListener('change', () => {
+                const minSimilarity = parseInt(filter.dataset.min);
+                const rows = tbody.querySelectorAll('.similarity-row');
+                let visibleCount = 0;
+                
+                rows.forEach(row => {
+                    const similarity = parseInt(row.dataset.similarity);
+                    const shouldShow = similarity >= minSimilarity;
+                    row.style.display = shouldShow ? '' : 'none';
+                    if (shouldShow) visibleCount++;
+                });
+                
+                filteredCountSpan.textContent = visibleCount;
+            });
+        });
+    }
+
+    // 個別ファイル選択機能
+    setupIndividualCheckboxes(table) {
+        const individualCheckboxes = table.querySelectorAll('.individual-checkbox');
+        
+        individualCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                e.stopPropagation();
+                const filePath = checkbox.dataset.filepath;
+                const pairKey = checkbox.dataset.pair;
+                
+                if (checkbox.checked) {
+                    this.selectedIndividualFiles.add(filePath);
+                } else {
+                    this.selectedIndividualFiles.delete(filePath);
+                }
+                
+                // ペア全体の選択状態を更新
+                this.updatePairSelectionState(pairKey);
+                
+                this.updateSelectedCount();
+                this.updateActionButtons();
+            });
+        });
+    }
+
+    // ペア全体の選択状態を更新
+    updatePairSelectionState(pairKey) {
+        const pairCheckbox = document.querySelector(`.similar-checkbox[data-pair="${pairKey}"]`);
+        const individualCheckboxes = document.querySelectorAll(`.individual-checkbox[data-pair="${pairKey}"]`);
+        
+        const checkedCount = Array.from(individualCheckboxes).filter(cb => cb.checked).length;
+        
+        if (checkedCount === 0) {
+            pairCheckbox.checked = false;
+            pairCheckbox.indeterminate = false;
+        } else if (checkedCount === individualCheckboxes.length) {
+            pairCheckbox.checked = true;
+            pairCheckbox.indeterminate = false;
+        } else {
+            pairCheckbox.checked = false;
+            pairCheckbox.indeterminate = true;
+        }
+    }
+
+    // ファイルサイズの差を計算
+    getSizeDifference(size1, size2) {
+        const diff = Math.abs(size1 - size2);
+        const percentage = ((diff / Math.max(size1, size2)) * 100).toFixed(1);
+        const diffFormatted = this.formatFileSize(diff);
+        
+        if (size1 > size2) {
+            return `画像1が${diffFormatted}大きい (${percentage}%)`;
+        } else if (size2 > size1) {
+            return `画像2が${diffFormatted}大きい (${percentage}%)`;
+        } else {
+            return '同じサイズ';
+        }
     }
 
     createErrorTable(errors) {
@@ -1558,7 +1759,7 @@ class ImageCleanupApp {
                 count = this.selectedFiles.size;
                 break;
             case 'similar':
-                count = this.selectedSimilarPairs.size;
+                count = this.selectedSimilarPairs.size + this.selectedIndividualFiles.size;
                 break;
             case 'error':
                 count = this.selectedErrors.size;
@@ -1609,4 +1810,4 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         safeConsoleError('SettingsManager class not found');
     }
-}); 
+});
