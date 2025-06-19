@@ -983,6 +983,9 @@ class ImageCleanupApp {
 
     // テーブル作成メソッド（ブレ画像）
     createBlurTable(blurImages) {
+        // ブレ画像をスコアの降順でソート
+        const sortedBlurImages = [...blurImages].sort((a, b) => b.blurScore - a.blurScore);
+        
         const table = document.createElement('table');
         table.className = 'w-full border-collapse border border-slate-300';
         
@@ -1004,7 +1007,7 @@ class ImageCleanupApp {
         
         // テーブルボディ
         const tbody = document.createElement('tbody');
-        blurImages.forEach((image, index) => {
+        sortedBlurImages.forEach((image, index) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 cursor-pointer';
             row.innerHTML = `
@@ -1041,6 +1044,9 @@ class ImageCleanupApp {
 
     // 類似画像テーブルにも同様のプレビューイベントを追加
     createSimilarTable(similarImages) {
+        // 類似画像を類似度の降順でソート
+        const sortedSimilarImages = [...similarImages].sort((a, b) => b.similarity - a.similarity);
+        
         const table = document.createElement('table');
         table.className = 'w-full border-collapse border border-slate-300';
         
@@ -1062,7 +1068,7 @@ class ImageCleanupApp {
         
         // テーブルボディ
         const tbody = document.createElement('tbody');
-        similarImages.forEach((group, index) => {
+        sortedSimilarImages.forEach((group, index) => {
             const row = document.createElement('tr');
             row.className = 'hover:bg-slate-50 cursor-pointer';
             const file1 = group.files[0];
