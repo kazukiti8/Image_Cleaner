@@ -1235,4 +1235,12 @@ class ImageCleanupApp {
 document.addEventListener('DOMContentLoaded', () => {
     safeConsoleLog('DOM content loaded');
     window.imageCleanupApp = new ImageCleanupApp();
+    
+    // 設定マネージャーの初期化
+    if (window.SettingsManager) {
+        window.settingsManager = new window.SettingsManager();
+        safeConsoleLog('Settings manager initialized');
+    } else {
+        safeConsoleError('SettingsManager class not found');
+    }
 }); 
