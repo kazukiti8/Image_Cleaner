@@ -73,9 +73,18 @@ class ImageCleanupApp {
         document.getElementById('deselectAllBtn').addEventListener('click', () => this.deselectAll());
         
         // ファイル操作ボタン
-        document.getElementById('trashBtn').addEventListener('click', () => this.moveToTrash());
-        document.getElementById('deleteBtn').addEventListener('click', () => this.deletePermanently());
-        document.getElementById('moveBtn').addEventListener('click', () => this.moveFiles());
+        document.getElementById('trashBtn').addEventListener('click', () => {
+            console.log('ゴミ箱ボタンがクリックされました');
+            this.moveToTrash();
+        });
+        document.getElementById('deleteBtn').addEventListener('click', () => {
+            console.log('削除ボタンがクリックされました');
+            this.deletePermanently();
+        });
+        document.getElementById('moveBtn').addEventListener('click', () => {
+            console.log('移動ボタンがクリックされました');
+            this.moveFiles();
+        });
         
         // スキャン関連のイベントリスナー
         window.electronAPI.onScanProgress((progress) => this.updateScanProgress(progress));
@@ -299,6 +308,10 @@ class ImageCleanupApp {
         
         document.getElementById('selectedCount').textContent = `${count}件`;
         document.getElementById('selectedSize').textContent = `${size.toFixed(1)} MB`;
+        
+        // ファイル操作ボタンの有効/無効を切り替え
+        const hasSelection = count > 0;
+        this.setOperationButtonsEnabled(hasSelection);
     }
 
     getDisplayPath(path) {
@@ -769,20 +782,27 @@ class ImageCleanupApp {
     }
 
     moveToTrash() {
+        console.log('moveToTrashメソッドが呼び出されました');
         this.performFileOperation('trash');
     }
 
     deletePermanently() {
+        console.log('deletePermanentlyメソッドが呼び出されました');
         this.performFileOperation('delete');
     }
 
     moveFiles() {
+        console.log('moveFilesメソッドが呼び出されました');
         this.performFileOperation('move');
     }
 
     // ファイル操作の共通処理
     async performFileOperation(operation) {
+        console.log('performFileOperationが呼び出されました:', operation);
         const selectedFiles = Array.from(this.selectedItems);
+        
+        console.log('選択されたファイル数:', selectedFiles.length);
+        console.log('選択されたファイル:', selectedFiles);
         
         if (selectedFiles.length === 0) {
             this.showError('操作するファイルが選択されていません');
