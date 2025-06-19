@@ -1,551 +1,657 @@
-// エクスポート・レポート機能
-export class ExportReportManager {
+// エクスポート・レポートマネージャークラス
+class ExportReportManager {
     constructor() {
-        this.exportData = [];
-        this.processingLog = [];
         this.exportHistory = [];
-        this.currentReport = null;
-        this.initializeEventListeners();
+        this.processingLog = [];
+        this.exportSettings = {
+            format: 'csv',
+            includeMetadata: true,
+            includeStatistics: true,
+            includeProcessingHistory: true,
+            target: 'current' // 'current', 'all', 'selected'
+        };
+        this.initializeUI();
     }
 
-    initializeEventListeners() {
-        // エクスポート・レポートパネルの表示/非表示
-        document.getElementById('showExportReport')?.addEventListener('click', () => {
-            this.showExportReportPanel();
-        });
+    // UI初期化
+    initializeUI() {
+        this.createExportReportPanel();
+        this.createReportPreviewDialog();
+        this.createProcessingLogViewer();
+        this.bindEvents();
+    }
 
-        document.getElementById('closeExportReport')?.addEventListener('click', () => {
-            this.hideExportReportPanel();
-        });
+    // エクスポート・レポートパネルの作成
+    createExportReportPanel() {
+        const panel = document.createElement('div');
+        panel.id = 'export-report-panel';
+        panel.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
+        
+        panel.innerHTML = `
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between p-6 border-b">
+                    <h2 class="text-xl font-semibold text-gray-800">エクスポート・レポート設定</h2>
+                    <button id="close-export-panel" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="p-6 space-y-6">
+                    <!-- エクスポート形式選択 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">エクスポート形式</label>
+                        <div class="grid grid-cols-3 gap-3">
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="export-format" value="csv" checked class="mr-2">
+                                <span class="text-sm">CSV</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="export-format" value="json" class="mr-2">
+                                <span class="text-sm">JSON</span>
+                            </label>
+                            <label class="flex items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                                <input type="radio" name="export-format" value="excel" class="mr-2">
+                                <span class="text-sm">Excel</span>
+                            </label>
+                        </div>
+                    </div>
 
-        // エクスポート設定の変更
-        document.querySelectorAll('input[name="exportFormat"]').forEach(radio => {
-            radio.addEventListener('change', () => {
-                this.updateExportPreview();
-            });
-        });
+                    <!-- エクスポート対象選択 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">エクスポート対象</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="radio" name="export-target" value="current" checked class="mr-2">
+                                <span class="text-sm">現在のタブ</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="export-target" value="all" class="mr-2">
+                                <span class="text-sm">全タブ</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="export-target" value="selected" class="mr-2">
+                                <span class="text-sm">選択アイテムのみ</span>
+                            </label>
+                        </div>
+                    </div>
 
-        document.querySelectorAll('#exportCurrentTab, #exportAllTabs, #exportSelected').forEach(checkbox => {
-            checkbox.addEventListener('change', () => {
-                this.updateExportItemCount();
-            });
-        });
+                    <!-- 含める情報の設定 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">含める情報</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="checkbox" id="include-metadata" checked class="mr-2">
+                                <span class="text-sm">メタデータ（ファイル名、サイズ、日時など）</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="include-statistics" checked class="mr-2">
+                                <span class="text-sm">統計情報（件数、合計サイズなど）</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" id="include-processing-history" checked class="mr-2">
+                                <span class="text-sm">処理履歴</span>
+                            </label>
+                        </div>
+                    </div>
 
-        // エクスポート・レポートボタン
-        document.getElementById('exportData')?.addEventListener('click', () => {
-            this.exportData();
-        });
+                    <!-- プレビューボタン -->
+                    <div class="flex justify-between">
+                        <button id="preview-report" class="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50">
+                            レポートプレビュー
+                        </button>
+                        <div class="space-x-3">
+                            <button id="cancel-export" class="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                                キャンセル
+                            </button>
+                            <button id="export-report" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                                エクスポート
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(panel);
+    }
 
-        document.getElementById('previewReport')?.addEventListener('click', () => {
-            this.previewReport();
-        });
+    // レポートプレビューダイアログの作成
+    createReportPreviewDialog() {
+        const dialog = document.createElement('div');
+        dialog.id = 'report-preview-dialog';
+        dialog.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
+        
+        dialog.innerHTML = `
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between p-6 border-b">
+                    <h2 class="text-xl font-semibold text-gray-800">レポートプレビュー</h2>
+                    <button id="close-preview-dialog" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="p-6">
+                    <div id="preview-content" class="bg-gray-50 rounded-lg p-4 font-mono text-sm overflow-x-auto">
+                        <!-- プレビュー内容がここに表示される -->
+                    </div>
+                    
+                    <div class="flex justify-end mt-6 space-x-3">
+                        <button id="close-preview" class="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+                            閉じる
+                        </button>
+                        <button id="export-from-preview" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+                            エクスポート
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(dialog);
+    }
 
-        document.getElementById('generateReport')?.addEventListener('click', () => {
-            this.generateReport();
-        });
+    // 処理ログビューアの作成
+    createProcessingLogViewer() {
+        const viewer = document.createElement('div');
+        viewer.id = 'processing-log-viewer';
+        viewer.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden';
+        
+        viewer.innerHTML = `
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between p-6 border-b">
+                    <h2 class="text-xl font-semibold text-gray-800">処理ログ</h2>
+                    <div class="flex items-center space-x-3">
+                        <button id="clear-log" class="px-3 py-1 text-sm font-medium text-red-600 border border-red-600 rounded hover:bg-red-50">
+                            クリア
+                        </button>
+                        <button id="export-log" class="px-3 py-1 text-sm font-medium text-blue-600 border border-blue-600 rounded hover:bg-blue-50">
+                            エクスポート
+                        </button>
+                        <button id="close-log-viewer" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-6">
+                    <!-- フィルター -->
+                    <div class="mb-4 flex items-center space-x-4">
+                        <select id="log-level-filter" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="all">すべてのレベル</option>
+                            <option value="info">情報</option>
+                            <option value="warning">警告</option>
+                            <option value="error">エラー</option>
+                        </select>
+                        <input type="text" id="log-search" placeholder="ログを検索..." class="px-3 py-2 border border-gray-300 rounded-lg text-sm flex-1">
+                    </div>
+                    
+                    <!-- ログ表示エリア -->
+                    <div id="log-content" class="bg-gray-50 rounded-lg p-4 font-mono text-sm max-h-96 overflow-y-auto">
+                        <!-- ログ内容がここに表示される -->
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(viewer);
+    }
+
+    // イベントバインディング
+    bindEvents() {
+        // エクスポート・レポートパネル
+        document.getElementById('close-export-panel')?.addEventListener('click', () => this.hideExportReportPanel());
+        document.getElementById('cancel-export')?.addEventListener('click', () => this.hideExportReportPanel());
+        document.getElementById('preview-report')?.addEventListener('click', () => this.previewReport());
+        document.getElementById('export-report')?.addEventListener('click', () => this.exportReport());
 
         // レポートプレビューダイアログ
-        document.getElementById('closeReportPreview')?.addEventListener('click', () => {
-            this.hideReportPreview();
-        });
-
-        document.getElementById('exportFromPreview')?.addEventListener('click', () => {
-            this.exportFromPreview();
-        });
+        document.getElementById('close-preview-dialog')?.addEventListener('click', () => this.hideReportPreview());
+        document.getElementById('close-preview')?.addEventListener('click', () => this.hideReportPreview());
+        document.getElementById('export-from-preview')?.addEventListener('click', () => this.exportReport());
 
         // 処理ログビューア
-        document.getElementById('showProcessingLog')?.addEventListener('click', () => {
-            this.showProcessingLog();
-        });
-
-        document.getElementById('closeProcessingLog')?.addEventListener('click', () => {
-            this.hideProcessingLog();
-        });
-
-        document.getElementById('exportLog')?.addEventListener('click', () => {
-            this.exportProcessingLog();
-        });
-
-        document.getElementById('clearLog')?.addEventListener('click', () => {
-            this.clearProcessingLog();
-        });
-
-        document.getElementById('applyLogFilter')?.addEventListener('click', () => {
-            this.applyLogFilter();
-        });
-
-        // 初期化
-        this.updateExportItemCount();
+        document.getElementById('close-log-viewer')?.addEventListener('click', () => this.hideProcessingLog());
+        document.getElementById('clear-log')?.addEventListener('click', () => this.clearProcessingLog());
+        document.getElementById('export-log')?.addEventListener('click', () => this.exportProcessingLog());
+        document.getElementById('log-level-filter')?.addEventListener('change', () => this.filterProcessingLog());
+        document.getElementById('log-search')?.addEventListener('input', () => this.filterProcessingLog());
     }
 
+    // エクスポート・レポートパネルの表示
     showExportReportPanel() {
-        document.getElementById('exportReportPanel').classList.remove('hidden');
-        this.updateExportItemCount();
-        this.updateExportPreview();
+        document.getElementById('export-report-panel').classList.remove('hidden');
+        this.updateExportSettings();
     }
 
+    // エクスポート・レポートパネルの非表示
     hideExportReportPanel() {
-        document.getElementById('exportReportPanel').classList.add('hidden');
+        document.getElementById('export-report-panel').classList.add('hidden');
     }
 
-    updateExportItemCount() {
-        const currentTab = document.getElementById('exportCurrentTab').checked;
-        const allTabs = document.getElementById('exportAllTabs').checked;
-        const selectedOnly = document.getElementById('exportSelected').checked;
+    // エクスポート設定の更新
+    updateExportSettings() {
+        const format = document.querySelector('input[name="export-format"]:checked')?.value || 'csv';
+        const target = document.querySelector('input[name="export-target"]:checked')?.value || 'current';
+        const includeMetadata = document.getElementById('include-metadata')?.checked || false;
+        const includeStatistics = document.getElementById('include-statistics')?.checked || false;
+        const includeProcessingHistory = document.getElementById('include-processing-history')?.checked || false;
 
-        let count = 0;
-
-        if (selectedOnly) {
-            // 選択されたアイテムのみ
-            const selectedItems = document.querySelectorAll('.file-item.selected, .duplicate-item.selected, .error-item.selected');
-            count = selectedItems.length;
-        } else if (allTabs) {
-            // 全タブ
-            const allItems = document.querySelectorAll('.file-item, .duplicate-item, .error-item');
-            count = allItems.length;
-        } else if (currentTab) {
-            // 現在のタブ
-            const activeTab = document.querySelector('.tab-content.active');
-            if (activeTab) {
-                const items = activeTab.querySelectorAll('.file-item, .duplicate-item, .error-item');
-                count = items.length;
-            }
-        }
-
-        document.getElementById('exportItemCount').textContent = count;
+        this.exportSettings = {
+            format,
+            target,
+            includeMetadata,
+            includeStatistics,
+            includeProcessingHistory
+        };
     }
 
-    updateExportPreview() {
-        const format = document.querySelector('input[name="exportFormat"]:checked').value;
-        const includeStats = document.getElementById('includeStats').checked;
-        const includeMetadata = document.getElementById('includeMetadata').checked;
-        const includeProcessingHistory = document.getElementById('includeProcessingHistory').checked;
-
-        // プレビュー用のデータを準備
-        this.prepareExportData();
+    // レポートプレビュー
+    async previewReport() {
+        this.updateExportSettings();
+        const reportData = await this.generateReportData();
+        const previewContent = this.formatReportForPreview(reportData);
+        
+        document.getElementById('preview-content').innerHTML = previewContent;
+        document.getElementById('report-preview-dialog').classList.remove('hidden');
     }
 
-    prepareExportData() {
-        const currentTab = document.getElementById('exportCurrentTab').checked;
-        const allTabs = document.getElementById('exportAllTabs').checked;
-        const selectedOnly = document.getElementById('exportSelected').checked;
-
-        this.exportData = [];
-
-        if (selectedOnly) {
-            // 選択されたアイテムのみ
-            const selectedItems = document.querySelectorAll('.file-item.selected, .duplicate-item.selected, .error-item.selected');
-            selectedItems.forEach(item => {
-                this.exportData.push(this.extractItemData(item));
-            });
-        } else if (allTabs) {
-            // 全タブ
-            const allItems = document.querySelectorAll('.file-item, .duplicate-item, .error-item');
-            allItems.forEach(item => {
-                this.exportData.push(this.extractItemData(item));
-            });
-        } else if (currentTab) {
-            // 現在のタブ
-            const activeTab = document.querySelector('.tab-content.active');
-            if (activeTab) {
-                const items = activeTab.querySelectorAll('.file-item, .duplicate-item, .error-item');
-                items.forEach(item => {
-                    this.exportData.push(this.extractItemData(item));
-                });
-            }
-        }
+    // レポートプレビューの非表示
+    hideReportPreview() {
+        document.getElementById('report-preview-dialog').classList.add('hidden');
     }
 
-    extractItemData(item) {
+    // レポートデータの生成
+    async generateReportData() {
         const data = {
-            type: this.getItemType(item),
-            path: item.dataset.path || '',
-            filename: item.dataset.filename || '',
-            size: item.dataset.size || '',
-            resolution: item.dataset.resolution || '',
-            status: item.dataset.status || '',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            settings: this.exportSettings,
+            metadata: {},
+            statistics: {},
+            processingHistory: [],
+            results: {}
         };
 
-        // メタデータを含める場合
-        if (document.getElementById('includeMetadata').checked) {
+        // メタデータの追加
+        if (this.exportSettings.includeMetadata) {
             data.metadata = {
-                created: item.dataset.created || '',
-                modified: item.dataset.modified || '',
-                fileType: item.dataset.fileType || '',
-                dimensions: item.dataset.dimensions || '',
-                fileSize: item.dataset.fileSize || ''
+                appVersion: '1.0.0',
+                scanDate: new Date().toLocaleString('ja-JP'),
+                targetFolder: window.imageCleanupApp?.targetFolder || '未設定',
+                outputFolder: window.imageCleanupApp?.outputFolder || '未設定'
             };
         }
+
+        // 統計情報の追加
+        if (this.exportSettings.includeStatistics) {
+            const currentTab = document.querySelector('.tab-content.active')?.id;
+            data.statistics = this.getStatistics(currentTab);
+        }
+
+        // 処理履歴の追加
+        if (this.exportSettings.includeProcessingHistory) {
+            data.processingHistory = this.processingLog;
+        }
+
+        // 結果データの追加
+        data.results = await this.getResultsData();
 
         return data;
     }
 
-    getItemType(item) {
-        if (item.classList.contains('file-item')) return 'file';
-        if (item.classList.contains('duplicate-item')) return 'duplicate';
-        if (item.classList.contains('error-item')) return 'error';
-        return 'unknown';
-    }
-
-    async exportData() {
-        try {
-            this.prepareExportData();
-            const format = document.querySelector('input[name="exportFormat"]:checked').value;
-            const includeStats = document.getElementById('includeStats').checked;
-            const includeMetadata = document.getElementById('includeMetadata').checked;
-            const includeProcessingHistory = document.getElementById('includeProcessingHistory').checked;
-
-            const exportData = {
-                items: this.exportData,
-                exportInfo: {
-                    timestamp: new Date().toISOString(),
-                    format: format,
-                    totalItems: this.exportData.length
-                }
-            };
-
-            if (includeStats) {
-                exportData.statistics = this.generateStatistics();
-            }
-
-            if (includeProcessingHistory) {
-                exportData.processingHistory = this.processingLog;
-            }
-
-            let content = '';
-            let filename = `image_cleaner_export_${new Date().toISOString().split('T')[0]}`;
-
-            switch (format) {
-                case 'csv':
-                    content = this.convertToCSV(exportData);
-                    filename += '.csv';
-                    break;
-                case 'json':
-                    content = JSON.stringify(exportData, null, 2);
-                    filename += '.json';
-                    break;
-                case 'excel':
-                    content = this.convertToExcel(exportData);
-                    filename += '.xlsx';
-                    break;
-            }
-
-            // ElectronのIPCを使用してファイル保存ダイアログを表示
-            const result = await window.electronAPI.saveFile({
-                content: content,
-                filename: filename,
-                filters: this.getFileFilters(format)
-            });
-
-            if (result.success) {
-                this.addLogEntry('success', `エクスポートが完了しました: ${result.filePath}`);
-                this.addToExportHistory({
-                    timestamp: new Date().toISOString(),
-                    format: format,
-                    itemCount: this.exportData.length,
-                    filePath: result.filePath
-                });
-            } else {
-                this.addLogEntry('error', 'エクスポートに失敗しました');
-            }
-
-        } catch (error) {
-            console.error('Export error:', error);
-            this.addLogEntry('error', `エクスポートエラー: ${error.message}`);
-        }
-    }
-
-    convertToCSV(data) {
-        const headers = ['Type', 'Filename', 'Path', 'Size', 'Resolution', 'Status', 'Timestamp'];
-        const rows = [headers.join(',')];
-
-        data.items.forEach(item => {
-            const row = [
-                item.type,
-                `"${item.filename}"`,
-                `"${item.path}"`,
-                item.size,
-                item.resolution,
-                item.status,
-                item.timestamp
-            ];
-            rows.push(row.join(','));
-        });
-
-        return rows.join('\n');
-    }
-
-    convertToExcel(data) {
-        // Excel形式の変換（簡易版）
-        // 実際の実装ではxlsxライブラリを使用
-        return this.convertToCSV(data);
-    }
-
-    getFileFilters(format) {
-        switch (format) {
-            case 'csv':
-                return [{ name: 'CSV Files', extensions: ['csv'] }];
-            case 'json':
-                return [{ name: 'JSON Files', extensions: ['json'] }];
-            case 'excel':
-                return [{ name: 'Excel Files', extensions: ['xlsx'] }];
-            default:
-                return [{ name: 'All Files', extensions: ['*'] }];
-        }
-    }
-
-    generateStatistics() {
+    // 統計情報の取得
+    getStatistics(tabName) {
         const stats = {
-            totalFiles: this.exportData.length,
-            byType: {},
-            byStatus: {},
-            totalSize: 0,
-            averageSize: 0
+            totalFiles: 0,
+            blurImages: 0,
+            similarImages: 0,
+            errors: 0,
+            totalSize: 0
         };
 
-        this.exportData.forEach(item => {
-            // タイプ別統計
-            stats.byType[item.type] = (stats.byType[item.type] || 0) + 1;
-
-            // ステータス別統計
-            stats.byStatus[item.status] = (stats.byStatus[item.status] || 0) + 1;
-
-            // サイズ統計
-            const size = parseInt(item.size) || 0;
-            stats.totalSize += size;
-        });
-
-        stats.averageSize = stats.totalFiles > 0 ? stats.totalSize / stats.totalFiles : 0;
+        // 現在のタブに応じて統計を取得
+        if (tabName === 'blur-tab') {
+            const blurTable = document.querySelector('#blur-tab table tbody');
+            if (blurTable) {
+                stats.blurImages = blurTable.children.length;
+                stats.totalFiles = stats.blurImages;
+            }
+        } else if (tabName === 'similar-tab') {
+            const similarTable = document.querySelector('#similar-tab table tbody');
+            if (similarTable) {
+                stats.similarImages = similarTable.children.length;
+                stats.totalFiles = stats.similarImages;
+            }
+        } else if (tabName === 'error-tab') {
+            const errorTable = document.querySelector('#error-tab table tbody');
+            if (errorTable) {
+                stats.errors = errorTable.children.length;
+                stats.totalFiles = stats.errors;
+            }
+        }
 
         return stats;
     }
 
-    async generateReport() {
-        try {
-            this.prepareExportData();
-            const includeStats = document.getElementById('includeStats').checked;
-            const includeMetadata = document.getElementById('includeMetadata').checked;
-            const includeProcessingHistory = document.getElementById('includeProcessingHistory').checked;
+    // 結果データの取得
+    async getResultsData() {
+        const results = {
+            blurImages: [],
+            similarImages: [],
+            errors: []
+        };
 
-            this.currentReport = {
-                timestamp: new Date().toISOString(),
-                items: this.exportData,
-                statistics: includeStats ? this.generateStatistics() : null,
-                processingHistory: includeProcessingHistory ? this.processingLog : null
+        // 現在のタブのデータを取得
+        const currentTab = document.querySelector('.tab-content.active')?.id;
+        
+        if (currentTab === 'blur-tab') {
+            results.blurImages = this.getTableData('#blur-tab table tbody');
+        } else if (currentTab === 'similar-tab') {
+            results.similarImages = this.getTableData('#similar-tab table tbody');
+        } else if (currentTab === 'error-tab') {
+            results.errors = this.getTableData('#error-tab table tbody');
+        }
+
+        return results;
+    }
+
+    // テーブルデータの取得
+    getTableData(selector) {
+        const table = document.querySelector(selector);
+        if (!table) return [];
+
+        const rows = Array.from(table.children);
+        return rows.map(row => {
+            const cells = Array.from(row.children);
+            return {
+                filename: cells[0]?.textContent || '',
+                size: cells[1]?.textContent || '',
+                date: cells[2]?.textContent || '',
+                score: cells[3]?.textContent || '',
+                selected: cells[0]?.querySelector('input[type="checkbox"]')?.checked || false
             };
+        });
+    }
 
-            this.addLogEntry('success', 'レポートが生成されました');
-            this.updateExportItemCount();
+    // プレビュー用フォーマット
+    formatReportForPreview(data) {
+        let preview = '<div class="space-y-4">';
+        
+        // ヘッダー
+        preview += '<div class="border-b pb-2">';
+        preview += '<h3 class="font-bold text-lg">画像整理レポート</h3>';
+        preview += `<p class="text-sm text-gray-600">生成日時: ${new Date(data.timestamp).toLocaleString('ja-JP')}</p>`;
+        preview += '</div>';
 
-        } catch (error) {
-            console.error('Report generation error:', error);
-            this.addLogEntry('error', `レポート生成エラー: ${error.message}`);
+        // メタデータ
+        if (data.metadata && Object.keys(data.metadata).length > 0) {
+            preview += '<div class="border-b pb-2">';
+            preview += '<h4 class="font-semibold mb-2">メタデータ</h4>';
+            for (const [key, value] of Object.entries(data.metadata)) {
+                preview += `<p class="text-sm"><span class="font-medium">${key}:</span> ${value}</p>`;
+            }
+            preview += '</div>';
         }
-    }
 
-    previewReport() {
-        if (!this.currentReport) {
-            this.generateReport();
+        // 統計情報
+        if (data.statistics && Object.keys(data.statistics).length > 0) {
+            preview += '<div class="border-b pb-2">';
+            preview += '<h4 class="font-semibold mb-2">統計情報</h4>';
+            for (const [key, value] of Object.entries(data.statistics)) {
+                preview += `<p class="text-sm"><span class="font-medium">${key}:</span> ${value}</p>`;
+            }
+            preview += '</div>';
         }
 
-        this.showReportPreview();
-    }
+        // 結果データ
+        if (data.results) {
+            preview += '<div class="border-b pb-2">';
+            preview += '<h4 class="font-semibold mb-2">結果データ</h4>';
+            
+            if (data.results.blurImages && data.results.blurImages.length > 0) {
+                preview += `<p class="text-sm font-medium">ブレ画像: ${data.results.blurImages.length}件</p>`;
+            }
+            if (data.results.similarImages && data.results.similarImages.length > 0) {
+                preview += `<p class="text-sm font-medium">類似画像: ${data.results.similarImages.length}件</p>`;
+            }
+            if (data.results.errors && data.results.errors.length > 0) {
+                preview += `<p class="text-sm font-medium">エラー: ${data.results.errors.length}件</p>`;
+            }
+            preview += '</div>';
+        }
 
-    showReportPreview() {
-        const dialog = document.getElementById('reportPreviewDialog');
-        const navigation = document.getElementById('reportNavigation');
-        const content = document.getElementById('reportContent');
-
-        // ナビゲーションを生成
-        navigation.innerHTML = this.generateReportNavigation();
-
-        // コンテンツを生成
-        content.innerHTML = this.generateReportContent();
-
-        dialog.classList.remove('hidden');
-
-        // ナビゲーションイベントを設定
-        this.setupReportNavigation();
-    }
-
-    hideReportPreview() {
-        document.getElementById('reportPreviewDialog').classList.add('hidden');
-    }
-
-    generateReportNavigation() {
-        const sections = [
-            { id: 'summary', title: 'サマリー' },
-            { id: 'items', title: 'アイテム一覧' },
-            { id: 'statistics', title: '統計情報' },
-            { id: 'processing', title: '処理履歴' }
-        ];
-
-        return sections.map(section => `
-            <a href="#${section.id}" class="report-navigation-item" data-section="${section.id}">
-                ${section.title}
-            </a>
-        `).join('');
-    }
-
-    generateReportContent() {
-        if (!this.currentReport) return '<p>レポートが生成されていません</p>';
-
-        return `
-            <div id="summary" class="report-section">
-                <h4>サマリー</h4>
-                <div class="report-summary">
-                    <div class="stats-card">
-                        <h5>総アイテム数</h5>
-                        <div class="stats-value">${this.currentReport.items.length}</div>
-                    </div>
-                    <div class="stats-card">
-                        <h5>処理日時</h5>
-                        <div class="stats-value">${new Date(this.currentReport.timestamp).toLocaleString()}</div>
-                    </div>
-                    ${this.currentReport.statistics ? `
-                        <div class="stats-card">
-                            <h5>総サイズ</h5>
-                            <div class="stats-value">${this.formatFileSize(this.currentReport.statistics.totalSize)}</div>
-                        </div>
-                        <div class="stats-card">
-                            <h5>平均サイズ</h5>
-                            <div class="stats-value">${this.formatFileSize(this.currentReport.statistics.averageSize)}</div>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-
-            <div id="items" class="report-section">
-                <h4>アイテム一覧</h4>
-                <table class="report-table">
-                    <thead>
-                        <tr>
-                            <th>タイプ</th>
-                            <th>ファイル名</th>
-                            <th>サイズ</th>
-                            <th>解像度</th>
-                            <th>ステータス</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${this.currentReport.items.map(item => `
-                            <tr>
-                                <td>${item.type}</td>
-                                <td>${item.filename}</td>
-                                <td>${item.size}</td>
-                                <td>${item.resolution}</td>
-                                <td>${item.status}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-
-            ${this.currentReport.statistics ? `
-                <div id="statistics" class="report-section">
-                    <h4>統計情報</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="chart-container">
-                            <h5>タイプ別分布</h5>
-                            <div class="space-y-2">
-                                ${Object.entries(this.currentReport.statistics.byType).map(([type, count]) => `
-                                    <div class="flex justify-between">
-                                        <span>${type}</span>
-                                        <span class="font-medium">${count}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                        <div class="chart-container">
-                            <h5>ステータス別分布</h5>
-                            <div class="space-y-2">
-                                ${Object.entries(this.currentReport.statistics.byStatus).map(([status, count]) => `
-                                    <div class="flex justify-between">
-                                        <span>${status}</span>
-                                        <span class="font-medium">${count}</span>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            ` : ''}
-
-            ${this.currentReport.processingHistory ? `
-                <div id="processing" class="report-section">
-                    <h4>処理履歴</h4>
-                    <div class="processing-timeline">
-                        ${this.currentReport.processingHistory.map(log => `
-                            <div class="timeline-item">
-                                <div class="timeline-icon ${log.level}">${log.level.charAt(0).toUpperCase()}</div>
-                                <div class="timeline-content">
-                                    <div class="timeline-title">${log.message}</div>
-                                    <div class="timeline-time">${new Date(log.timestamp).toLocaleString()}</div>
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            ` : ''}
-        `;
-    }
-
-    setupReportNavigation() {
-        const navItems = document.querySelectorAll('.report-navigation-item');
-        const sections = document.querySelectorAll('.report-section');
-
-        navItems.forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                const targetId = item.dataset.section;
-
-                // アクティブクラスを更新
-                navItems.forEach(nav => nav.classList.remove('active'));
-                item.classList.add('active');
-
-                // セクションを表示
-                sections.forEach(section => {
-                    if (section.id === targetId) {
-                        section.scrollIntoView({ behavior: 'smooth' });
-                    }
-                });
+        // 処理履歴
+        if (data.processingHistory && data.processingHistory.length > 0) {
+            preview += '<div>';
+            preview += '<h4 class="font-semibold mb-2">処理履歴</h4>';
+            data.processingHistory.slice(-10).forEach(log => {
+                preview += `<p class="text-sm text-gray-600">${log.timestamp}: ${log.message}</p>`;
             });
+            preview += '</div>';
+        }
+
+        preview += '</div>';
+        return preview;
+    }
+
+    // レポートのエクスポート
+    async exportReport() {
+        try {
+            this.updateExportSettings();
+            const reportData = await this.generateReportData();
+            
+            let content = '';
+            let filename = `image-cleanup-report-${new Date().toISOString().split('T')[0]}`;
+            
+            switch (this.exportSettings.format) {
+                case 'csv':
+                    content = this.convertToCSV(reportData);
+                    filename += '.csv';
+                    break;
+                case 'json':
+                    content = JSON.stringify(reportData, null, 2);
+                    filename += '.json';
+                    break;
+                case 'excel':
+                    content = this.convertToExcel(reportData);
+                    filename += '.xlsx';
+                    break;
+            }
+
+            // ファイル保存ダイアログを表示
+            const saved = await window.electronAPI.saveFile({
+                content,
+                filename,
+                filters: [
+                    { name: 'All Files', extensions: ['*'] },
+                    { name: 'CSV Files', extensions: ['csv'] },
+                    { name: 'JSON Files', extensions: ['json'] },
+                    { name: 'Excel Files', extensions: ['xlsx'] }
+                ]
+            });
+
+            if (saved) {
+                this.addProcessingLog('info', `レポートをエクスポートしました: ${filename}`);
+                this.exportHistory.push({
+                    timestamp: new Date().toISOString(),
+                    filename,
+                    format: this.exportSettings.format,
+                    target: this.exportSettings.target
+                });
+                this.hideExportReportPanel();
+                this.hideReportPreview();
+                this.showNotification('レポートのエクスポートが完了しました', 'success');
+            }
+        } catch (error) {
+            console.error('エクスポートエラー:', error);
+            this.addProcessingLog('error', `エクスポートエラー: ${error.message}`);
+            this.showNotification('エクスポート中にエラーが発生しました', 'error');
+        }
+    }
+
+    // CSV形式への変換
+    convertToCSV(data) {
+        const rows = [];
+        
+        // ヘッダー
+        rows.push(['画像整理レポート']);
+        rows.push(['生成日時', new Date(data.timestamp).toLocaleString('ja-JP')]);
+        rows.push([]);
+
+        // メタデータ
+        if (data.metadata && Object.keys(data.metadata).length > 0) {
+            rows.push(['メタデータ']);
+            for (const [key, value] of Object.entries(data.metadata)) {
+                rows.push([key, value]);
+            }
+            rows.push([]);
+        }
+
+        // 統計情報
+        if (data.statistics && Object.keys(data.statistics).length > 0) {
+            rows.push(['統計情報']);
+            for (const [key, value] of Object.entries(data.statistics)) {
+                rows.push([key, value]);
+            }
+            rows.push([]);
+        }
+
+        // 結果データ
+        if (data.results) {
+            if (data.results.blurImages && data.results.blurImages.length > 0) {
+                rows.push(['ブレ画像']);
+                rows.push(['ファイル名', 'サイズ', '日時', 'ブレスコア', '選択状態']);
+                data.results.blurImages.forEach(item => {
+                    rows.push([item.filename, item.size, item.date, item.score, item.selected ? '選択' : '未選択']);
+                });
+                rows.push([]);
+            }
+
+            if (data.results.similarImages && data.results.similarImages.length > 0) {
+                rows.push(['類似画像']);
+                rows.push(['ファイル名1', 'ファイル名2', '類似度', '選択状態']);
+                data.results.similarImages.forEach(item => {
+                    rows.push([item.filename, item.size, item.date, item.score, item.selected ? '選択' : '未選択']);
+                });
+                rows.push([]);
+            }
+
+            if (data.results.errors && data.results.errors.length > 0) {
+                rows.push(['エラー']);
+                rows.push(['ファイル名', 'エラー内容']);
+                data.results.errors.forEach(item => {
+                    rows.push([item.filename, item.size]);
+                });
+                rows.push([]);
+            }
+        }
+
+        return rows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
+    }
+
+    // Excel形式への変換（簡易版）
+    convertToExcel(data) {
+        // 簡易的なExcel形式（実際の実装ではxlsxライブラリを使用）
+        return this.convertToCSV(data); // 一時的にCSV形式で返す
+    }
+
+    // 処理ログの表示
+    showProcessingLog() {
+        this.updateProcessingLogDisplay();
+        document.getElementById('processing-log-viewer').classList.remove('hidden');
+    }
+
+    // 処理ログの非表示
+    hideProcessingLog() {
+        document.getElementById('processing-log-viewer').classList.add('hidden');
+    }
+
+    // 処理ログの追加
+    addProcessingLog(level, message) {
+        const logEntry = {
+            timestamp: new Date().toISOString(),
+            level,
+            message
+        };
+        
+        this.processingLog.push(logEntry);
+        
+        // ログが多すぎる場合は古いものを削除
+        if (this.processingLog.length > 1000) {
+            this.processingLog = this.processingLog.slice(-500);
+        }
+        
+        // ログビューアが表示されている場合は更新
+        if (!document.getElementById('processing-log-viewer').classList.contains('hidden')) {
+            this.updateProcessingLogDisplay();
+        }
+    }
+
+    // 処理ログの表示更新
+    updateProcessingLogDisplay() {
+        const logContent = document.getElementById('log-content');
+        const levelFilter = document.getElementById('log-level-filter')?.value || 'all';
+        const searchTerm = document.getElementById('log-search')?.value || '';
+
+        let filteredLogs = this.processingLog;
+
+        // レベルフィルター
+        if (levelFilter !== 'all') {
+            filteredLogs = filteredLogs.filter(log => log.level === levelFilter);
+        }
+
+        // 検索フィルター
+        if (searchTerm) {
+            filteredLogs = filteredLogs.filter(log => 
+                log.message.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                log.timestamp.includes(searchTerm)
+            );
+        }
+
+        // 最新のログから表示
+        filteredLogs = filteredLogs.slice(-100);
+
+        let logHTML = '';
+        filteredLogs.forEach(log => {
+            const levelClass = {
+                'info': 'text-blue-600',
+                'warning': 'text-yellow-600',
+                'error': 'text-red-600'
+            }[log.level] || 'text-gray-600';
+
+            logHTML += `
+                <div class="mb-1">
+                    <span class="text-gray-500">${new Date(log.timestamp).toLocaleString('ja-JP')}</span>
+                    <span class="mx-2 ${levelClass}">[${log.level.toUpperCase()}]</span>
+                    <span>${log.message}</span>
+                </div>
+            `;
         });
 
-        // 最初のアイテムをアクティブにする
-        if (navItems.length > 0) {
-            navItems[0].classList.add('active');
+        logContent.innerHTML = logHTML;
+        logContent.scrollTop = logContent.scrollHeight;
+    }
+
+    // 処理ログのフィルタリング
+    filterProcessingLog() {
+        this.updateProcessingLogDisplay();
+    }
+
+    // 処理ログのクリア
+    clearProcessingLog() {
+        if (confirm('すべての処理ログを削除しますか？')) {
+            this.processingLog = [];
+            this.updateProcessingLogDisplay();
+            this.showNotification('処理ログをクリアしました', 'info');
         }
     }
 
-    exportFromPreview() {
-        this.exportData();
-        this.hideReportPreview();
-    }
-
-    showProcessingLog() {
-        const dialog = document.getElementById('processingLogDialog');
-        const logContent = document.getElementById('logContent');
-
-        logContent.innerHTML = this.generateLogContent();
-        dialog.classList.remove('hidden');
-    }
-
-    hideProcessingLog() {
-        document.getElementById('processingLogDialog').classList.add('hidden');
-    }
-
-    generateLogContent() {
-        return this.processingLog.map(log => `
-            <div class="log-entry ${log.level}">
-                <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
-                <span class="log-level">[${log.level.toUpperCase()}]</span>
-                <span class="log-message">${log.message}</span>
-            </div>
-        `).join('');
-    }
-
+    // 処理ログのエクスポート
     async exportProcessingLog() {
         try {
             const logData = {
@@ -554,116 +660,46 @@ export class ExportReportManager {
             };
 
             const content = JSON.stringify(logData, null, 2);
-            const filename = `processing_log_${new Date().toISOString().split('T')[0]}.json`;
+            const filename = `processing-log-${new Date().toISOString().split('T')[0]}.json`;
 
-            const result = await window.electronAPI.saveFile({
-                content: content,
-                filename: filename,
-                filters: [{ name: 'JSON Files', extensions: ['json'] }]
+            const saved = await window.electronAPI.saveFile({
+                content,
+                filename,
+                filters: [
+                    { name: 'JSON Files', extensions: ['json'] },
+                    { name: 'All Files', extensions: ['*'] }
+                ]
             });
 
-            if (result.success) {
-                this.addLogEntry('success', `ログエクスポートが完了しました: ${result.filePath}`);
-            } else {
-                this.addLogEntry('error', 'ログエクスポートに失敗しました');
+            if (saved) {
+                this.showNotification('処理ログをエクスポートしました', 'success');
             }
-
         } catch (error) {
-            console.error('Log export error:', error);
-            this.addLogEntry('error', `ログエクスポートエラー: ${error.message}`);
+            console.error('ログエクスポートエラー:', error);
+            this.showNotification('ログエクスポート中にエラーが発生しました', 'error');
         }
     }
 
-    clearProcessingLog() {
-        this.processingLog = [];
-        this.addLogEntry('info', '処理ログがクリアされました');
-        this.hideProcessingLog();
-    }
-
-    applyLogFilter() {
-        const info = document.getElementById('logInfo').checked;
-        const warning = document.getElementById('logWarning').checked;
-        const error = document.getElementById('logError').checked;
-        const success = document.getElementById('logSuccess').checked;
-        const dateFrom = document.getElementById('logDateFrom').value;
-        const dateTo = document.getElementById('logDateTo').value;
-
-        const filteredLogs = this.processingLog.filter(log => {
-            // レベルフィルター
-            const levelMatch = (info && log.level === 'info') ||
-                             (warning && log.level === 'warning') ||
-                             (error && log.level === 'error') ||
-                             (success && log.level === 'success');
-
-            // 日付フィルター
-            let dateMatch = true;
-            if (dateFrom || dateTo) {
-                const logDate = new Date(log.timestamp);
-                if (dateFrom && logDate < new Date(dateFrom)) dateMatch = false;
-                if (dateTo && logDate > new Date(dateTo + 'T23:59:59')) dateMatch = false;
-            }
-
-            return levelMatch && dateMatch;
-        });
-
-        const logContent = document.getElementById('logContent');
-        logContent.innerHTML = filteredLogs.map(log => `
-            <div class="log-entry ${log.level}">
-                <span class="log-timestamp">${new Date(log.timestamp).toLocaleString()}</span>
-                <span class="log-level">[${log.level.toUpperCase()}]</span>
-                <span class="log-message">${log.message}</span>
-            </div>
-        `).join('');
-    }
-
-    addLogEntry(level, message) {
-        const logEntry = {
-            timestamp: new Date().toISOString(),
-            level: level,
-            message: message
-        };
-
-        this.processingLog.push(logEntry);
-
-        // ログが表示されている場合は更新
-        const logContent = document.getElementById('logContent');
-        if (logContent && !logContent.parentElement.classList.contains('hidden')) {
-            logContent.innerHTML = this.generateLogContent();
-            logContent.scrollTop = logContent.scrollHeight;
+    // 通知の表示
+    showNotification(message, type = 'info') {
+        // 既存の通知システムを使用
+        if (window.imageCleanupApp && window.imageCleanupApp.showNotification) {
+            window.imageCleanupApp.showNotification(message, type);
+        } else {
+            console.log(`${type.toUpperCase()}: ${message}`);
         }
     }
 
-    addToExportHistory(exportInfo) {
-        this.exportHistory.push(exportInfo);
-        
-        // 履歴を最大100件に制限
-        if (this.exportHistory.length > 100) {
-            this.exportHistory = this.exportHistory.slice(-100);
-        }
+    // エクスポート履歴の取得
+    getExportHistory() {
+        return this.exportHistory;
     }
 
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    // 処理ログの取得
+    getProcessingLog() {
+        return this.processingLog;
     }
+}
 
-    // 外部から呼び出し可能なメソッド
-    logInfo(message) {
-        this.addLogEntry('info', message);
-    }
-
-    logWarning(message) {
-        this.addLogEntry('warning', message);
-    }
-
-    logError(message) {
-        this.addLogEntry('error', message);
-    }
-
-    logSuccess(message) {
-        this.addLogEntry('success', message);
-    }
-} 
+// グローバルにエクスポート
+window.ExportReportManager = ExportReportManager; 

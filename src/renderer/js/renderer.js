@@ -5,32 +5,6 @@ function pathBasename(filePath) {
     return filePath.split(/[\\/]/).pop();
 }
 
-// エクスポート・レポートマネージャークラス
-class ExportReportManager {
-    constructor() {
-        this.exportHistory = [];
-        this.processingLog = [];
-        this.exportSettings = {
-            format: 'csv',
-            includeMetadata: true,
-            includeStatistics: true,
-            includeProcessingHistory: true
-        };
-    }
-
-    // エクスポート・レポートパネルの表示
-    showExportReportPanel() {
-        console.log('エクスポート・レポートパネルを表示');
-        // 実装は後で追加
-    }
-
-    // 処理ログの表示
-    showProcessingLog() {
-        console.log('処理ログを表示');
-        // 実装は後で追加
-    }
-}
-
 // バッチ処理マネージャークラス
 class BatchProcessor {
     constructor() {
