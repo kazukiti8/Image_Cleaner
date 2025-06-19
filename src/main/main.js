@@ -22,13 +22,10 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 
 // デフォルト設定
 const defaultSettings = {
-    similarityThreshold: 80,
-    blurThreshold: 60,
     includeSubfolders: true,
-    deleteConfirmation: 'always',
-    moveDestination: '',
-    enableDebugLog: false,
-    saveLogFile: false
+    deleteOperation: 'recycleBin',
+    logLevel: 'normal',
+    logFilePath: path.join(app.getPath('userData'), 'logs')
 };
 
 // 設定を読み込み
@@ -442,17 +439,6 @@ ipcMain.handle('cancel-scan', async () => {
   return { success: true };
 });
 
-// 設定
-ipcMain.handle('get-settings', async () => {
-  // デフォルト設定を返す
-  return {
-    scanSubfolders: true,
-    deleteOperation: 'recycleBin',
-    logLevel: 'normal',
-    logFilePath: path.join(app.getPath('userData'), 'logs')
-  };
-});
-
 // 設定関連のIPC通信
 ipcMain.handle('load-settings', async () => {
     try {
@@ -467,13 +453,6 @@ ipcMain.handle('load-settings', async () => {
 ipcMain.handle('save-settings', async (event, settings) => {
     try {
         await saveSettings(settings);
-        
-        // ImageAnalyzerの設定を更新
-        if (imageAnalyzer) {
-            imageAnalyzer.setSimilarityThreshold(settings.similarityThreshold);
-            imageAnalyzer.setBlurThreshold(settings.blurThreshold);
-        }
-        
         return { success: true };
     } catch (error) {
         console.error('設定の保存に失敗しました:', error);

@@ -259,38 +259,10 @@
                         <h3 class="text-lg font-medium text-slate-800 mb-4">スキャン設定</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">
-                                    類似度閾値 (%)
-                                </label>
-                                <div class="flex items-center space-x-4">
-                                    <input type="range" id="similarityThreshold" min="50" max="95" step="5" value="80" 
-                                           class="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
-                                    <span id="similarityThresholdValue" class="text-sm font-medium text-slate-600 w-12">80%</span>
-                                </div>
-                                <p class="text-xs text-slate-500 mt-1">
-                                    この値以上の類似度を持つ画像のみを類似画像として検出します
-                                </p>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">
-                                    ブレ検出閾値
-                                </label>
-                                <div class="flex items-center space-x-4">
-                                    <input type="range" id="blurThreshold" min="30" max="90" step="5" value="60" 
-                                           class="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer">
-                                    <span id="blurThresholdValue" class="text-sm font-medium text-slate-600 w-12">60</span>
-                                </div>
-                                <p class="text-xs text-slate-500 mt-1">
-                                    この値以上のブレスコアを持つ画像をブレ画像として検出します
-                                </p>
-                            </div>
-                            
-                            <div>
                                 <label class="flex items-center">
                                     <input type="checkbox" id="includeSubfolders" checked 
                                            class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-slate-700">サブフォルダも含めてスキャン</span>
+                                    <span class="ml-2 text-sm text-slate-700">サブフォルダを常にスキャン対象に含める</span>
                                 </label>
                             </div>
                         </div>
@@ -302,26 +274,20 @@
                         <div class="space-y-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-2">
-                                    削除時の確認
+                                    「削除」ボタンのデフォルト動作
                                 </label>
-                                <select id="deleteConfirmation" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="always">常に確認する</option>
-                                    <option value="multiple">複数ファイル時のみ確認</option>
-                                    <option value="never">確認しない</option>
-                                </select>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">
-                                    移動先フォルダ
-                                </label>
-                                <div class="flex space-x-2">
-                                    <input type="text" id="moveDestination" placeholder="移動先フォルダを選択" 
-                                           class="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" readonly>
-                                    <button id="selectMoveFolder" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200">
-                                        選択
-                                    </button>
-                                </div>
+                                <fieldset class="space-y-2">
+                                    <div class="flex items-center">
+                                        <input type="radio" id="deleteToRecycleBin" name="deleteOperation" value="recycleBin" checked
+                                               class="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500">
+                                        <label for="deleteToRecycleBin" class="ml-2 block text-sm text-slate-700">ゴミ箱へ移動</label>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input type="radio" id="deletePermanently" name="deleteOperation" value="permanently"
+                                               class="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500">
+                                        <label for="deletePermanently" class="ml-2 block text-sm text-slate-700">直接完全に削除</label>
+                                    </div>
+                                </fieldset>
                             </div>
                         </div>
                     </div>
@@ -331,19 +297,27 @@
                         <h3 class="text-lg font-medium text-slate-800 mb-4">ログ設定</h3>
                         <div class="space-y-4">
                             <div>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="enableDebugLog" 
-                                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-slate-700">デバッグログを有効にする</span>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">
+                                    ログレベル
                                 </label>
+                                <select id="logLevel" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="error">エラーのみ</option>
+                                    <option value="normal" selected>通常（エラーと主要な操作）</option>
+                                    <option value="debug">詳細（デバッグ用）</option>
+                                </select>
                             </div>
                             
                             <div>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="saveLogFile" 
-                                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-slate-700">ログファイルを保存する</span>
+                                <label class="block text-sm font-medium text-slate-700 mb-2">
+                                    ログファイルの場所
                                 </label>
+                                <div class="flex space-x-2">
+                                    <input type="text" id="logFilePath" placeholder="ログファイルの場所" 
+                                           class="flex-1 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" readonly>
+                                    <button id="changeLogPath" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-md hover:bg-slate-200">
+                                        変更...
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

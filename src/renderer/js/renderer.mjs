@@ -54,8 +54,8 @@ class ImageCleanupApp {
         // スキャンボタン
         document.getElementById('scanButton').addEventListener('click', () => this.startScan());
         
-        // 設定ボタン
-        document.getElementById('settingsButton').addEventListener('click', () => this.openSettings());
+        // 設定ボタン（SettingsManagerで管理）
+        // document.getElementById('settingsButton').addEventListener('click', () => this.openSettings());
         
         // フィルターヘルプボタン
         document.getElementById('filterHelp').addEventListener('click', () => this.showFilterHelp());
@@ -782,6 +782,11 @@ class ImageCleanupApp {
 
     openSettings() {
         // 設定画面を開く
+        if (this.settingsManager) {
+            this.settingsManager.showModal();
+        } else {
+            console.error('SettingsManagerが初期化されていません');
+        }
     }
 
     moveToTrash() {
