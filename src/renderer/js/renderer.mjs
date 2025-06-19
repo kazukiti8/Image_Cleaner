@@ -5,6 +5,197 @@ function pathBasename(filePath) {
     return filePath.split(/[\\/]/).pop();
 }
 
+// バッチ処理マネージャークラス
+class BatchProcessor {
+    constructor() {
+        this.isProcessing = false;
+        this.isPaused = false;
+        this.currentBatch = [];
+        this.processedCount = 0;
+        this.totalCount = 0;
+        this.successCount = 0;
+        this.errorCount = 0;
+        this.currentOperation = null;
+        this.batchSize = 10; // 一度に処理するファイル数
+        this.delayBetweenBatches = 100; // バッチ間の遅延（ms）
+        this.progressCallback = null;
+        this.completeCallback = null;
+        this.errorCallback = null;
+        this.operationHistory = [];
+    }
+
+    // バッチ処理の開始
+    async startBatchOperation(operation, items, options = {}) {
+        if (this.isProcessing) {
+            throw new Error('既にバッチ処理が実行中です');
+        }
+
+        this.isProcessing = true;
+        this.isPaused = false;
+        this.currentOperation = operation;
+        this.currentBatch = [...items];
+        this.processedCount = 0;
+        this.totalCount = items.length;
+        this.successCount = 0;
+        this.errorCount = 0;
+        this.batchSize = options.batchSize || 10;
+        this.delayBetweenBatches = options.delay || 100;
+
+        console.log(`バッチ処理開始: ${operation} - ${this.totalCount}件`);
+
+        try {
+            await this.processBatches();
+        } catch (error) {
+            console.error('バッチ処理エラー:', error);
+            if (this.errorCallback) {
+                this.errorCallback(error);
+            }
+        } finally {
+            this.isProcessing = false;
+            this.isPaused = false;
+        }
+    }
+
+    // バッチ単位での処理
+    async processBatches() {
+        while (this.currentBatch.length > 0 && !this.isPaused) {
+            const batch = this.currentBatch.splice(0, this.batchSize);
+            
+            console.log(`バッチ処理中: ${batch.length}件 (残り: ${this.currentBatch.length}件)`);
+            
+            // バッチ内の各アイテムを処理
+            for (const item of batch) {
+                if (this.isPaused) break;
+                
+                try {
+                    await this.processItem(item);
+                    this.successCount++;
+                } catch (error) {
+                    console.error(`アイテム処理エラー:`, error);
+                    this.errorCount++;
+                    this.operationHistory.push({
+                        item: item,
+                        error: error.message,
+                        timestamp: new Date().toISOString()
+                    });
+                }
+                
+                this.processedCount++;
+                
+                // 進捗コールバック
+                if (this.progressCallback) {
+                    this.progressCallback({
+                        processed: this.processedCount,
+                        total: this.totalCount,
+                        success: this.successCount,
+                        error: this.errorCount,
+                        progress: (this.processedCount / this.totalCount) * 100
+                    });
+                }
+            }
+            
+            // バッチ間の遅延
+            if (this.currentBatch.length > 0 && !this.isPaused) {
+                await this.delay(this.delayBetweenBatches);
+            }
+        }
+        
+        // 処理完了
+        if (!this.isPaused) {
+            console.log(`バッチ処理完了: 成功${this.successCount}件, エラー${this.errorCount}件`);
+            if (this.completeCallback) {
+                this.completeCallback({
+                    total: this.totalCount,
+                    success: this.successCount,
+                    error: this.errorCount,
+                    history: this.operationHistory
+                });
+            }
+        }
+    }
+
+    // 個別アイテムの処理
+    async processItem(item) {
+        switch (this.currentOperation) {
+            case 'delete':
+                return await this.deleteFile(item);
+            case 'move':
+                return await this.moveFile(item);
+            case 'copy':
+                return await this.copyFile(item);
+            default:
+                throw new Error(`未対応の操作: ${this.currentOperation}`);
+        }
+    }
+
+    // ファイル削除
+    async deleteFile(item) {
+        return await window.electronAPI.deleteFile(item.filePath);
+    }
+
+    // ファイル移動
+    async moveFile(item) {
+        const destination = await this.getDestinationPath(item);
+        return await window.electronAPI.moveFile(item.filePath, destination);
+    }
+
+    // ファイルコピー
+    async copyFile(item) {
+        const destination = await this.getDestinationPath(item);
+        return await window.electronAPI.copyFile(item.filePath, destination);
+    }
+
+    // 移動先パスの取得
+    async getDestinationPath(item) {
+        // 設定から出力フォルダを取得
+        const outputFolder = await window.electronAPI.getOutputFolder();
+        if (!outputFolder) {
+            throw new Error('出力フォルダが設定されていません');
+        }
+        
+        const filename = item.filename || item.filePath.split(/[\\/]/).pop();
+        return `${outputFolder}/${filename}`;
+    }
+
+    // 処理の一時停止
+    pause() {
+        this.isPaused = true;
+        console.log('バッチ処理を一時停止しました');
+    }
+
+    // 処理の再開
+    resume() {
+        if (this.isProcessing && this.isPaused) {
+            this.isPaused = false;
+            console.log('バッチ処理を再開しました');
+            this.processBatches();
+        }
+    }
+
+    // 処理の停止
+    stop() {
+        this.isProcessing = false;
+        this.isPaused = false;
+        this.currentBatch = [];
+        console.log('バッチ処理を停止しました');
+    }
+
+    // 遅延関数
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    // 操作履歴の取得
+    getOperationHistory() {
+        return this.operationHistory;
+    }
+
+    // 操作履歴のクリア
+    clearOperationHistory() {
+        this.operationHistory = [];
+    }
+}
+
 class ImageCleanupApp {
     constructor() {
         this.currentTab = 'blur';
@@ -80,6 +271,12 @@ class ImageCleanupApp {
             debounceTimer: null // デバウンス用タイマー
         };
         
+        // バッチ処理マネージャー
+        this.batchProcessor = new BatchProcessor();
+        this.batchProcessor.progressCallback = (progress) => this.updateBatchProgress(progress);
+        this.batchProcessor.completeCallback = (result) => this.onBatchComplete(result);
+        this.batchProcessor.errorCallback = (error) => this.onBatchError(error);
+        
         this.init();
     }
 
@@ -97,6 +294,9 @@ class ImageCleanupApp {
         
         // キーボードショートカットの初期化
         this.initializeKeyboardShortcuts();
+        
+        // バッチ処理関連のイベントリスナー
+        this.initializeBatchEventListeners();
         
         // 初期UIの設定
         this.updateFilterUI();
@@ -3255,6 +3455,482 @@ class ImageCleanupApp {
         
         // パフォーマンス監視UIの初期化
         this.initializePerformanceUI();
+    }
+
+    // バッチ処理の制御機能
+    async startBatchDelete() {
+        const selectedItems = Array.from(this.selectedItems);
+        if (selectedItems.length === 0) {
+            this.showNotification('エラー', '削除するファイルが選択されていません', 'error');
+            return;
+        }
+
+        // 確認ダイアログの表示
+        const confirmed = await this.showBatchConfirmDialog('削除', selectedItems.length);
+        if (!confirmed) return;
+
+        // バッチ処理の開始
+        const items = this.getSelectedItemsData();
+        await this.batchProcessor.startBatchOperation('delete', items, {
+            batchSize: parseInt(document.getElementById('batchSize')?.value || '10'),
+            delay: parseInt(document.getElementById('batchDelay')?.value || '100')
+        });
+    }
+
+    async startBatchMove() {
+        const selectedItems = Array.from(this.selectedItems);
+        if (selectedItems.length === 0) {
+            this.showNotification('エラー', '移動するファイルが選択されていません', 'error');
+            return;
+        }
+
+        // 出力フォルダの確認
+        if (!this.outputFolder) {
+            this.showNotification('エラー', '出力フォルダが設定されていません', 'error');
+            return;
+        }
+
+        // 確認ダイアログの表示
+        const confirmed = await this.showBatchConfirmDialog('移動', selectedItems.length);
+        if (!confirmed) return;
+
+        // バッチ処理の開始
+        const items = this.getSelectedItemsData();
+        await this.batchProcessor.startBatchOperation('move', items, {
+            batchSize: parseInt(document.getElementById('batchSize')?.value || '10'),
+            delay: parseInt(document.getElementById('batchDelay')?.value || '100')
+        });
+    }
+
+    async startBatchCopy() {
+        const selectedItems = Array.from(this.selectedItems);
+        if (selectedItems.length === 0) {
+            this.showNotification('エラー', 'コピーするファイルが選択されていません', 'error');
+            return;
+        }
+
+        // 出力フォルダの確認
+        if (!this.outputFolder) {
+            this.showNotification('エラー', '出力フォルダが設定されていません', 'error');
+            return;
+        }
+
+        // 確認ダイアログの表示
+        const confirmed = await this.showBatchConfirmDialog('コピー', selectedItems.length);
+        if (!confirmed) return;
+
+        // バッチ処理の開始
+        const items = this.getSelectedItemsData();
+        await this.batchProcessor.startBatchOperation('copy', items, {
+            batchSize: parseInt(document.getElementById('batchSize')?.value || '10'),
+            delay: parseInt(document.getElementById('batchDelay')?.value || '100')
+        });
+    }
+
+    // バッチ処理確認ダイアログ
+    async showBatchConfirmDialog(operation, count) {
+        const confirmDialog = document.getElementById('batchConfirmDialog');
+        const confirmText = document.getElementById('batchConfirmText');
+        const confirmCount = document.getElementById('batchConfirmCount');
+        
+        confirmText.textContent = `${operation}操作`;
+        confirmCount.textContent = `${count}件のファイル`;
+        
+        confirmDialog.classList.remove('hidden');
+        
+        return new Promise((resolve) => {
+            document.getElementById('batchConfirmYes').onclick = () => {
+                confirmDialog.classList.add('hidden');
+                resolve(true);
+            };
+            
+            document.getElementById('batchConfirmNo').onclick = () => {
+                confirmDialog.classList.add('hidden');
+                resolve(false);
+            };
+        });
+    }
+
+    // 選択されたアイテムのデータを取得
+    getSelectedItemsData() {
+        const items = [];
+        const currentData = this.filteredData[this.currentTab];
+        
+        for (const filePath of this.selectedItems) {
+            const item = currentData.find(item => 
+                item.filePath === filePath || 
+                (item.files && item.files.some(f => f.filePath === filePath))
+            );
+            
+            if (item) {
+                if (this.currentTab === 'similar' && item.files) {
+                    // 類似画像の場合は両方のファイルを追加
+                    items.push(...item.files);
+                } else {
+                    items.push(item);
+                }
+            }
+        }
+        
+        return items;
+    }
+
+    // バッチ処理進捗の更新
+    updateBatchProgress(progress) {
+        const progressBar = document.getElementById('batchProgressBar');
+        const progressText = document.getElementById('batchProgressText');
+        const successCount = document.getElementById('batchSuccessCount');
+        const errorCount = document.getElementById('batchErrorCount');
+        const operationText = document.getElementById('batchOperationText');
+        
+        if (progressBar) progressBar.style.width = `${progress.progress}%`;
+        if (progressText) progressText.textContent = `${progress.processed} / ${progress.total}`;
+        if (successCount) successCount.textContent = `${progress.success}件`;
+        if (errorCount) errorCount.textContent = `${progress.error}件`;
+        
+        const operationMap = {
+            'delete': '削除中',
+            'move': '移動中',
+            'copy': 'コピー中'
+        };
+        if (operationText) operationText.textContent = operationMap[this.batchProcessor.currentOperation] || '処理中';
+        
+        // 進捗ダイアログを表示
+        document.getElementById('batchProgressDialog').classList.remove('hidden');
+    }
+
+    // バッチ処理完了時の処理
+    onBatchComplete(result) {
+        console.log('バッチ処理完了:', result);
+        
+        // 進捗ダイアログを非表示
+        document.getElementById('batchProgressDialog').classList.add('hidden');
+        
+        // 成功通知
+        this.showNotification(
+            'バッチ処理完了',
+            `成功: ${result.success}件, エラー: ${result.error}件`,
+            result.error > 0 ? 'warning' : 'success'
+        );
+        
+        // 選択をクリア
+        this.selectedItems.clear();
+        this.updateSelectedCount();
+        this.updateCheckboxes();
+        
+        // 結果を再読み込み
+        this.refreshCurrentTab();
+        
+        // 履歴を更新
+        this.updateBatchHistory();
+    }
+
+    // バッチ処理エラー時の処理
+    onBatchError(error) {
+        console.error('バッチ処理エラー:', error);
+        
+        // 進捗ダイアログを非表示
+        document.getElementById('batchProgressDialog').classList.add('hidden');
+        
+        // エラー通知
+        this.showNotification('バッチ処理エラー', error.message, 'error');
+    }
+
+    // バッチ処理履歴の更新
+    updateBatchHistory() {
+        const history = this.batchProcessor.getOperationHistory();
+        const historyContent = document.getElementById('batchHistoryContent');
+        
+        if (!historyContent) return;
+        
+        historyContent.innerHTML = '';
+        
+        if (history.length === 0) {
+            historyContent.innerHTML = '<p class="text-gray-500 text-center py-8">履歴がありません</p>';
+            return;
+        }
+        
+        history.forEach(item => {
+            const historyItem = document.createElement('div');
+            historyItem.className = 'batch-history-item error';
+            historyItem.innerHTML = `
+                <div class="batch-history-timestamp">${new Date(item.timestamp).toLocaleString()}</div>
+                <div class="batch-history-operation">${item.item.filename}</div>
+                <div class="batch-history-error">${item.error}</div>
+            `;
+            historyContent.appendChild(historyItem);
+        });
+    }
+
+    // 通知表示
+    showNotification(title, message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `batch-notification ${type}`;
+        notification.innerHTML = `
+            <div class="batch-notification-title">${title}</div>
+            <div class="batch-notification-message">${message}</div>
+        `;
+        
+        document.body.appendChild(notification);
+        
+        // 表示アニメーション
+        setTimeout(() => notification.classList.add('show'), 100);
+        
+        // 自動非表示
+        setTimeout(() => {
+            notification.classList.remove('show');
+            setTimeout(() => notification.remove(), 300);
+        }, 5000);
+    }
+
+    // バッチ処理関連のイベントリスナー
+    initializeBatchEventListeners() {
+        // バッチ処理進捗ダイアログの制御
+        document.getElementById('closeBatchProgress')?.addEventListener('click', () => {
+            document.getElementById('batchProgressDialog').classList.add('hidden');
+        });
+
+        // バッチ処理の一時停止/再開/停止
+        document.getElementById('pauseBatch')?.addEventListener('click', () => {
+            this.batchProcessor.pause();
+            document.getElementById('pauseBatch').classList.add('hidden');
+            document.getElementById('resumeBatch').classList.remove('hidden');
+        });
+
+        document.getElementById('resumeBatch')?.addEventListener('click', () => {
+            this.batchProcessor.resume();
+            document.getElementById('resumeBatch').classList.add('hidden');
+            document.getElementById('pauseBatch').classList.remove('hidden');
+        });
+
+        document.getElementById('stopBatch')?.addEventListener('click', () => {
+            this.batchProcessor.stop();
+            document.getElementById('batchProgressDialog').classList.add('hidden');
+        });
+
+        // バッチ処理設定ダイアログの制御
+        document.getElementById('closeBatchSettings')?.addEventListener('click', () => {
+            document.getElementById('batchSettingsDialog').classList.add('hidden');
+        });
+
+        document.getElementById('saveBatchSettings')?.addEventListener('click', () => {
+            this.saveBatchSettings();
+            document.getElementById('batchSettingsDialog').classList.add('hidden');
+        });
+
+        document.getElementById('cancelBatchSettings')?.addEventListener('click', () => {
+            document.getElementById('batchSettingsDialog').classList.add('hidden');
+        });
+
+        // バッチ処理履歴ダイアログの制御
+        document.getElementById('closeBatchHistory')?.addEventListener('click', () => {
+            document.getElementById('batchHistoryDialog').classList.add('hidden');
+        });
+
+        document.getElementById('exportBatchHistory')?.addEventListener('click', () => {
+            this.exportBatchHistory();
+        });
+
+        document.getElementById('clearBatchHistory')?.addEventListener('click', () => {
+            this.clearBatchHistory();
+        });
+
+        // バッチ処理設定の表示
+        document.getElementById('showBatchSettings')?.addEventListener('click', () => {
+            this.showBatchSettings();
+        });
+
+        // バッチ処理履歴の表示
+        document.getElementById('showBatchHistory')?.addEventListener('click', () => {
+            this.showBatchHistory();
+        });
+    }
+
+    // バッチ処理設定の保存
+    saveBatchSettings() {
+        const batchSize = document.getElementById('batchSize').value;
+        const batchDelay = document.getElementById('batchDelay').value;
+        const confirmDialog = document.querySelector('input[name="confirmDialog"]:checked').value;
+
+        // 設定を保存
+        this.settingsManager.setSetting('batchSize', parseInt(batchSize));
+        this.settingsManager.setSetting('batchDelay', parseInt(batchDelay));
+        this.settingsManager.setSetting('confirmDialog', confirmDialog);
+
+        this.showNotification('設定保存', 'バッチ処理設定を保存しました', 'success');
+    }
+
+    // バッチ処理設定の表示
+    showBatchSettings() {
+        // 現在の設定を読み込み
+        const batchSize = this.settingsManager.getSetting('batchSize', 10);
+        const batchDelay = this.settingsManager.getSetting('batchDelay', 100);
+        const confirmDialog = this.settingsManager.getSetting('confirmDialog', 'always');
+
+        document.getElementById('batchSize').value = batchSize;
+        document.getElementById('batchDelay').value = batchDelay;
+        document.querySelector(`input[name="confirmDialog"][value="${confirmDialog}"]`).checked = true;
+
+        document.getElementById('batchSettingsDialog').classList.remove('hidden');
+    }
+
+    // バッチ処理履歴の表示
+    showBatchHistory() {
+        this.updateBatchHistory();
+        document.getElementById('batchHistoryDialog').classList.remove('hidden');
+    }
+
+    // バッチ処理履歴のエクスポート
+    exportBatchHistory() {
+        const history = this.batchProcessor.getOperationHistory();
+        if (history.length === 0) {
+            this.showNotification('エラー', 'エクスポートする履歴がありません', 'error');
+            return;
+        }
+
+        const csvContent = this.convertHistoryToCSV(history);
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `batch_history_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+
+        this.showNotification('エクスポート完了', 'バッチ処理履歴をエクスポートしました', 'success');
+    }
+
+    // バッチ処理履歴のクリア
+    clearBatchHistory() {
+        this.batchProcessor.clearOperationHistory();
+        this.updateBatchHistory();
+        this.showNotification('履歴クリア', 'バッチ処理履歴をクリアしました', 'success');
+    }
+
+    // 履歴をCSVに変換
+    convertHistoryToCSV(history) {
+        const headers = ['タイムスタンプ', 'ファイル名', 'エラー内容'];
+        const rows = history.map(item => [
+            new Date(item.timestamp).toLocaleString(),
+            item.item.filename,
+            item.error
+        ]);
+
+        return [headers, ...rows].map(row => 
+            row.map(cell => `"${cell}"`).join(',')
+        ).join('\n');
+    }
+
+    // ファイル操作メソッド（バッチ処理対応）
+    async deleteSelectedFiles() {
+        if (this.selectedItems.size === 0) {
+            this.showNotification('エラー', '削除するファイルが選択されていません', 'error');
+            return;
+        }
+
+        // 単一ファイルの場合は従来の確認ダイアログ
+        if (this.selectedItems.size === 1) {
+            await this.deleteSingleFile();
+            return;
+        }
+
+        // 複数ファイルの場合はバッチ処理
+        await this.startBatchDelete();
+    }
+
+    async moveSelectedFiles() {
+        if (this.selectedItems.size === 0) {
+            this.showNotification('エラー', '移動するファイルが選択されていません', 'error');
+            return;
+        }
+
+        if (!this.outputFolder) {
+            this.showNotification('エラー', '出力フォルダが設定されていません', 'error');
+            return;
+        }
+
+        // 単一ファイルの場合は従来の確認ダイアログ
+        if (this.selectedItems.size === 1) {
+            await this.moveSingleFile();
+            return;
+        }
+
+        // 複数ファイルの場合はバッチ処理
+        await this.startBatchMove();
+    }
+
+    async copySelectedFiles() {
+        if (this.selectedItems.size === 0) {
+            this.showNotification('エラー', 'コピーするファイルが選択されていません', 'error');
+            return;
+        }
+
+        if (!this.outputFolder) {
+            this.showNotification('エラー', '出力フォルダが設定されていません', 'error');
+            return;
+        }
+
+        // 単一ファイルの場合は従来の確認ダイアログ
+        if (this.selectedItems.size === 1) {
+            await this.copySingleFile();
+            return;
+        }
+
+        // 複数ファイルの場合はバッチ処理
+        await this.startBatchCopy();
+    }
+
+    // 単一ファイル操作（従来の実装）
+    async deleteSingleFile() {
+        const filePath = Array.from(this.selectedItems)[0];
+        const confirmed = await this.showConfirmDialog('削除', filePath);
+        if (!confirmed) return;
+
+        try {
+            await window.electronAPI.deleteFile(filePath);
+            this.showNotification('削除完了', 'ファイルを削除しました', 'success');
+            this.selectedItems.clear();
+            this.updateSelectedCount();
+            this.refreshCurrentTab();
+        } catch (error) {
+            console.error('削除エラー:', error);
+            this.showNotification('削除エラー', error.message, 'error');
+        }
+    }
+
+    async moveSingleFile() {
+        const filePath = Array.from(this.selectedItems)[0];
+        const confirmed = await this.showConfirmDialog('移動', filePath);
+        if (!confirmed) return;
+
+        try {
+            const filename = this.getFilenameFromPath(filePath);
+            const destination = `${this.outputFolder}/${filename}`;
+            await window.electronAPI.moveFile(filePath, destination);
+            this.showNotification('移動完了', 'ファイルを移動しました', 'success');
+            this.selectedItems.clear();
+            this.updateSelectedCount();
+            this.refreshCurrentTab();
+        } catch (error) {
+            console.error('移動エラー:', error);
+            this.showNotification('移動エラー', error.message, 'error');
+        }
+    }
+
+    async copySingleFile() {
+        const filePath = Array.from(this.selectedItems)[0];
+        const confirmed = await this.showConfirmDialog('コピー', filePath);
+        if (!confirmed) return;
+
+        try {
+            const filename = this.getFilenameFromPath(filePath);
+            const destination = `${this.outputFolder}/${filename}`;
+            await window.electronAPI.copyFile(filePath, destination);
+            this.showNotification('コピー完了', 'ファイルをコピーしました', 'success');
+            this.selectedItems.clear();
+            this.updateSelectedCount();
+        } catch (error) {
+            console.error('コピーエラー:', error);
+            this.showNotification('コピーエラー', error.message, 'error');
+        }
     }
 }
 

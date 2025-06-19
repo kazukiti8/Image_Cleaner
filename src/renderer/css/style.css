@@ -256,4 +256,198 @@ input[type="range"]::-moz-range-thumb {
     background: #f8d7da;
     border-color: #f5c6cb;
     color: #721c24;
+}
+
+/* バッチ処理用のスタイル */
+.batch-progress {
+    position: relative;
+    overflow: hidden;
+}
+
+.batch-progress-bar {
+    transition: width 0.3s ease;
+}
+
+.batch-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.batch-status.processing {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+.batch-status.paused {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.batch-status.completed {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.batch-status.error {
+    background-color: #fee2e2;
+    color: #dc2626;
+}
+
+/* バッチ処理履歴 */
+.batch-history-item {
+    border-left: 4px solid #e5e7eb;
+    padding: 12px;
+    margin-bottom: 8px;
+    background: #f9fafb;
+    border-radius: 0 6px 6px 0;
+}
+
+.batch-history-item.success {
+    border-left-color: #10b981;
+    background: #f0fdf4;
+}
+
+.batch-history-item.error {
+    border-left-color: #ef4444;
+    background: #fef2f2;
+}
+
+.batch-history-item.warning {
+    border-left-color: #f59e0b;
+    background: #fffbeb;
+}
+
+.batch-history-timestamp {
+    font-size: 11px;
+    color: #6b7280;
+    margin-bottom: 4px;
+}
+
+.batch-history-operation {
+    font-weight: 500;
+    margin-bottom: 2px;
+}
+
+.batch-history-details {
+    font-size: 13px;
+    color: #374151;
+}
+
+.batch-history-error {
+    font-size: 12px;
+    color: #dc2626;
+    background: #fee2e2;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-top: 4px;
+}
+
+/* バッチ処理設定 */
+.batch-settings-section {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.batch-settings-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 12px;
+}
+
+.batch-settings-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.batch-settings-option:last-child {
+    border-bottom: none;
+}
+
+.batch-settings-label {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.batch-settings-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: #374151;
+}
+
+/* バッチ処理ボタン */
+.batch-action-button {
+    position: relative;
+    overflow: hidden;
+}
+
+.batch-action-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.batch-action-button .loading-spinner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* バッチ処理通知 */
+.batch-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 400px;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.batch-notification.show {
+    transform: translateX(0);
+}
+
+.batch-notification.success {
+    border-left: 4px solid #10b981;
+}
+
+.batch-notification.error {
+    border-left: 4px solid #ef4444;
+}
+
+.batch-notification.warning {
+    border-left: 4px solid #f59e0b;
+}
+
+.batch-notification-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.batch-notification-message {
+    font-size: 14px;
+    color: #6b7280;
 } 
