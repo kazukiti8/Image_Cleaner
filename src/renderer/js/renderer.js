@@ -332,20 +332,6 @@ class ImageCleanupApp {
         document.getElementById('selectAllBtn')?.addEventListener('click', () => this.selectAll());
         document.getElementById('deselectAllBtn')?.addEventListener('click', () => this.deselectAll());
         
-        // ファイル操作ボタン
-        document.getElementById('trashBtn')?.addEventListener('click', () => {
-            safeConsoleLog('Trash button clicked');
-            this.moveToTrash();
-        });
-        document.getElementById('deleteBtn')?.addEventListener('click', () => {
-            safeConsoleLog('Delete button clicked');
-            this.deletePermanently();
-        });
-        document.getElementById('moveBtn')?.addEventListener('click', () => {
-            safeConsoleLog('Move button clicked');
-            this.moveFiles();
-        });
-        
         // エクスポート・レポート関連のイベントリスナー
         document.getElementById('showExportReport')?.addEventListener('click', () => {
             this.exportReportManager.showExportReportPanel();
@@ -967,7 +953,7 @@ class ImageCleanupApp {
                 </th>
                 <th class="border border-slate-300 px-4 py-2 text-left">サイズ</th>
                 <th class="border border-slate-300 px-4 py-2 text-left">更新日時</th>
-                <th class="border border-slate-300 px-4 py-2 text-left">ブレスコア</th>
+                <th class="border border-slate-300 px-4 py-2 text-left">スコア</th>
                 <th class="border border-slate-300 px-4 py-2 text-left">パス</th>
             </tr>
         `;
