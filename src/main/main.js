@@ -440,6 +440,52 @@ ipcMain.handle('cancel-scan', async () => {
   return { success: true };
 });
 
+// 画像分析（選択エラーのみ再スキャン）
+ipcMain.handle('retry-scan-errors', async (event, filePaths) => {
+  try {
+    console.log('選択エラーのみ再スキャン:', filePaths);
+    // imageAnalyzerに個別ファイルの再分析メソッドがあれば利用、なければscanFolderの一部ロジックを流用
+    const results = {
+      blurImages: [],
+      similarImages: [],
+      errors: []
+    };
+    for (let i = 0; i < filePaths.length; i++) {
+      const filePath = filePaths[i];
+      try {
+        // ブレ検出
+        const blurScore = await imageAnalyzer.detectBlur(filePath);
+        if (blurScore > imageAnalyzer.blurThreshold) {
+          const fileStats = await fs.stat(filePath);
+          results.blurImages.push({
+            id: `blur_retry_${i}`,
+            filename: path.basename(filePath),
+            filePath: filePath,
+            size: fileStats.size,
+            modifiedDate: fileStats.mtime.toISOString(),
+            blurScore: Math.round(blurScore)
+          });
+        }
+      } catch (error) {
+        results.errors.push({
+          id: `error_retry_${i}`,
+          filename: path.basename(filePath),
+          filePath: filePath,
+          error: error.message
+        });
+      }
+    }
+    // 類似画像検出は省略（必要なら追加）
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('scan-complete', results);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('選択エラー再スキャンエラー:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // 設定関連のIPC通信
 ipcMain.handle('load-settings', async () => {
     try {

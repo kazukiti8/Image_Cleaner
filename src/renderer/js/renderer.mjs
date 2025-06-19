@@ -138,6 +138,11 @@ class ImageCleanupApp {
         
         // ガイダンス関連のイベントリスナー
         this.initializeGuideEvents();
+
+        // エラータブ用アクションボタン
+        document.getElementById('ignoreErrorBtn')?.addEventListener('click', () => this.ignoreSelectedErrors());
+        document.getElementById('retryErrorBtn')?.addEventListener('click', () => this.retrySelectedErrors());
+        document.getElementById('exportErrorLogBtn')?.addEventListener('click', () => this.exportErrorLog());
     }
 
     // スキャン関連のメソッド
@@ -299,6 +304,17 @@ class ImageCleanupApp {
         this.currentTab = tabName;
         this.updateFilterContent();
         this.updateSelectedCount();
+        
+        // アクションボタンの表示切り替え
+        const normalActions = document.getElementById('normalActions');
+        const errorActions = document.getElementById('errorActions');
+        if (tabName === 'error') {
+            if (normalActions) normalActions.style.display = 'none';
+            if (errorActions) errorActions.style.display = '';
+        } else {
+            if (normalActions) normalActions.style.display = '';
+            if (errorActions) errorActions.style.display = 'none';
+        }
     }
 
     updateUI() {
@@ -1968,6 +1984,71 @@ class ImageCleanupApp {
                 this.hideGuide();
             }
         });
+    }
+
+    ignoreSelectedErrors() {
+        console.log('選択されたエラーを無視します');
+        if (this.currentTab !== 'error') return;
+        const selected = Array.from(this.selectedItems);
+        if (selected.length === 0) {
+            this.showError('無視するエラーを選択してください');
+            return;
+        }
+        // originalDataとfilteredDataから除外
+        this.originalData.error = this.originalData.error.filter(item => !selected.includes(item.filePath));
+        this.filteredData.error = this.filteredData.error.filter(item => !selected.includes(item.filePath));
+        // 選択状態もクリア
+        selected.forEach(fp => this.selectedItems.delete(fp));
+        this.displayFilteredResults();
+        this.showSuccess('選択したエラーをリストから非表示にしました');
+    }
+
+    async retrySelectedErrors() {
+        console.log('選択されたエラーを再試行します');
+        if (this.currentTab !== 'error') return;
+        const selected = Array.from(this.selectedItems);
+        if (selected.length === 0) {
+            this.showError('再スキャンするエラーを選択してください');
+            return;
+        }
+        try {
+            this.showSuccess('再スキャンを開始します...');
+            const result = await window.electronAPI.retryScanErrors(selected);
+            if (result && result.success) {
+                this.showSuccess('再スキャンが完了しました');
+                // スキャン完了後のデータ更新はonScanCompleteで自動反映
+            } else {
+                this.showError('再スキャンに失敗しました');
+            }
+        } catch (error) {
+            this.showError('再スキャン中にエラーが発生しました: ' + error.message);
+        }
+    }
+
+    exportErrorLog() {
+        console.log('エラーログをエクスポートします');
+        const errors = this.filteredData.error;
+        if (!errors || errors.length === 0) {
+            this.showError('エクスポートするエラーがありません');
+            return;
+        }
+        // CSV生成
+        const header = 'ファイル名,パス,エラー内容\n';
+        const rows = errors.map(e => `"${e.filename}","${e.filePath}","${e.error || ''}"`).join('\n');
+        const csv = header + rows;
+        // ダウンロードリンク生成
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'error_log.csv';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+        this.showSuccess('エラーログをエクスポートしました');
     }
 }
 

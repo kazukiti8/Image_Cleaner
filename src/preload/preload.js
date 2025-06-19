@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // 画像分析
   scanImages: (folderPath, includeSubfolders) => ipcRenderer.invoke('scan-images', folderPath, includeSubfolders),
   cancelScan: () => ipcRenderer.invoke('cancel-scan'),
+  retryScanErrors: (filePaths) => ipcRenderer.invoke('retry-scan-errors', filePaths),
   
   // 設定
   getSettings: () => ipcRenderer.invoke('get-settings'),

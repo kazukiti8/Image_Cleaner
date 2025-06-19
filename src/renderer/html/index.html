@@ -267,24 +267,48 @@
                 選択: <span id="selectedCount" class="font-semibold text-slate-800">0件</span> (合計: <span id="selectedSize" class="font-semibold text-slate-800">0 MB</span>)
             </div>
             <div class="footer-actions-responsive">
-                <button id="trashBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-sm transition-colors" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
-                        <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/>
-                    </svg>
-                    ゴミ箱へ
-                </button>
-                <button id="deleteBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md shadow-sm transition-colors" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
-                        <path d="M14.12 10.47L12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12-1.41-1.41zM15.5 4l-1-1h-5l-1 1H5v2h14V4h-3.5l-1-1zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/>
-                    </svg>
-                    完全に削除
-                </button>
-                <button id="moveBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-sky-500 hover:bg-sky-600 text-white rounded-md shadow-sm transition-colors" disabled>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
-                        <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm0 12H4V6h5.17l2 2H20v10zm-8-4h2V8h-2v2H8v2h4v2zm2 3l4-4-4-4v3H8v2h4v3z"/>
-                    </svg>
-                    移動...
-                </button>
+                <!-- 通常タブ用アクションボタン -->
+                <div id="normalActions">
+                    <button id="trashBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-md shadow-sm transition-colors" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1zM18 7H6v12c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7z"/>
+                        </svg>
+                        ゴミ箱へ
+                    </button>
+                    <button id="deleteBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md shadow-sm transition-colors" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M14.12 10.47L12 12.59l-2.13-2.12-1.41 1.41L10.59 14l-2.12 2.12 1.41 1.41L12 15.41l2.12 2.12 1.41-1.41L13.41 14l2.12-2.12-1.41-1.41zM15.5 4l-1-1h-5l-1 1H5v2h14V4h-3.5l-1-1zM6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12z"/>
+                        </svg>
+                        完全に削除
+                    </button>
+                    <button id="moveBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-sky-500 hover:bg-sky-600 text-white rounded-md shadow-sm transition-colors" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M20 6h-8l-2-2H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2zm0 12H4V6h5.17l2 2H20v10zm-8-4h2V8h-2v2H8v2h4v2zm2 3l4-4-4-4v3H8v2h4v3z"/>
+                        </svg>
+                        移動...
+                    </button>
+                </div>
+                <!-- エラータブ用アクションボタン -->
+                <div id="errorActions" style="display:none;">
+                    <button id="ignoreErrorBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-slate-400 hover:bg-slate-500 text-white rounded-md shadow-sm transition-colors" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                        選択を無視
+                    </button>
+                    <button id="retryErrorBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow-sm transition-colors" disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.3-.42 2.5-1.13 3.47l1.46 1.46C19.41 15.09 20 13.61 20 12c0-4.42-3.58-8-8-8zm-6.87.13L4.59 5.59C3.59 6.5 3 7.96 3 9.5c0 4.42 3.58 8 8 8v3l4-4-4-4v3c-3.31 0-6-2.69-6-6 0-1.3.42-2.5 1.13-3.47z"/>
+                        </svg>
+                        再スキャン試行
+                    </button>
+                    <button id="exportErrorLogBtn" class="flex items-center justify-center px-4 py-1.5 text-sm bg-yellow-500 hover:bg-yellow-600 text-white rounded-md shadow-sm transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 mr-1 -ml-1">
+                            <path d="M5 20h14v-2H5v2zm7-18C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-2.83.48-5.77-.3-7.93-2.47C3.3 17.77 2.52 14.83 3 12c.48-2.83 2.47-5.32 5.07-6.36C10.23 3.3 13.17 2.52 16 3c2.83.48 5.32 2.47 6.36 5.07C20.7 13.17 17.77 20.7 13.93 21.93z"/>
+                        </svg>
+                        エラーログをエクスポート
+                    </button>
+                </div>
             </div>
         </div>
     </div>
