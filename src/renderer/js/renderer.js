@@ -191,7 +191,7 @@ class BatchProcessor {
     // 移動先パスの取得
     async getDestinationPath(item) {
         // 設定から出力フォルダを取得
-        const settings = window.imageCleanupApp?.getSettings();
+        const settings = window.imageCleanupApp && window.imageCleanupApp.getSettings ? window.imageCleanupApp.getSettings() : null;
         let outputFolder = '';
         if (settings && settings.defaultOutputFolder) {
             outputFolder = settings.defaultOutputFolder;
@@ -306,6 +306,9 @@ class ImageCleanupApp {
         this.startPerformanceMonitoring();
         this.startMemoryCleanup();
         
+        // 初期レイアウトの設定（デフォルトはブレタブ）
+        this.switchLayout('blur');
+        
         safeConsoleLog('ImageCleanupApp initialization completed');
     }
 
@@ -316,10 +319,16 @@ class ImageCleanupApp {
     // 基本的なイベントリスナーの初期化
     initializeEventListeners() {
         // フォルダ選択ボタン
-        document.getElementById('targetFolder')?.addEventListener('click', () => this.selectTargetFolder());
+        const targetFolderBtn = document.getElementById('targetFolder');
+        if (targetFolderBtn) {
+            targetFolderBtn.addEventListener('click', () => this.selectTargetFolder());
+        }
         
         // スキャンボタン
-        document.getElementById('scanButton')?.addEventListener('click', () => this.startScan());
+        const scanButton = document.getElementById('scanButton');
+        if (scanButton) {
+            scanButton.addEventListener('click', () => this.startScan());
+        }
         
         // タブ切り替え
         document.querySelectorAll('.tab-button').forEach(button => {
@@ -330,22 +339,43 @@ class ImageCleanupApp {
         });
         
         // 選択操作ボタン
-        document.getElementById('selectAllBtn')?.addEventListener('click', () => this.selectAll());
-        document.getElementById('deselectAllBtn')?.addEventListener('click', () => this.deselectAll());
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', () => this.selectAll());
+        }
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        if (deselectAllBtn) {
+            deselectAllBtn.addEventListener('click', () => this.deselectAll());
+        }
         
         // ファイル操作ボタン
-        document.getElementById('copyBtn')?.addEventListener('click', () => this.copyFiles());
-        document.getElementById('deleteBtn')?.addEventListener('click', () => this.deletePermanently());
-        document.getElementById('moveBtn')?.addEventListener('click', () => this.moveFiles());
+        const copyBtn = document.getElementById('copyBtn');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', () => this.copyFiles());
+        }
+        const deleteBtn = document.getElementById('deleteBtn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', () => this.deletePermanently());
+        }
+        const moveBtn = document.getElementById('moveBtn');
+        if (moveBtn) {
+            moveBtn.addEventListener('click', () => this.moveFiles());
+        }
         
         // エクスポート・レポート関連のイベントリスナー
-        document.getElementById('showExportReport')?.addEventListener('click', () => {
-            this.exportReportManager.showExportReportPanel();
-        });
+        const showExportReportBtn = document.getElementById('showExportReport');
+        if (showExportReportBtn) {
+            showExportReportBtn.addEventListener('click', () => {
+                this.exportReportManager.showExportReportPanel();
+            });
+        }
         
-        document.getElementById('showProcessingLog')?.addEventListener('click', () => {
-            this.exportReportManager.showProcessingLog();
-        });
+        const showProcessingLogBtn = document.getElementById('showProcessingLog');
+        if (showProcessingLogBtn) {
+            showProcessingLogBtn.addEventListener('click', () => {
+                this.exportReportManager.showProcessingLog();
+            });
+        }
         
         // スキャン関連のイベントリスナー
         if (window.electronAPI) {
@@ -494,20 +524,41 @@ class ImageCleanupApp {
             progressMessage.style.display = 'none';
         }
         
-        // 結果を保存
-        this.scanResults = results;
+        // スキャン結果を保存
+        this.scanResults = {
+            blurImages: results.blurImages || [],
+            similarImages: results.similarImages || [],
+            errors: results.errors || []
+        };
         
-        // 結果を表示
-        safeConsoleLog('Displaying blur results:', results.blurImages?.length || 0);
-        this.displayBlurResults(results.blurImages || []);
+        // 結果の件数をログ出力
+        safeConsoleLog('Scan results received:', {
+            blurImages: results.blurImages ? results.blurImages.length : 0,
+            similarImages: results.similarImages ? results.similarImages.length : 0,
+            errors: results.errors ? results.errors.length : 0
+        });
         
-        safeConsoleLog('Displaying similar results:', results.similarImages?.length || 0);
-        this.displaySimilarResults(results.similarImages || []);
+        // 各タブの結果を表示
+        if (results.blurImages && results.blurImages.length > 0) {
+            safeConsoleLog('Displaying blur results:', results.blurImages.length);
+            this.displayBlurResults(results.blurImages);
+        }
         
-        safeConsoleLog('Displaying error results:', results.errors?.length || 0);
-        this.displayErrorResults(results.errors || []);
+        if (results.similarImages && results.similarImages.length > 0) {
+            safeConsoleLog('Displaying similar results:', results.similarImages.length);
+            this.displaySimilarResults(results.similarImages);
+        }
         
-        this.showSuccess(`スキャン完了: ブレ画像${results.blurImages?.length || 0}件, 類似画像${results.similarImages?.length || 0}件, エラー${results.errors?.length || 0}件`);
+        if (results.errors && results.errors.length > 0) {
+            safeConsoleLog('Displaying error results:', results.errors.length);
+            this.displayErrorResults(results.errors);
+        }
+        
+        // 成功メッセージを表示
+        const blurCount = results.blurImages ? results.blurImages.length : 0;
+        const similarCount = results.similarImages ? results.similarImages.length : 0;
+        const errorCount = results.errors ? results.errors.length : 0;
+        this.showSuccess(`スキャン完了: ブレ画像${blurCount}件, 類似画像${similarCount}件, エラー${errorCount}件`);
     }
 
     handleScanError(error) {
@@ -526,34 +577,247 @@ class ImageCleanupApp {
     }
 
     switchTab(tabName) {
+        safeConsoleLog(`Switching to tab: ${tabName}`);
+        
+        // 現在のタブを更新
+        this.currentTab = tabName;
+        
         // タブボタンの状態を更新
         document.querySelectorAll('.tab-button').forEach(button => {
             button.classList.remove('tab-active');
         });
-        
         const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
         if (activeButton) {
             activeButton.classList.add('tab-active');
         }
         
-        // タブコンテンツの表示を切り替え
+        // タブコンテンツの表示/非表示を切り替え
         document.querySelectorAll('.tab-content').forEach(content => {
             content.style.display = 'none';
         });
-        
         const activeContent = document.getElementById(`content${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
         if (activeContent) {
             activeContent.style.display = 'block';
         }
         
-        this.currentTab = tabName;
+        // レイアウトの切り替え
+        this.switchLayout(tabName);
         
         // 選択状態をクリア
         this.selectedFiles.clear();
         this.selectedSimilarPairs.clear();
+        this.selectedIndividualFiles.clear();
         this.selectedErrors.clear();
         this.updateSelectedCount();
         this.updateActionButtons();
+        
+        // プレビューエリアをクリア
+        this.clearPreviewArea();
+        
+        safeConsoleLog(`Tab switched to: ${tabName}`);
+    }
+
+    // レイアウト切り替え機能
+    switchLayout(tabName) {
+        const previewPane = document.getElementById('previewPane');
+        const resultsPane = document.getElementById('resultsPane');
+        const similarImage1Pane = document.getElementById('similarImage1Pane');
+        const similarImage2Pane = document.getElementById('similarImage2Pane');
+        const similarTablePane = document.getElementById('similarTablePane');
+        
+        safeConsoleLog(`Switching layout for tab: ${tabName}`);
+        
+        if (tabName === 'similar') {
+            // 類似画像タブ: 3ペインレイアウト
+            safeConsoleLog('Switching to 3-pane layout for similar images');
+            
+            // 通常のペインを非表示
+            if (previewPane) {
+                previewPane.style.display = 'none';
+                safeConsoleLog('Hidden preview pane');
+            }
+            if (resultsPane) {
+                resultsPane.style.display = 'none';
+                safeConsoleLog('Hidden results pane');
+            }
+            
+            // 類似画像専用ペインを表示
+            if (similarImage1Pane) {
+                similarImage1Pane.style.display = 'flex';
+                safeConsoleLog('Showed similar image 1 pane');
+            }
+            if (similarImage2Pane) {
+                similarImage2Pane.style.display = 'flex';
+                safeConsoleLog('Showed similar image 2 pane');
+            }
+            if (similarTablePane) {
+                similarTablePane.style.display = 'flex';
+                safeConsoleLog('Showed similar table pane');
+            }
+            
+            // 類似画像テーブルを専用ペインに移動
+            this.moveSimilarTableToDedicatedPane();
+        } else {
+            // ブレ・エラータブ: 2ペインレイアウト
+            safeConsoleLog('Switching to 2-pane layout for blur/error tabs');
+            
+            // 類似画像専用ペインを非表示
+            if (similarImage1Pane) {
+                similarImage1Pane.style.display = 'none';
+                safeConsoleLog('Hidden similar image 1 pane');
+            }
+            if (similarImage2Pane) {
+                similarImage2Pane.style.display = 'none';
+                safeConsoleLog('Hidden similar image 2 pane');
+            }
+            if (similarTablePane) {
+                similarTablePane.style.display = 'none';
+                safeConsoleLog('Hidden similar table pane');
+            }
+            
+            // 通常のペインを表示
+            if (previewPane) {
+                previewPane.style.display = 'flex';
+                safeConsoleLog('Showed preview pane');
+            }
+            if (resultsPane) {
+                resultsPane.style.display = 'flex';
+                safeConsoleLog('Showed results pane');
+            }
+            
+            // 類似画像テーブルを元の位置に戻す
+            this.moveSimilarTableToOriginalPane();
+        }
+        
+        safeConsoleLog('Layout switch completed');
+    }
+
+    // 類似画像テーブルを専用ペインに移動
+    moveSimilarTableToDedicatedPane() {
+        const originalContent = document.getElementById('contentSimilar');
+        const dedicatedContent = document.getElementById('contentSimilarTable');
+        
+        safeConsoleLog('Moving similar table to dedicated pane');
+        safeConsoleLog('Original content element:', originalContent);
+        safeConsoleLog('Dedicated content element:', dedicatedContent);
+        
+        if (originalContent && dedicatedContent) {
+            // 既存のコンテンツを専用ペインに移動
+            const existingContent = originalContent.innerHTML;
+            safeConsoleLog('Existing content length:', existingContent.length);
+            
+            dedicatedContent.innerHTML = existingContent;
+            safeConsoleLog('Moved content to dedicated pane');
+            
+            // 元のコンテンツをクリア
+            originalContent.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像タブ専用レイアウト</div>';
+            safeConsoleLog('Cleared original content');
+        } else {
+            safeConsoleLog('Error: Could not find content elements for table movement');
+        }
+    }
+
+    // 類似画像テーブルを元の位置に戻す
+    moveSimilarTableToOriginalPane() {
+        const originalContent = document.getElementById('contentSimilar');
+        const dedicatedContent = document.getElementById('contentSimilarTable');
+        
+        safeConsoleLog('Moving similar table back to original pane');
+        safeConsoleLog('Original content element:', originalContent);
+        safeConsoleLog('Dedicated content element:', dedicatedContent);
+        
+        if (originalContent && dedicatedContent) {
+            // 専用ペインのコンテンツを元の位置に戻す
+            const existingContent = dedicatedContent.innerHTML;
+            safeConsoleLog('Existing content length:', existingContent.length);
+            
+            originalContent.innerHTML = existingContent;
+            safeConsoleLog('Moved content back to original pane');
+            
+            // 専用ペインをクリア
+            dedicatedContent.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
+            safeConsoleLog('Cleared dedicated content');
+        } else {
+            safeConsoleLog('Error: Could not find content elements for table movement');
+        }
+    }
+
+    // プレビューエリアをクリア
+    clearPreviewArea() {
+        // 通常のプレビューエリアをクリア
+        const previewContainer = document.getElementById('previewAreaContainer');
+        if (previewContainer) {
+            previewContainer.innerHTML = `
+                <div class="text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                    <p>画像を選択して<br>プレビューを表示</p>
+                </div>
+            `;
+        }
+        
+        // 類似画像プレビューエリアをクリア
+        const similarImage1Container = document.getElementById('similarImage1Container');
+        const similarImage2Container = document.getElementById('similarImage2Container');
+        
+        if (similarImage1Container) {
+            similarImage1Container.innerHTML = `
+                <div class="text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                    <p>類似画像ペアを<br>選択してください</p>
+                </div>
+            `;
+        }
+        
+        if (similarImage2Container) {
+            similarImage2Container.innerHTML = `
+                <div class="text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                    <p>類似画像ペアを<br>選択してください</p>
+                </div>
+            `;
+        }
+        
+        // 情報表示エリアをクリア
+        this.clearImageInfoAreas();
+    }
+
+    // 画像情報表示エリアをクリア
+    clearImageInfoAreas() {
+        // 通常の情報エリア
+        const infoAreas = [
+            'infoFileName', 'infoFilePath', 'infoResolution', 
+            'infoFileSize', 'infoTakenDate', 'infoBlurScore'
+        ];
+        infoAreas.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = '';
+        });
+        
+        // 類似画像1の情報エリア
+        const similarImage1Areas = [
+            'similarImage1FileName', 'similarImage1FilePath', 'similarImage1Resolution',
+            'similarImage1FileSize', 'similarImage1ModifiedDate'
+        ];
+        similarImage1Areas.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = '';
+        });
+        
+        // 類似画像2の情報エリア
+        const similarImage2Areas = [
+            'similarImage2FileName', 'similarImage2FilePath', 'similarImage2Resolution',
+            'similarImage2FileSize', 'similarImage2ModifiedDate'
+        ];
+        similarImage2Areas.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = '';
+        });
     }
 
     updateUI() {
@@ -708,24 +972,47 @@ class ImageCleanupApp {
     }
 
     displaySimilarResults(similarImages) {
-        const container = document.getElementById('contentSimilar');
-        if (!container) return;
+        safeConsoleLog('displaySimilarResults called with:', similarImages.length, 'similar images');
+        safeConsoleLog('Current tab:', this.currentTab);
+        
+        // 現在のタブに応じて適切なコンテナを選択
+        let container;
+        if (this.currentTab === 'similar') {
+            // 類似画像タブの場合、専用のテーブルペインを使用
+            container = document.getElementById('contentSimilarTable');
+            safeConsoleLog('Using dedicated table pane for similar tab');
+        } else {
+            // 他のタブの場合、通常のコンテンツエリアを使用
+            container = document.getElementById('contentSimilar');
+            safeConsoleLog('Using original content area for other tabs');
+        }
+        
+        safeConsoleLog('Selected container:', container);
+        
+        if (!container) {
+            safeConsoleError('Container not found for similar results display');
+            return;
+        }
         
         // タブのカウント表示を更新
         const countElement = document.getElementById('countSimilar');
         if (countElement) {
             countElement.textContent = similarImages.length;
+            safeConsoleLog('Updated similar count:', similarImages.length);
         }
         
         if (similarImages.length === 0) {
             container.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像は見つかりませんでした</div>';
+            safeConsoleLog('No similar images found, showing empty message');
             return;
         }
         
+        safeConsoleLog('Creating similar table for', similarImages.length, 'images');
         const { filterContainer, table } = this.createSimilarTable(similarImages);
         container.innerHTML = '';
         container.appendChild(filterContainer);
         container.appendChild(table);
+        safeConsoleLog('Similar table created and added to container');
     }
 
     displayErrorResults(errors) {
@@ -766,6 +1053,12 @@ class ImageCleanupApp {
                 container.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
             }
         });
+        
+        // 類似画像タブ専用のコンテナもクリア
+        const similarTableContainer = document.getElementById('contentSimilarTable');
+        if (similarTableContainer) {
+            similarTableContainer.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
+        }
         
         // タブのカウント表示をリセット
         const countElements = ['countBlur', 'countSimilar', 'countError'];
@@ -1342,12 +1635,17 @@ class ImageCleanupApp {
                 });
             });
             
-            // 行クリックでペア全体を選択
+            // 行クリックでペア全体を選択し、3ペインレイアウトで両方の画像を表示
             row.addEventListener('click', (e) => {
                 if (e.target.tagName.toLowerCase() === 'input') return;
+                
+                // ペア全体を選択
                 const pairCheckbox = row.querySelector('.similar-checkbox');
                 pairCheckbox.checked = !pairCheckbox.checked;
                 this.handleCheckboxChange(pairCheckbox, 'similar');
+                
+                // 3ペインレイアウトで両方の画像を表示
+                this.showSimilarImagesIn3PaneLayout(file1, file2, group.similarity);
             });
             
             tbody.appendChild(row);
@@ -1783,6 +2081,86 @@ class ImageCleanupApp {
                 safeConsoleLog(`Button ${button.id} disabled`);
             }
         });
+    }
+
+    // 3ペインレイアウトで類似画像を表示
+    showSimilarImagesIn3PaneLayout(file1, file2, similarity) {
+        // 画像1を左ペインに表示
+        this.showImageInPane(file1, 'similarImage1');
+        
+        // 画像2を中央ペインに表示
+        this.showImageInPane(file2, 'similarImage2');
+        
+        // 類似度情報を表示
+        this.showSimilarityInfo(similarity);
+    }
+
+    // 指定されたペインに画像を表示
+    showImageInPane(image, panePrefix) {
+        const container = document.getElementById(`${panePrefix}Container`);
+        const fileNameElement = document.getElementById(`${panePrefix}FileName`);
+        const filePathElement = document.getElementById(`${panePrefix}FilePath`);
+        const resolutionElement = document.getElementById(`${panePrefix}Resolution`);
+        const fileSizeElement = document.getElementById(`${panePrefix}FileSize`);
+        const modifiedDateElement = document.getElementById(`${panePrefix}ModifiedDate`);
+        
+        if (!container) return;
+        
+        // 画像を表示
+        container.innerHTML = `
+            <img src="file://${image.filePath}" 
+                 alt="${image.filename}" 
+                 class="w-full h-full object-contain rounded cursor-pointer hover:opacity-90 transition-opacity"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="w-full h-full flex items-center justify-center text-slate-500" style="display:none;">
+                <div class="text-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
+                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                    </svg>
+                    <p class="text-sm">画像の読み込みに<br>失敗しました</p>
+                </div>
+            </div>
+        `;
+        
+        // 情報を表示
+        if (fileNameElement) fileNameElement.textContent = image.filename;
+        if (filePathElement) {
+            filePathElement.textContent = this.getDisplayPath(image.filePath);
+            filePathElement.title = image.filePath;
+        }
+        if (resolutionElement) resolutionElement.textContent = image.resolution || '不明';
+        if (fileSizeElement) fileSizeElement.textContent = this.formatFileSize(image.size);
+        if (modifiedDateElement) modifiedDateElement.textContent = this.formatDate(image.modifiedDate);
+    }
+
+    // 類似度情報を表示
+    showSimilarityInfo(similarity) {
+        // 類似度をヘッダーに表示（オプション）
+        const similarityHeader = document.createElement('div');
+        similarityHeader.className = 'text-center text-sm font-medium text-slate-700 mb-2';
+        similarityHeader.innerHTML = `
+            類似度: <span class="px-2 py-1 rounded text-xs font-semibold ${
+                similarity >= 90 ? 'bg-red-100 text-red-800' : 
+                similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 
+                'bg-blue-100 text-blue-800'
+            }">${similarity}%</span>
+        `;
+        
+        // 既存の類似度ヘッダーがあれば更新、なければ追加
+        const existingHeader = document.querySelector('.similarity-header');
+        if (existingHeader) {
+            existingHeader.replaceWith(similarityHeader);
+        } else {
+            similarityHeader.classList.add('similarity-header');
+            // 適切な位置に挿入（例：テーブルペインのヘッダー）
+            const tablePane = document.getElementById('similarTablePane');
+            if (tablePane) {
+                const header = tablePane.querySelector('.flex.border-b');
+                if (header) {
+                    header.appendChild(similarityHeader);
+                }
+            }
+        }
     }
 }
 
