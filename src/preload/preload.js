@@ -6,7 +6,7 @@ console.log('Preload script loading...');
 contextBridge.exposeInMainWorld('electronAPI', {
   // フォルダ選択
   selectFolder: () => ipcRenderer.invoke('select-folder'),
-  selectOutputFolder: () => ipcRenderer.invoke('select-output-folder'),
+  selectOutputFolder: (defaultPath) => ipcRenderer.invoke('select-output-folder', defaultPath),
   
   // ファイル操作
   deleteFiles: (filePaths, toRecycleBin) => ipcRenderer.invoke('delete-files', filePaths, toRecycleBin),

@@ -191,9 +191,14 @@ class BatchProcessor {
     // 移動先パスの取得
     async getDestinationPath(item) {
         // 設定から出力フォルダを取得
-        const outputFolder = await window.electronAPI.getOutputFolder();
+        const settings = window.imageCleanupApp?.getSettings();
+        let outputFolder = '';
+        if (settings && settings.defaultOutputFolder) {
+            outputFolder = settings.defaultOutputFolder;
+        }
+        
         if (!outputFolder) {
-            throw new Error('出力フォルダが設定されていません');
+            throw new Error('移動先フォルダが設定されていません。設定画面で移動先フォルダを設定してください。');
         }
         
         const filename = item.filename || item.filePath.split(/[\\/]/).pop();
@@ -243,30 +248,33 @@ class BatchProcessor {
 class ImageCleanupApp {
     constructor() {
         this.targetFolder = null;
-        this.outputFolder = null;
         this.scanInProgress = false;
         this.scanResults = {
             blurImages: [],
             similarImages: [],
             errors: []
         };
+        this.currentTab = 'blur';
         this.selectedFiles = new Set();
         this.selectedSimilarPairs = new Set();
         this.selectedErrors = new Set();
-        this.currentTab = 'blur';
-        this.filterSettings = {
-            blurMinScore: 0,
-            blurMaxScore: 100,
-            similarMinScore: 0,
-            similarMaxScore: 100,
-            showOnlySelected: false
-        };
         this.batchProcessor = new BatchProcessor();
         
         // エクスポート・レポートマネージャー
         this.exportReportManager = new ExportReportManager();
         
-        this.init();
+        // イベントリスナーの初期化
+        this.initializeEventListeners();
+        
+        // その他の初期化
+        this.initializeFilterEvents();
+        this.initializeKeyboardShortcuts();
+        this.initializeBatchEventListeners();
+        this.initializeAdvancedFiltering();
+        this.updateFilterUI();
+        this.showGuidanceIfNeeded();
+        this.startPerformanceMonitoring();
+        this.startMemoryCleanup();
     }
 
     init() {
@@ -308,7 +316,6 @@ class ImageCleanupApp {
     initializeEventListeners() {
         // フォルダ選択ボタン
         document.getElementById('targetFolder')?.addEventListener('click', () => this.selectTargetFolder());
-        document.getElementById('outputFolder')?.addEventListener('click', () => this.selectOutputFolder());
         
         // スキャンボタン
         document.getElementById('scanButton')?.addEventListener('click', () => this.startScan());
@@ -385,16 +392,27 @@ class ImageCleanupApp {
 
     async selectOutputFolder() {
         try {
-            const folderPath = await window.electronAPI.selectOutputFolder();
-            if (folderPath) {
-                this.outputFolder = folderPath;
-                document.getElementById('outputFolderPathDisplay').textContent = this.getDisplayPath(folderPath);
-                document.getElementById('outputFolderPathDisplay').title = this.outputFolder;
-                this.updateUI();
+            // 設定からデフォルトの移動先フォルダを取得
+            const settings = this.getSettings();
+            let outputFolder = '';
+            if (settings && settings.defaultOutputFolder) {
+                outputFolder = settings.defaultOutputFolder;
             }
+            
+            // 設定に移動先フォルダが設定されていない場合はダイアログを表示
+            if (!outputFolder) {
+                const folderPath = await window.electronAPI.selectOutputFolder();
+                if (folderPath) {
+                    return folderPath;
+                }
+                return null;
+            }
+            
+            return outputFolder;
         } catch (error) {
             safeConsoleError('Output folder selection error:', error);
             this.showError('移動先フォルダの選択に失敗しました');
+            return null;
         }
     }
 
@@ -551,11 +569,6 @@ class ImageCleanupApp {
         if (this.targetFolder) {
             document.getElementById('targetFolderPathDisplay').textContent = this.getDisplayPath(this.targetFolder);
             document.getElementById('targetFolderPathDisplay').title = this.targetFolder;
-        }
-        
-        if (this.outputFolder) {
-            document.getElementById('outputFolderPathDisplay').textContent = this.getDisplayPath(this.outputFolder);
-            document.getElementById('outputFolderPathDisplay').title = this.outputFolder;
         }
         
         this.updateScanButton();
@@ -846,11 +859,23 @@ class ImageCleanupApp {
 
     async selectMoveDestination() {
         try {
-            const folderPath = await window.electronAPI.selectOutputFolder();
-            if (folderPath) {
-                return folderPath;
+            // 設定から移動先フォルダを取得
+            const settings = this.getSettings();
+            let outputFolder = '';
+            if (settings && settings.defaultOutputFolder) {
+                outputFolder = settings.defaultOutputFolder;
             }
-            return null;
+            
+            // 設定に移動先フォルダが設定されていない場合はダイアログを表示
+            if (!outputFolder) {
+                const folderPath = await window.electronAPI.selectOutputFolder();
+                if (folderPath) {
+                    return folderPath;
+                }
+                return null;
+            }
+            
+            return outputFolder;
         } catch (error) {
             safeConsoleError('Move destination folder selection error:', error);
             this.showError('移動先フォルダの選択に失敗しました');

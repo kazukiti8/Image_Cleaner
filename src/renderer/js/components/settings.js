@@ -4,6 +4,7 @@ class SettingsManager {
         this.defaultSettings = {
             includeSubfolders: true,
             deleteOperation: 'recycleBin',
+            defaultOutputFolder: '',
             logLevel: 'normal',
             logFilePath: '',
             showFirstTimeGuide: true
@@ -62,6 +63,12 @@ class SettingsManager {
             } else {
                 deletePermanently.checked = true;
             }
+        }
+        
+        // 移動先フォルダの値を設定
+        const defaultOutputFolder = document.getElementById('defaultOutputFolder');
+        if (defaultOutputFolder) {
+            defaultOutputFolder.value = this.settings.defaultOutputFolder || '';
         }
         
         // セレクトボックスの値を設定
@@ -154,6 +161,22 @@ class SettingsManager {
             });
         }
 
+        // 移動先フォルダ変更ボタン
+        const changeOutputFolder = document.getElementById('changeOutputFolder');
+        if (changeOutputFolder) {
+            changeOutputFolder.addEventListener('click', async () => {
+                try {
+                    const folderPath = await window.electronAPI.selectFolder();
+                    if (folderPath) {
+                        this.settings.defaultOutputFolder = folderPath;
+                        document.getElementById('defaultOutputFolder').value = folderPath;
+                    }
+                } catch (error) {
+                    console.error('フォルダ選択に失敗しました:', error);
+                }
+            });
+        }
+
         // リセットボタン
         const resetSettings = document.getElementById('resetSettings');
         if (resetSettings) {
@@ -168,6 +191,10 @@ class SettingsManager {
             saveSettings.addEventListener('click', async () => {
                 const success = await this.saveSettings();
                 if (success) {
+                    // メインアプリケーションの移動フォルダ表示を更新
+                    if (window.imageCleanupApp) {
+                        window.imageCleanupApp.updateUI();
+                    }
                     this.hideModal();
                 }
             });

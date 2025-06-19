@@ -88,6 +88,7 @@ const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 const defaultSettings = {
     includeSubfolders: true,
     deleteOperation: 'recycleBin',
+    defaultOutputFolder: '',
     logLevel: 'normal',
     logFilePath: path.join(app.getPath('userData'), 'logs'),
     showFirstTimeGuide: true
@@ -187,13 +188,14 @@ ipcMain.handle('select-folder', async () => {
   return null;
 });
 
-ipcMain.handle('select-output-folder', async () => {
+ipcMain.handle('select-output-folder', async (event, defaultPath = '') => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
-    title: '移動先フォルダを選択'
+    title: '移動先フォルダを選択',
+    defaultPath: defaultPath || undefined
   });
   
-  if (!result.canceled) {
+  if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
   return null;
