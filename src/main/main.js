@@ -25,7 +25,8 @@ const defaultSettings = {
     includeSubfolders: true,
     deleteOperation: 'recycleBin',
     logLevel: 'normal',
-    logFilePath: path.join(app.getPath('userData'), 'logs')
+    logFilePath: path.join(app.getPath('userData'), 'logs'),
+    showFirstTimeGuide: true
 };
 
 // 設定を読み込み

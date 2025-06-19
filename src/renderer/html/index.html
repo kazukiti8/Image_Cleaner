@@ -386,6 +386,25 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- ガイダンス設定 -->
+                    <div>
+                        <h3 class="text-lg font-medium text-slate-800 mb-4">ガイダンス設定</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center">
+                                    <input type="checkbox" id="showFirstTimeGuide" checked 
+                                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                                    <span class="ml-2 text-sm text-slate-700">初回起動時にガイダンスを表示する</span>
+                                </label>
+                            </div>
+                            <div>
+                                <button id="showGuideAgain" class="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200">
+                                    ガイダンスを再表示
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- フッター -->
@@ -396,6 +415,144 @@
                     <button id="saveSettings" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
                         保存
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 初回起動時ガイダンスモーダル -->
+    <div id="firstTimeGuideModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <!-- ヘッダー -->
+                <div class="flex items-center justify-between p-6 border-b border-slate-200">
+                    <h2 class="text-xl font-semibold text-slate-800">ようこそ！イメージクリーンアップアシスタント</h2>
+                    <button id="closeGuide" class="text-slate-400 hover:text-slate-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- ガイダンスコンテンツ -->
+                <div class="p-6">
+                    <!-- ステップ1: 対象フォルダ選択 -->
+                    <div id="guideStep1" class="guide-step">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v2H8V5z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-medium text-slate-800 mb-2">ステップ1: 対象フォルダを選択</h3>
+                            <p class="text-slate-600">まず、スキャンしたい画像が含まれているフォルダを選択してください。</p>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-blue-800">
+                                <strong>ヒント:</strong> ヘッダーエリアの「対象フォルダ選択」ボタンをクリックして、画像が保存されているフォルダを指定してください。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ステップ2: スキャン開始 -->
+                    <div id="guideStep2" class="guide-step hidden">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-medium text-slate-800 mb-2">ステップ2: スキャンを開始</h3>
+                            <p class="text-slate-600">フォルダを選択したら、「スキャン開始」ボタンをクリックして画像の分析を開始します。</p>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-green-800">
+                                <strong>ヒント:</strong> スキャン中は進捗状況が表示され、ブレ画像や類似画像が自動的に検出されます。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ステップ3: 結果の確認 -->
+                    <div id="guideStep3" class="guide-step hidden">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-medium text-slate-800 mb-2">ステップ3: 結果を確認</h3>
+                            <p class="text-slate-600">スキャン完了後、タブを切り替えて結果を確認できます。</p>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-purple-800">
+                                <strong>ヒント:</strong> 「ブレ画像」「類似画像」「エラー」のタブを切り替えて、検出された画像を確認してください。右ペインのフィルター機能で絞り込みも可能です。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- ステップ4: 画像の整理 -->
+                    <div id="guideStep4" class="guide-step hidden">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-medium text-slate-800 mb-2">ステップ4: 画像を整理</h3>
+                            <p class="text-slate-600">不要な画像を選択して、削除や移動などの整理操作を行います。</p>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-orange-800">
+                                <strong>ヒント:</strong> 整理したい画像をチェックボックスで選択し、画面下部のアクションボタン（ゴミ箱へ、完全削除、移動）で整理を実行してください。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 完了メッセージ -->
+                    <div id="guideComplete" class="guide-step hidden">
+                        <div class="text-center mb-6">
+                            <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                            </div>
+                            <h3 class="text-lg font-medium text-slate-800 mb-2">準備完了！</h3>
+                            <p class="text-slate-600">これで基本的な使い方を理解できました。早速画像の整理を始めてみましょう！</p>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <p class="text-sm text-green-800">
+                                <strong>次のステップ:</strong> 対象フォルダを選択してスキャンを開始してください。何か分からないことがあれば、設定画面のヘルプ機能をご利用ください。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 次回から表示しないオプション -->
+                    <div class="flex items-center justify-center mb-6">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="dontShowGuideAgain" 
+                                   class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-slate-700">次回からこのガイダンスを表示しない</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- フッター -->
+                <div class="flex items-center justify-between p-6 border-t border-slate-200">
+                    <button id="skipGuide" class="px-4 py-2 text-slate-600 hover:text-slate-800">
+                        スキップ
+                    </button>
+                    <div class="flex space-x-3">
+                        <button id="prevGuideStep" class="px-4 py-2 text-slate-600 hover:text-slate-800 hidden">
+                            前へ
+                        </button>
+                        <button id="nextGuideStep" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                            次へ
+                        </button>
+                        <button id="startGuide" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 hidden">
+                            開始する
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

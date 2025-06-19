@@ -5,7 +5,8 @@ class SettingsManager {
             includeSubfolders: true,
             deleteOperation: 'recycleBin',
             logLevel: 'normal',
-            logFilePath: ''
+            logFilePath: '',
+            showFirstTimeGuide: true
         };
         this.init();
     }
@@ -171,6 +172,18 @@ class SettingsManager {
                 }
             });
         }
+
+        // 設定値の更新
+        this.updateUI();
+        
+        // ガイダンス再表示ボタン
+        document.getElementById('showGuideAgain')?.addEventListener('click', () => {
+            this.hideModal();
+            // グローバルなガイダンス表示メソッドを呼び出し
+            if (window.imageCleanupApp) {
+                window.imageCleanupApp.showGuide();
+            }
+        });
     }
 
     showModal() {

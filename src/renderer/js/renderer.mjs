@@ -46,6 +46,11 @@ class ImageCleanupApp {
         this.zoomLevel = 100;
         this.previewImageElement = null;
         
+        // ガイダンス機能用のプロパティ
+        this.currentGuideStep = 1;
+        this.totalGuideSteps = 4;
+        this.guideShown = false;
+        
         this.init();
     }
 
@@ -55,6 +60,9 @@ class ImageCleanupApp {
         
         this.bindEvents();
         this.updateUI();
+        
+        // 初回起動時ガイダンスの確認
+        await this.checkFirstTimeGuide();
     }
 
     getSettings() {
@@ -127,6 +135,9 @@ class ImageCleanupApp {
         
         // フィルター関連のイベントリスナー
         this.initializeFilterEvents();
+        
+        // ガイダンス関連のイベントリスナー
+        this.initializeGuideEvents();
     }
 
     // スキャン関連のメソッド
@@ -1793,7 +1804,178 @@ class ImageCleanupApp {
             }
         });
     }
+
+    // 初回起動時ガイダンス関連のメソッド
+    async checkFirstTimeGuide() {
+        try {
+            // 設定からガイダンス表示フラグを取得
+            const settings = this.getSettings();
+            if (settings && settings.showFirstTimeGuide === false) {
+                console.log('ガイダンスは既に表示済みです');
+                return;
+            }
+            
+            // 初回起動時はガイダンスを表示
+            setTimeout(() => {
+                this.showGuide();
+            }, 1000); // 1秒後に表示
+            
+        } catch (error) {
+            console.error('ガイダンス確認エラー:', error);
+        }
+    }
+
+    showGuide() {
+        console.log('ガイダンスを表示します');
+        this.guideShown = true;
+        this.currentGuideStep = 1;
+        
+        const modal = document.getElementById('firstTimeGuideModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            this.updateGuideStep();
+        }
+    }
+
+    hideGuide() {
+        console.log('ガイダンスを非表示にします');
+        this.guideShown = false;
+        
+        const modal = document.getElementById('firstTimeGuideModal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+        
+        // 「次回から表示しない」の設定を保存
+        this.saveGuideSettings();
+    }
+
+    updateGuideStep() {
+        // すべてのステップを非表示
+        for (let i = 1; i <= this.totalGuideSteps; i++) {
+            const step = document.getElementById(`guideStep${i}`);
+            if (step) {
+                step.classList.add('hidden');
+            }
+        }
+        
+        // 完了メッセージも非表示
+        const complete = document.getElementById('guideComplete');
+        if (complete) {
+            complete.classList.add('hidden');
+        }
+        
+        // 現在のステップを表示
+        if (this.currentGuideStep <= this.totalGuideSteps) {
+            const currentStep = document.getElementById(`guideStep${this.currentGuideStep}`);
+            if (currentStep) {
+                currentStep.classList.remove('hidden');
+            }
+        } else {
+            // 完了メッセージを表示
+            if (complete) {
+                complete.classList.remove('hidden');
+            }
+        }
+        
+        // ボタンの状態を更新
+        this.updateGuideButtons();
+    }
+
+    updateGuideButtons() {
+        const prevBtn = document.getElementById('prevGuideStep');
+        const nextBtn = document.getElementById('nextGuideStep');
+        const startBtn = document.getElementById('startGuide');
+        
+        if (prevBtn) {
+            prevBtn.classList.toggle('hidden', this.currentGuideStep === 1);
+        }
+        
+        if (nextBtn && startBtn) {
+            if (this.currentGuideStep <= this.totalGuideSteps) {
+                nextBtn.classList.remove('hidden');
+                startBtn.classList.add('hidden');
+            } else {
+                nextBtn.classList.add('hidden');
+                startBtn.classList.remove('hidden');
+            }
+        }
+    }
+
+    nextGuideStep() {
+        if (this.currentGuideStep < this.totalGuideSteps + 1) {
+            this.currentGuideStep++;
+            this.updateGuideStep();
+        }
+    }
+
+    prevGuideStep() {
+        if (this.currentGuideStep > 1) {
+            this.currentGuideStep--;
+            this.updateGuideStep();
+        }
+    }
+
+    skipGuide() {
+        console.log('ガイダンスをスキップします');
+        this.hideGuide();
+    }
+
+    completeGuide() {
+        console.log('ガイダンスを完了します');
+        this.hideGuide();
+    }
+
+    async saveGuideSettings() {
+        try {
+            const dontShowAgain = document.getElementById('dontShowGuideAgain');
+            if (dontShowAgain && dontShowAgain.checked) {
+                // 設定を更新
+                const settings = this.getSettings();
+                if (settings) {
+                    settings.showFirstTimeGuide = false;
+                    await this.settingsManager.saveSettings();
+                    console.log('ガイダンス設定を保存しました');
+                }
+            }
+        } catch (error) {
+            console.error('ガイダンス設定の保存に失敗しました:', error);
+        }
+    }
+
+    // ガイダンス関連のイベントリスナー
+    initializeGuideEvents() {
+        // ガイダンスボタン
+        document.getElementById('nextGuideStep')?.addEventListener('click', () => this.nextGuideStep());
+        document.getElementById('prevGuideStep')?.addEventListener('click', () => this.prevGuideStep());
+        document.getElementById('skipGuide')?.addEventListener('click', () => this.skipGuide());
+        document.getElementById('startGuide')?.addEventListener('click', () => this.completeGuide());
+        document.getElementById('closeGuide')?.addEventListener('click', () => this.hideGuide());
+        
+        // モーダル外クリックで閉じる
+        const modal = document.getElementById('firstTimeGuideModal');
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    this.hideGuide();
+                }
+            });
+        }
+        
+        // ESCキーで閉じる
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.guideShown) {
+                this.hideGuide();
+            }
+        });
+    }
 }
+
+// アプリケーションの初期化
+const app = new ImageCleanupApp();
+
+// グローバル変数として設定（設定画面からガイダンスを呼び出すため）
+window.imageCleanupApp = app;
 
 // アプリケーションの初期化
 document.addEventListener('DOMContentLoaded', () => {
@@ -1809,6 +1991,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // アプリケーションインスタンスを作成
     window.app = new ImageCleanupApp();
+    window.imageCleanupApp = window.app;
     
     console.log('アプリケーション初期化完了');
 });
