@@ -7,7 +7,12 @@ class SettingsManager {
             defaultOutputFolder: '',
             logLevel: 'normal',
             logFilePath: '',
-            showFirstTimeGuide: true
+            showFirstTimeGuide: true,
+            exportFormat: 'csv',
+            exportTarget: 'current',
+            includeMetadata: true,
+            includeStatistics: true,
+            includeProcessingHistory: true
         };
         this.init();
     }
@@ -81,6 +86,28 @@ class SettingsManager {
         const logFilePath = document.getElementById('logFilePath');
         if (logFilePath) {
             logFilePath.value = this.settings.logFilePath;
+        }
+
+        // エクスポート・レポート設定の値を設定
+        const exportFormat = document.getElementById('exportFormat');
+        if (exportFormat) {
+            exportFormat.value = this.settings.exportFormat;
+        }
+        const exportTarget = document.getElementById('exportTarget');
+        if (exportTarget) {
+            exportTarget.value = this.settings.exportTarget;
+        }
+        const includeMetadata = document.getElementById('includeMetadata');
+        if (includeMetadata) {
+            includeMetadata.checked = this.settings.includeMetadata;
+        }
+        const includeStatistics = document.getElementById('includeStatistics');
+        if (includeStatistics) {
+            includeStatistics.checked = this.settings.includeStatistics;
+        }
+        const includeProcessingHistory = document.getElementById('includeProcessingHistory');
+        if (includeProcessingHistory) {
+            includeProcessingHistory.checked = this.settings.includeProcessingHistory;
         }
     }
 
@@ -197,6 +224,38 @@ class SettingsManager {
                     }
                     this.hideModal();
                 }
+            });
+        }
+
+        // エクスポート・レポート設定イベント
+        const exportFormat = document.getElementById('exportFormat');
+        if (exportFormat) {
+            exportFormat.addEventListener('change', (e) => {
+                this.settings.exportFormat = e.target.value;
+            });
+        }
+        const exportTarget = document.getElementById('exportTarget');
+        if (exportTarget) {
+            exportTarget.addEventListener('change', (e) => {
+                this.settings.exportTarget = e.target.value;
+            });
+        }
+        const includeMetadata = document.getElementById('includeMetadata');
+        if (includeMetadata) {
+            includeMetadata.addEventListener('change', (e) => {
+                this.settings.includeMetadata = e.target.checked;
+            });
+        }
+        const includeStatistics = document.getElementById('includeStatistics');
+        if (includeStatistics) {
+            includeStatistics.addEventListener('change', (e) => {
+                this.settings.includeStatistics = e.target.checked;
+            });
+        }
+        const includeProcessingHistory = document.getElementById('includeProcessingHistory');
+        if (includeProcessingHistory) {
+            includeProcessingHistory.addEventListener('change', (e) => {
+                this.settings.includeProcessingHistory = e.target.checked;
             });
         }
 

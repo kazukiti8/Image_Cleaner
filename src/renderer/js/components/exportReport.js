@@ -3,13 +3,6 @@ class ExportReportManager {
     constructor() {
         this.exportHistory = [];
         this.processingLog = [];
-        this.exportSettings = {
-            format: 'csv',
-            includeMetadata: true,
-            includeStatistics: true,
-            includeProcessingHistory: true,
-            target: 'current' // 'current', 'all', 'selected'
-        };
         this.initializeUI();
     }
 
@@ -270,7 +263,7 @@ class ExportReportManager {
     async generateReportData() {
         const data = {
             timestamp: new Date().toISOString(),
-            settings: this.exportSettings,
+            settings: this.getCurrentExportSettings(),
             metadata: {},
             statistics: {},
             processingHistory: [],
@@ -278,7 +271,7 @@ class ExportReportManager {
         };
 
         // メタデータの追加
-        if (this.exportSettings.includeMetadata) {
+        if (data.settings.includeMetadata) {
             data.metadata = {
                 appVersion: '1.0.0',
                 scanDate: new Date().toLocaleString('ja-JP'),
@@ -288,13 +281,13 @@ class ExportReportManager {
         }
 
         // 統計情報の追加
-        if (this.exportSettings.includeStatistics) {
+        if (data.settings.includeStatistics) {
             const currentTab = document.querySelector('.tab-content.active')?.id;
             data.statistics = this.getStatistics(currentTab);
         }
 
         // 処理履歴の追加
-        if (this.exportSettings.includeProcessingHistory) {
+        if (data.settings.includeProcessingHistory) {
             data.processingHistory = this.processingLog;
         }
 
@@ -448,7 +441,7 @@ class ExportReportManager {
             let content = '';
             let filename = `image-cleanup-report-${new Date().toISOString().split('T')[0]}`;
             
-            switch (this.exportSettings.format) {
+            switch (this.getCurrentExportSettings().format) {
                 case 'csv':
                     content = this.convertToCSV(reportData);
                     filename += '.csv';
@@ -480,8 +473,8 @@ class ExportReportManager {
                 this.exportHistory.push({
                     timestamp: new Date().toISOString(),
                     filename,
-                    format: this.exportSettings.format,
-                    target: this.exportSettings.target
+                    format: this.getCurrentExportSettings().format,
+                    target: this.getCurrentExportSettings().target
                 });
                 this.hideExportReportPanel();
                 this.hideReportPreview();
@@ -698,6 +691,28 @@ class ExportReportManager {
     // 処理ログの取得
     getProcessingLog() {
         return this.processingLog;
+    }
+
+    // 設定値取得用のヘルパー
+    getCurrentExportSettings() {
+        if (window.settingsManager && window.settingsManager.settings) {
+            return {
+                format: window.settingsManager.settings.exportFormat,
+                target: window.settingsManager.settings.exportTarget,
+                includeMetadata: window.settingsManager.settings.includeMetadata,
+                includeStatistics: window.settingsManager.settings.includeStatistics,
+                includeProcessingHistory: window.settingsManager.settings.includeProcessingHistory
+            };
+        } else {
+            // 万一設定が取得できない場合のデフォルト
+            return {
+                format: 'csv',
+                target: 'current',
+                includeMetadata: true,
+                includeStatistics: true,
+                includeProcessingHistory: true
+            };
+        }
     }
 }
 

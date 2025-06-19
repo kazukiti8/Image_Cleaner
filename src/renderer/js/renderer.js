@@ -947,13 +947,13 @@ class ImageCleanupApp {
         const thead = document.createElement('thead');
         thead.innerHTML = `
             <tr class="bg-slate-100">
-                <th class="border border-slate-300 px-4 py-2 text-left">
+                <th class="border border-slate-300 px-4 py-2 text-left w-1/4">
                     <input type="checkbox" id="selectAllBlur" class="mr-2">
                     ファイル名
                 </th>
-                <th class="border border-slate-300 px-4 py-2 text-left">サイズ</th>
-                <th class="border border-slate-300 px-4 py-2 text-left">更新日時</th>
-                <th class="border border-slate-300 px-4 py-2 text-left">スコア</th>
+                <th class="border border-slate-300 px-4 py-2 text-left w-20">サイズ</th>
+                <th class="border border-slate-300 px-4 py-2 text-left w-32">更新日時</th>
+                <th class="border border-slate-300 px-4 py-2 text-left w-28 whitespace-nowrap">スコア</th>
                 <th class="border border-slate-300 px-4 py-2 text-left">パス</th>
             </tr>
         `;
