@@ -105,6 +105,10 @@ class VirtualTable {
         
         // スクロールイベントリスナーをコンテナに設定
         this.container.addEventListener('scroll', this.handleScroll.bind(this));
+        
+        // ヘッダーの高さを取得してコンテンツの位置を調整
+        this.headerHeight = this.header.offsetHeight;
+        this.content.style.top = `${this.headerHeight}px`;
     }
     
     createHeader() {
@@ -150,7 +154,7 @@ class VirtualTable {
         // 表示範囲のデータを取得
         const visibleData = this.data.slice(startIndex, endIndex);
         
-        // オフセットを計算
+        // オフセットを計算（ヘッダーの高さを考慮）
         const offsetY = startIndex * this.rowHeight;
         
         // コンテンツの位置と高さを更新
@@ -427,11 +431,7 @@ class SimilarVirtualTable extends VirtualTable {
         row.addEventListener('click', (e) => {
             if (e.target.tagName.toLowerCase() === 'input') return;
             
-            // ペア全体を選択
-            pairCheckbox.checked = !pairCheckbox.checked;
-            this.app.handleCheckboxChange(pairCheckbox, 'similar');
-            
-            // 通常のプレビュー表示
+            // プレビュー表示のみ（チェックボックスは自動選択しない）
             this.app.showSimilarImagePreview(file1, file2, similarity);
         });
     }
