@@ -91,12 +91,9 @@ class VirtualTable {
         // ヘッダーを作成
         this.createHeader();
         
-        // スクロール可能なコンテンツエリアを作成
-        this.scrollContainer = document.createElement('div');
-        this.scrollContainer.style.position = 'relative';
-        this.scrollContainer.style.overflow = 'auto';
-        this.scrollContainer.style.flex = '1';
-        this.container.appendChild(this.scrollContainer);
+        // コンテナ自体にスクロールを設定
+        this.container.style.overflow = 'auto';
+        this.container.style.flex = '1';
         
         // 実際に表示される行を格納する要素
         this.content = document.createElement('div');
@@ -104,10 +101,10 @@ class VirtualTable {
         this.content.style.top = '0';
         this.content.style.left = '0';
         this.content.style.right = '0';
-        this.scrollContainer.appendChild(this.content);
+        this.container.appendChild(this.content);
         
-        // スクロールイベントリスナーをスクロールコンテナに設定
-        this.scrollContainer.addEventListener('scroll', this.handleScroll.bind(this));
+        // スクロールイベントリスナーをコンテナに設定
+        this.container.addEventListener('scroll', this.handleScroll.bind(this));
     }
     
     createHeader() {
@@ -137,7 +134,7 @@ class VirtualTable {
     handleScroll() {
         if (!this.isInitialized) return;
         
-        this.currentScrollTop = this.scrollContainer.scrollTop;
+        this.currentScrollTop = this.container.scrollTop;
         this.render();
     }
     
@@ -187,13 +184,13 @@ class VirtualTable {
     scrollToIndex(index) {
         if (index >= 0 && index < this.data.length) {
             const scrollTop = index * this.rowHeight;
-            this.scrollContainer.scrollTop = scrollTop;
+            this.container.scrollTop = scrollTop;
         }
     }
     
     destroy() {
-        if (this.scrollContainer) {
-            this.scrollContainer.removeEventListener('scroll', this.handleScroll.bind(this));
+        if (this.container) {
+            this.container.removeEventListener('scroll', this.handleScroll.bind(this));
         }
         this.isInitialized = false;
     }
@@ -296,10 +293,9 @@ class SimilarVirtualTable extends VirtualTable {
             <div class="w-8 px-2">
                 <input type="checkbox" id="selectAllSimilar">
             </div>
-            <div class="w-16 px-2 text-center">類似度</div>
             <div class="flex-1 px-3">画像1</div>
             <div class="flex-1 px-3">画像2</div>
-            <div class="flex-1 px-3">詳細情報</div>
+            <div class="w-20 px-2 text-center">類似度</div>
         `;
         
         // 全選択チェックボックスのイベントリスナー
@@ -340,11 +336,6 @@ class SimilarVirtualTable extends VirtualTable {
             <div class="w-8 px-2 py-2">
                 <input type="checkbox" class="similar-checkbox" data-pair="${pairKey}">
             </div>
-            <div class="w-16 px-2 py-2 text-center">
-                <span class="px-2 py-1 rounded text-sm font-semibold ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
-                    ${group.similarity}%
-                </span>
-            </div>
             <div class="flex-1 px-3 py-2">
                 <div class="flex items-center space-x-2">
                     <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
@@ -383,12 +374,10 @@ class SimilarVirtualTable extends VirtualTable {
                     <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file2.filePath}" data-pair="${pairKey}">
                 </div>
             </div>
-            <div class="flex-1 px-3 py-2 text-xs text-slate-600">
-                <div class="space-y-1">
-                    <div><span class="font-medium">サイズ差:</span> ${this.app.getSizeDifference(file1.size, file2.size)}</div>
-                    <div><span class="font-medium">パス1:</span> <span class="truncate block" title="${file1.filePath}">${this.app.getDisplayPath(file1.filePath)}</span></div>
-                    <div><span class="font-medium">パス2:</span> <span class="truncate block" title="${file2.filePath}">${this.app.getDisplayPath(file2.filePath)}</span></div>
-                </div>
+            <div class="w-20 px-2 py-2 text-center">
+                <span class="px-2 py-1 rounded text-sm font-semibold ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
+                    ${group.similarity}%
+                </span>
             </div>
         `;
         
@@ -442,8 +431,8 @@ class SimilarVirtualTable extends VirtualTable {
             pairCheckbox.checked = !pairCheckbox.checked;
             this.app.handleCheckboxChange(pairCheckbox, 'similar');
             
-            // 3ペインレイアウトで両方の画像を表示
-            this.app.showSimilarImagesIn3PaneLayout(file1, file2, similarity);
+            // 通常のプレビュー表示
+            this.app.showSimilarImagePreview(file1, file2, similarity);
         });
     }
 }
@@ -1167,125 +1156,20 @@ class ImageCleanupApp {
     switchLayout(tabName) {
         const previewPane = document.getElementById('previewPane');
         const resultsPane = document.getElementById('resultsPane');
-        const similarImage1Pane = document.getElementById('similarImage1Pane');
-        const similarImage2Pane = document.getElementById('similarImage2Pane');
-        const similarTablePane = document.getElementById('similarTablePane');
         
         safeConsoleLog(`Switching layout for tab: ${tabName}`);
         
-        if (tabName === 'similar') {
-            // 類似画像タブ: 3ペインレイアウト
-            safeConsoleLog('Switching to 3-pane layout for similar images');
-            
-            // 通常のペインを非表示
-            if (previewPane) {
-                previewPane.style.display = 'none';
-                safeConsoleLog('Hidden preview pane');
-            }
-            if (resultsPane) {
-                resultsPane.style.display = 'none';
-                safeConsoleLog('Hidden results pane');
-            }
-            
-            // 類似画像専用ペインを表示
-            if (similarImage1Pane) {
-                similarImage1Pane.style.display = 'flex';
-                safeConsoleLog('Showed similar image 1 pane');
-            }
-            if (similarImage2Pane) {
-                similarImage2Pane.style.display = 'flex';
-                safeConsoleLog('Showed similar image 2 pane');
-            }
-            if (similarTablePane) {
-                similarTablePane.style.display = 'flex';
-                safeConsoleLog('Showed similar table pane');
-            }
-            
-            // 類似画像テーブルを専用ペインに移動
-            this.moveSimilarTableToDedicatedPane();
-        } else {
-            // ブレ・エラータブ: 2ペインレイアウト
-            safeConsoleLog('Switching to 2-pane layout for blur/error tabs');
-            
-            // 類似画像専用ペインを非表示
-            if (similarImage1Pane) {
-                similarImage1Pane.style.display = 'none';
-                safeConsoleLog('Hidden similar image 1 pane');
-            }
-            if (similarImage2Pane) {
-                similarImage2Pane.style.display = 'none';
-                safeConsoleLog('Hidden similar image 2 pane');
-            }
-            if (similarTablePane) {
-                similarTablePane.style.display = 'none';
-                safeConsoleLog('Hidden similar table pane');
-            }
-            
-            // 通常のペインを表示
-            if (previewPane) {
-                previewPane.style.display = 'flex';
-                safeConsoleLog('Showed preview pane');
-            }
-            if (resultsPane) {
-                resultsPane.style.display = 'flex';
-                safeConsoleLog('Showed results pane');
-            }
-            
-            // 類似画像テーブルを元の位置に戻す
-            this.moveSimilarTableToOriginalPane();
+        // すべてのタブで同じ2ペインレイアウトを使用
+        if (previewPane) {
+            previewPane.style.display = 'flex';
+            safeConsoleLog('Showed preview pane');
+        }
+        if (resultsPane) {
+            resultsPane.style.display = 'flex';
+            safeConsoleLog('Showed results pane');
         }
         
         safeConsoleLog('Layout switch completed');
-    }
-
-    // 類似画像テーブルを専用ペインに移動
-    moveSimilarTableToDedicatedPane() {
-        const originalContent = document.getElementById('contentSimilar');
-        const dedicatedContent = document.getElementById('contentSimilarTable');
-        
-        safeConsoleLog('Moving similar table to dedicated pane');
-        safeConsoleLog('Original content element:', originalContent);
-        safeConsoleLog('Dedicated content element:', dedicatedContent);
-        
-        if (originalContent && dedicatedContent) {
-            // 既存のコンテンツを専用ペインに移動
-            const existingContent = originalContent.innerHTML;
-            safeConsoleLog('Existing content length:', existingContent.length);
-            
-            dedicatedContent.innerHTML = existingContent;
-            safeConsoleLog('Moved content to dedicated pane');
-            
-            // 元のコンテンツをクリア
-            originalContent.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像タブ専用レイアウト</div>';
-            safeConsoleLog('Cleared original content');
-        } else {
-            safeConsoleLog('Error: Could not find content elements for table movement');
-        }
-    }
-
-    // 類似画像テーブルを元の位置に戻す
-    moveSimilarTableToOriginalPane() {
-        const originalContent = document.getElementById('contentSimilar');
-        const dedicatedContent = document.getElementById('contentSimilarTable');
-        
-        safeConsoleLog('Moving similar table back to original pane');
-        safeConsoleLog('Original content element:', originalContent);
-        safeConsoleLog('Dedicated content element:', dedicatedContent);
-        
-        if (originalContent && dedicatedContent) {
-            // 専用ペインのコンテンツを元の位置に戻す
-            const existingContent = dedicatedContent.innerHTML;
-            safeConsoleLog('Existing content length:', existingContent.length);
-            
-            originalContent.innerHTML = existingContent;
-            safeConsoleLog('Moved content back to original pane');
-            
-            // 専用ペインをクリア
-            dedicatedContent.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
-            safeConsoleLog('Cleared dedicated content');
-        } else {
-            safeConsoleLog('Error: Could not find content elements for table movement');
-        }
     }
 
     // プレビューエリアをクリア
@@ -1303,32 +1187,6 @@ class ImageCleanupApp {
             `;
         }
         
-        // 類似画像プレビューエリアをクリア
-        const similarImage1Container = document.getElementById('similarImage1Container');
-        const similarImage2Container = document.getElementById('similarImage2Container');
-        
-        if (similarImage1Container) {
-            similarImage1Container.innerHTML = `
-                <div class="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
-                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                    </svg>
-                    <p>類似画像ペアを<br>選択してください</p>
-                </div>
-            `;
-        }
-        
-        if (similarImage2Container) {
-            similarImage2Container.innerHTML = `
-                <div class="text-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-12 h-12 mx-auto mb-2">
-                        <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                    </svg>
-                    <p>類似画像ペアを<br>選択してください</p>
-                </div>
-            `;
-        }
-        
         // 情報表示エリアをクリア
         this.clearImageInfoAreas();
     }
@@ -1341,26 +1199,6 @@ class ImageCleanupApp {
             'infoFileSize', 'infoTakenDate', 'infoBlurScore'
         ];
         infoAreas.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) element.textContent = '';
-        });
-        
-        // 類似画像1の情報エリア
-        const similarImage1Areas = [
-            'similarImage1FileName', 'similarImage1FilePath', 'similarImage1Resolution',
-            'similarImage1FileSize', 'similarImage1ModifiedDate'
-        ];
-        similarImage1Areas.forEach(id => {
-            const element = document.getElementById(id);
-            if (element) element.textContent = '';
-        });
-        
-        // 類似画像2の情報エリア
-        const similarImage2Areas = [
-            'similarImage2FileName', 'similarImage2FilePath', 'similarImage2Resolution',
-            'similarImage2FileSize', 'similarImage2ModifiedDate'
-        ];
-        similarImage2Areas.forEach(id => {
             const element = document.getElementById(id);
             if (element) element.textContent = '';
         });
@@ -1575,12 +1413,6 @@ class ImageCleanupApp {
                 container.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
             }
         });
-        
-        // 類似画像タブ専用のコンテナもクリア
-        const similarTableContainer = document.getElementById('contentSimilarTable');
-        if (similarTableContainer) {
-            similarTableContainer.innerHTML = '<div class="text-center text-slate-500 py-8">スキャンを開始してください</div>';
-        }
         
         // タブのカウント表示をリセット
         const countElements = ['countBlur', 'countSimilar', 'countError'];
@@ -2157,7 +1989,7 @@ class ImageCleanupApp {
                 });
             });
             
-            // 行クリックでペア全体を選択し、3ペインレイアウトで両方の画像を表示
+            // 行クリックでペア全体を選択し、プレビューを表示
             row.addEventListener('click', (e) => {
                 if (e.target.tagName.toLowerCase() === 'input') return;
                 
@@ -2166,8 +1998,8 @@ class ImageCleanupApp {
                 pairCheckbox.checked = !pairCheckbox.checked;
                 this.handleCheckboxChange(pairCheckbox, 'similar');
                 
-                // 3ペインレイアウトで両方の画像を表示
-                this.showSimilarImagesIn3PaneLayout(file1, file2, group.similarity);
+                // 通常のプレビュー表示
+                this.showSimilarImagePreview(file1, file2, group.similarity);
             });
             
             tbody.appendChild(row);
