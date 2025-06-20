@@ -199,27 +199,47 @@ build/
 out/
 *.asar
 
-# Test files
-test-results/
+# Testing
+# Jest
 coverage/
+.nyc_output/
+test-results/
 
-# Local configuration files
-config.local.js
-settings.local.json
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/
 
-# Backup files
-*.bak
-*.backup
-*.old
+# E2E test artifacts
+e2e/test-results/
+e2e/playwright-report/
+e2e/screenshots/
+e2e/videos/
 
-# Temporary files
-*.tmp
-*.temp
+# Test images (generated)
+test-images-large/
+e2e/test-images/
 
-# Package files
-*.tgz
-*.tar.gz
+# Temporary test files
+*.test.jpg
+*.test.png
+*.test.jpeg
+*.test.gif
+*.test.webp
 
-# Lock files (uncomment if you want to ignore them)
+# Test configuration files that might contain sensitive data
+.env.test
+.env.local
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Package manager lock files (optional - uncomment if you want to ignore them)
 # package-lock.json
-# yarn.lock 
+# yarn.lock
+
+# Local development files
+*.local
+local.* 
