@@ -710,6 +710,12 @@ class ImageCleanupApp {
         this.selectedErrors = new Set();
         this.batchProcessor = new BatchProcessor();
         
+        // キャッシュ関連のプロパティ
+        this.cacheEnabled = true;
+        this.cacheData = null;
+        this.cacheTimestamp = null;
+        this.cacheValidityHours = 24; // キャッシュの有効期限（時間）
+        
         // 仮想テーブルのインスタンス
         this.virtualTables = {
             blur: null,
@@ -732,6 +738,9 @@ class ImageCleanupApp {
         this.showGuidanceIfNeeded();
         this.startPerformanceMonitoring();
         this.startMemoryCleanup();
+        
+        // キャッシュの読み込み
+        this.loadCache();
     }
 
     init() {
@@ -968,6 +977,17 @@ class ImageCleanupApp {
             return;
         }
 
+        // キャッシュチェック
+        const cachedResults = this.getCachedResults(this.targetFolder);
+        if (cachedResults) {
+            safeConsoleLog('Using cached results for folder:', this.targetFolder);
+            this.showSuccess('キャッシュから結果を読み込みました');
+            
+            // キャッシュされた結果を表示
+            this.handleScanComplete(cachedResults);
+            return;
+        }
+
         this.scanInProgress = true;
         this.updateScanButton();
         
@@ -1048,6 +1068,11 @@ class ImageCleanupApp {
             similarImages: results.similarImages || [],
             errors: results.errors || []
         };
+        
+        // キャッシュを更新
+        if (this.cacheEnabled && this.targetFolder) {
+            this.updateCache(this.targetFolder, results);
+        }
         
         // 結果の件数をログ出力
         safeConsoleLog('Scan results received:', {
@@ -2509,6 +2534,172 @@ class ImageCleanupApp {
                 }
             }
         }
+    }
+
+    // キャッシュ関連のメソッド
+    loadCache() {
+        try {
+            const cacheKey = 'imageCleanupCache';
+            const cachedData = localStorage.getItem(cacheKey);
+            
+            if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                this.cacheData = parsed.data;
+                this.cacheTimestamp = parsed.timestamp;
+                
+                safeConsoleLog('Cache loaded:', {
+                    timestamp: this.cacheTimestamp,
+                    dataSize: this.cacheData ? Object.keys(this.cacheData).length : 0
+                });
+            }
+        } catch (error) {
+            safeConsoleError('Cache load error:', error);
+            this.clearCache();
+        }
+    }
+
+    saveCache() {
+        try {
+            const cacheKey = 'imageCleanupCache';
+            const cacheData = {
+                data: this.cacheData,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+            this.cacheTimestamp = cacheData.timestamp;
+            
+            safeConsoleLog('Cache saved:', {
+                timestamp: this.cacheTimestamp,
+                dataSize: this.cacheData ? Object.keys(this.cacheData).length : 0
+            });
+        } catch (error) {
+            safeConsoleError('Cache save error:', error);
+        }
+    }
+
+    isCacheValid(folderPath) {
+        if (!this.cacheEnabled || !this.cacheData || !this.cacheTimestamp) {
+            return false;
+        }
+
+        // キャッシュの有効期限チェック
+        const now = Date.now();
+        const cacheAge = now - this.cacheTimestamp;
+        const maxAge = this.cacheValidityHours * 60 * 60 * 1000; // 時間をミリ秒に変換
+
+        if (cacheAge > maxAge) {
+            safeConsoleLog('Cache expired:', {
+                age: Math.round(cacheAge / (60 * 60 * 1000)),
+                maxAge: this.cacheValidityHours
+            });
+            return false;
+        }
+
+        // フォルダパスのチェック
+        if (!this.cacheData[folderPath]) {
+            safeConsoleLog('No cache data for folder:', folderPath);
+            return false;
+        }
+
+        safeConsoleLog('Cache is valid for folder:', folderPath);
+        return true;
+    }
+
+    getCachedResults(folderPath) {
+        if (this.isCacheValid(folderPath)) {
+            return this.cacheData[folderPath];
+        }
+        return null;
+    }
+
+    updateCache(folderPath, results) {
+        if (!this.cacheData) {
+            this.cacheData = {};
+        }
+        
+        this.cacheData[folderPath] = {
+            blurImages: results.blurImages || [],
+            similarImages: results.similarImages || [],
+            errors: results.errors || [],
+            scanTime: Date.now()
+        };
+        
+        this.saveCache();
+        safeConsoleLog('Cache updated for folder:', folderPath);
+    }
+
+    clearCache() {
+        try {
+            const cacheKey = 'imageCleanupCache';
+            localStorage.removeItem(cacheKey);
+            this.cacheData = null;
+            this.cacheTimestamp = null;
+            safeConsoleLog('Cache cleared');
+        } catch (error) {
+            safeConsoleError('Cache clear error:', error);
+        }
+    }
+
+    // キャッシュ設定の更新
+    updateCacheSettings(enabled, validityHours = 24) {
+        this.cacheEnabled = enabled;
+        this.cacheValidityHours = validityHours;
+        safeConsoleLog('Cache settings updated:', { enabled, validityHours });
+    }
+
+    // キャッシュ情報の取得
+    getCacheInfo() {
+        if (!this.cacheData || !this.cacheTimestamp) {
+            return {
+                enabled: this.cacheEnabled,
+                hasData: false,
+                folderCount: 0,
+                lastUpdate: null,
+                validityHours: this.cacheValidityHours
+            };
+        }
+
+        const now = Date.now();
+        const cacheAge = now - this.cacheTimestamp;
+        const ageHours = Math.round(cacheAge / (60 * 60 * 1000));
+
+        return {
+            enabled: this.cacheEnabled,
+            hasData: true,
+            folderCount: Object.keys(this.cacheData).length,
+            lastUpdate: this.cacheTimestamp,
+            ageHours: ageHours,
+            validityHours: this.cacheValidityHours,
+            isValid: cacheAge < (this.cacheValidityHours * 60 * 60 * 1000)
+        };
+    }
+
+    // キャッシュの有効/無効を切り替え
+    toggleCache() {
+        this.cacheEnabled = !this.cacheEnabled;
+        safeConsoleLog('Cache toggled:', this.cacheEnabled);
+        
+        if (!this.cacheEnabled) {
+            this.showSuccess('キャッシュを無効にしました');
+        } else {
+            this.showSuccess('キャッシュを有効にしました');
+        }
+        
+        return this.cacheEnabled;
+    }
+
+    // キャッシュの強制クリア
+    forceClearCache() {
+        this.clearCache();
+        this.showSuccess('キャッシュをクリアしました');
+    }
+
+    // キャッシュの有効期限を設定
+    setCacheValidity(hours) {
+        this.cacheValidityHours = hours;
+        safeConsoleLog('Cache validity set to:', hours, 'hours');
+        this.showSuccess(`キャッシュの有効期限を${hours}時間に設定しました`);
     }
 }
 
