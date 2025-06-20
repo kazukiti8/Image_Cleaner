@@ -48,6 +48,466 @@ function pathBasename(filePath) {
     return filePath.split(/[\\/]/).pop();
 }
 
+// 仮想スクロールテーブルクラス
+class VirtualTable {
+    constructor(container, options = {}) {
+        this.container = container;
+        this.rowHeight = options.rowHeight || 60;
+        this.visibleRows = options.visibleRows || 15;
+        this.bufferRows = options.bufferRows || 5;
+        this.data = [];
+        this.currentScrollTop = 0;
+        this.isInitialized = false;
+        
+        this.init();
+    }
+    
+    init() {
+        // コンテナのスタイルを設定
+        this.container.style.position = 'relative';
+        this.container.style.display = 'flex';
+        this.container.style.flexDirection = 'column';
+        this.container.style.height = '100%';
+        
+        // 仮想スクロール用の要素を作成
+        this.createVirtualElements();
+        
+        // スクロールイベントリスナーを設定
+        this.container.addEventListener('scroll', this.handleScroll.bind(this));
+        
+        this.isInitialized = true;
+    }
+    
+    createVirtualElements() {
+        // 全体の高さを保持する要素
+        this.spacer = document.createElement('div');
+        this.spacer.style.position = 'absolute';
+        this.spacer.style.top = '0';
+        this.spacer.style.left = '0';
+        this.spacer.style.right = '0';
+        this.spacer.style.pointerEvents = 'none';
+        this.container.appendChild(this.spacer);
+        
+        // ヘッダーを作成
+        this.createHeader();
+        
+        // スクロール可能なコンテンツエリアを作成
+        this.scrollContainer = document.createElement('div');
+        this.scrollContainer.style.position = 'relative';
+        this.scrollContainer.style.overflow = 'auto';
+        this.scrollContainer.style.flex = '1';
+        this.container.appendChild(this.scrollContainer);
+        
+        // 実際に表示される行を格納する要素
+        this.content = document.createElement('div');
+        this.content.style.position = 'absolute';
+        this.content.style.top = '0';
+        this.content.style.left = '0';
+        this.content.style.right = '0';
+        this.scrollContainer.appendChild(this.content);
+        
+        // スクロールイベントリスナーをスクロールコンテナに設定
+        this.scrollContainer.addEventListener('scroll', this.handleScroll.bind(this));
+    }
+    
+    createHeader() {
+        // サブクラスでオーバーライドされる
+        this.header = document.createElement('div');
+        this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm';
+        this.container.appendChild(this.header);
+    }
+    
+    setData(data) {
+        this.data = data;
+        this.sortData();
+        this.updateSpacerHeight();
+        this.render();
+    }
+    
+    sortData() {
+        // サブクラスでオーバーライドされる
+        // デフォルトではソートしない
+    }
+    
+    updateSpacerHeight() {
+        const totalHeight = this.data.length * this.rowHeight;
+        this.spacer.style.height = `${totalHeight}px`;
+    }
+    
+    handleScroll() {
+        if (!this.isInitialized) return;
+        
+        this.currentScrollTop = this.scrollContainer.scrollTop;
+        this.render();
+    }
+    
+    render() {
+        if (!this.isInitialized || this.data.length === 0) return;
+        
+        const startIndex = Math.floor(this.currentScrollTop / this.rowHeight);
+        const endIndex = Math.min(
+            startIndex + this.visibleRows + this.bufferRows * 2,
+            this.data.length
+        );
+        
+        // 表示範囲のデータを取得
+        const visibleData = this.data.slice(startIndex, endIndex);
+        
+        // オフセットを計算
+        const offsetY = startIndex * this.rowHeight;
+        
+        // コンテンツの位置と高さを更新
+        this.content.style.transform = `translateY(${offsetY}px)`;
+        this.content.style.height = `${visibleData.length * this.rowHeight}px`;
+        
+        // 行をレンダリング
+        this.renderRows(visibleData, startIndex);
+    }
+    
+    renderRows(visibleData, startIndex) {
+        // 既存の行をクリア
+        this.content.innerHTML = '';
+        
+        // 新しい行を作成
+        visibleData.forEach((item, index) => {
+            const row = this.createRow(item, startIndex + index);
+            this.content.appendChild(row);
+        });
+    }
+    
+    createRow(item, index) {
+        // サブクラスでオーバーライドされる
+        const row = document.createElement('div');
+        row.style.height = `${this.rowHeight}px`;
+        row.style.borderBottom = '1px solid #e2e8f0';
+        row.textContent = `Row ${index}: ${JSON.stringify(item)}`;
+        return row;
+    }
+    
+    scrollToIndex(index) {
+        if (index >= 0 && index < this.data.length) {
+            const scrollTop = index * this.rowHeight;
+            this.scrollContainer.scrollTop = scrollTop;
+        }
+    }
+    
+    destroy() {
+        if (this.scrollContainer) {
+            this.scrollContainer.removeEventListener('scroll', this.handleScroll.bind(this));
+        }
+        this.isInitialized = false;
+    }
+}
+
+// ブレ画像用仮想テーブル
+class BlurVirtualTable extends VirtualTable {
+    constructor(container, app) {
+        super(container, { rowHeight: 60, visibleRows: 20 });
+        this.app = app;
+    }
+    
+    sortData() {
+        // ブレスコアの降順でソート
+        this.data.sort((a, b) => b.blurScore - a.blurScore);
+    }
+    
+    createHeader() {
+        this.header = document.createElement('div');
+        this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
+        this.header.innerHTML = `
+            <div class="flex-1 flex items-center">
+                <input type="checkbox" id="selectAllBlur" class="mr-3">
+                <span>ファイル名</span>
+            </div>
+            <div class="w-20 px-2">サイズ</div>
+            <div class="w-32 px-2">更新日時</div>
+            <div class="w-28 px-2">スコア</div>
+        `;
+        
+        // 全選択チェックボックスのイベントリスナー
+        const selectAllCheckbox = this.header.querySelector('#selectAllBlur');
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = this.content.querySelectorAll('.blur-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                this.app.handleCheckboxChange(checkbox, 'blur');
+            });
+        });
+        
+        this.container.appendChild(this.header);
+    }
+    
+    createRow(image, index) {
+        const row = document.createElement('div');
+        row.className = 'flex items-center hover:bg-slate-50 cursor-pointer border-b border-slate-200';
+        row.style.height = `${this.rowHeight}px`;
+        row.dataset.index = index;
+        row.dataset.filepath = image.filePath;
+        
+        row.innerHTML = `
+            <div class="flex-1 flex items-center px-4 py-2">
+                <input type="checkbox" class="blur-checkbox mr-3" data-filepath="${image.filePath}">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">${image.filename}</div>
+                    <div class="text-xs text-slate-500">${this.app.getDisplayPath(image.filePath)}</div>
+                </div>
+            </div>
+            <div class="w-20 px-2 py-2 text-sm text-slate-600">${this.app.formatFileSize(image.size)}</div>
+            <div class="w-32 px-2 py-2 text-sm text-slate-600">${this.app.formatDate(image.modifiedDate)}</div>
+            <div class="w-28 px-2 py-2">
+                <span class="px-2 py-1 rounded text-sm ${image.blurScore > 80 ? 'bg-red-100 text-red-800' : image.blurScore > 60 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}">
+                    ${image.blurScore}
+                </span>
+            </div>
+        `;
+        
+        // イベントリスナーを設定
+        const checkbox = row.querySelector('.blur-checkbox');
+        checkbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.app.handleCheckboxChange(checkbox, 'blur');
+        });
+        
+        row.addEventListener('click', (e) => {
+            if (e.target.tagName.toLowerCase() === 'input') return;
+            this.app.showImagePreview(image);
+        });
+        
+        return row;
+    }
+}
+
+// 類似画像用仮想テーブル
+class SimilarVirtualTable extends VirtualTable {
+    constructor(container, app) {
+        super(container, { rowHeight: 80, visibleRows: 15 });
+        this.app = app;
+    }
+    
+    sortData() {
+        // 類似度の降順でソート
+        this.data.sort((a, b) => b.similarity - a.similarity);
+    }
+    
+    createHeader() {
+        this.header = document.createElement('div');
+        this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
+        this.header.innerHTML = `
+            <div class="w-8 px-2">
+                <input type="checkbox" id="selectAllSimilar">
+            </div>
+            <div class="w-16 px-2 text-center">類似度</div>
+            <div class="flex-1 px-3">画像1</div>
+            <div class="flex-1 px-3">画像2</div>
+            <div class="flex-1 px-3">詳細情報</div>
+        `;
+        
+        // 全選択チェックボックスのイベントリスナー
+        const selectAllCheckbox = this.header.querySelector('#selectAllSimilar');
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = this.content.querySelectorAll('.similar-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                this.app.handleCheckboxChange(checkbox, 'similar');
+            });
+        });
+        
+        this.container.appendChild(this.header);
+    }
+    
+    createRow(group, index) {
+        const file1 = group.files[0];
+        const file2 = group.files[1];
+        const pairKey = `${file1.filePath}|${file2.filePath}`;
+        
+        const row = document.createElement('div');
+        row.className = 'flex items-center hover:bg-slate-50 cursor-pointer border-b border-slate-200';
+        row.style.height = `${this.rowHeight}px`;
+        row.dataset.index = index;
+        row.dataset.pairKey = pairKey;
+        row.dataset.similarity = group.similarity;
+        
+        // 類似度に基づく背景色
+        if (group.similarity >= 90) {
+            row.classList.add('bg-red-50');
+        } else if (group.similarity >= 80) {
+            row.classList.add('bg-yellow-50');
+        } else {
+            row.classList.add('bg-blue-50');
+        }
+        
+        row.innerHTML = `
+            <div class="w-8 px-2 py-2">
+                <input type="checkbox" class="similar-checkbox" data-pair="${pairKey}">
+            </div>
+            <div class="w-16 px-2 py-2 text-center">
+                <span class="px-2 py-1 rounded text-sm font-semibold ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
+                    ${group.similarity}%
+                </span>
+            </div>
+            <div class="flex-1 px-3 py-2">
+                <div class="flex items-center space-x-2">
+                    <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                        <img src="file://${file1.filePath}" alt="${file1.filename}" 
+                             class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium truncate" title="${file1.filename}">${file1.filename}</div>
+                        <div class="text-xs text-slate-500">${this.app.formatFileSize(file1.size)}</div>
+                    </div>
+                    <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file1.filePath}" data-pair="${pairKey}">
+                </div>
+            </div>
+            <div class="flex-1 px-3 py-2">
+                <div class="flex items-center space-x-2">
+                    <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                        <img src="file://${file2.filePath}" alt="${file2.filename}" 
+                             class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium truncate" title="${file2.filename}">${file2.filename}</div>
+                        <div class="text-xs text-slate-500">${this.app.formatFileSize(file2.size)}</div>
+                    </div>
+                    <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file2.filePath}" data-pair="${pairKey}">
+                </div>
+            </div>
+            <div class="flex-1 px-3 py-2 text-xs text-slate-600">
+                <div class="space-y-1">
+                    <div><span class="font-medium">サイズ差:</span> ${this.app.getSizeDifference(file1.size, file2.size)}</div>
+                    <div><span class="font-medium">パス1:</span> <span class="truncate block" title="${file1.filePath}">${this.app.getDisplayPath(file1.filePath)}</span></div>
+                    <div><span class="font-medium">パス2:</span> <span class="truncate block" title="${file2.filePath}">${this.app.getDisplayPath(file2.filePath)}</span></div>
+                </div>
+            </div>
+        `;
+        
+        // イベントリスナーを設定
+        this.setupRowEventListeners(row, file1, file2, group.similarity, pairKey);
+        
+        return row;
+    }
+    
+    setupRowEventListeners(row, file1, file2, similarity, pairKey) {
+        // チェックボックスイベント
+        const pairCheckbox = row.querySelector('.similar-checkbox');
+        pairCheckbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.app.handleCheckboxChange(pairCheckbox, 'similar');
+        });
+        
+        // 個別チェックボックスイベント
+        const individualCheckboxes = row.querySelectorAll('.individual-checkbox');
+        individualCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', (e) => {
+                e.stopPropagation();
+                const filePath = checkbox.dataset.filepath;
+                
+                if (checkbox.checked) {
+                    this.app.selectedIndividualFiles.add(filePath);
+                } else {
+                    this.app.selectedIndividualFiles.delete(filePath);
+                }
+                
+                this.app.updatePairSelectionState(pairKey);
+                this.app.updateSelectedCount();
+                this.app.updateActionButtons();
+            });
+        });
+        
+        // 画像クリックイベント
+        const images = row.querySelectorAll('img');
+        images.forEach(img => {
+            img.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.app.showSimilarImagePreview(file1, file2, similarity);
+            });
+        });
+        
+        // 行クリックイベント
+        row.addEventListener('click', (e) => {
+            if (e.target.tagName.toLowerCase() === 'input') return;
+            
+            // ペア全体を選択
+            pairCheckbox.checked = !pairCheckbox.checked;
+            this.app.handleCheckboxChange(pairCheckbox, 'similar');
+            
+            // 3ペインレイアウトで両方の画像を表示
+            this.app.showSimilarImagesIn3PaneLayout(file1, file2, similarity);
+        });
+    }
+}
+
+// エラー用仮想テーブル
+class ErrorVirtualTable extends VirtualTable {
+    constructor(container, app) {
+        super(container, { rowHeight: 50, visibleRows: 25 });
+        this.app = app;
+    }
+    
+    createHeader() {
+        this.header = document.createElement('div');
+        this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
+        this.header.innerHTML = `
+            <div class="flex-1 flex items-center">
+                <input type="checkbox" id="selectAllError" class="mr-3">
+                <span>ファイル名</span>
+            </div>
+            <div class="flex-1 px-4">エラー詳細</div>
+        `;
+        
+        // 全選択チェックボックスのイベントリスナー
+        const selectAllCheckbox = this.header.querySelector('#selectAllError');
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = this.content.querySelectorAll('.error-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                this.app.handleCheckboxChange(checkbox, 'error');
+            });
+        });
+        
+        this.container.appendChild(this.header);
+    }
+    
+    createRow(error, index) {
+        const row = document.createElement('div');
+        row.className = 'flex items-center hover:bg-slate-50 border-b border-slate-200';
+        row.style.height = `${this.rowHeight}px`;
+        row.dataset.index = index;
+        row.dataset.filepath = error.filePath;
+        
+        row.innerHTML = `
+            <div class="flex-1 flex items-center px-4 py-2">
+                <input type="checkbox" class="error-checkbox mr-3" data-filepath="${error.filePath}">
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate">${error.filename}</div>
+                    <div class="text-xs text-slate-500">${this.app.getDisplayPath(error.filePath)}</div>
+                </div>
+            </div>
+            <div class="flex-1 px-4 py-2 text-red-600 text-sm">${error.error}</div>
+        `;
+        
+        // イベントリスナーを設定
+        const checkbox = row.querySelector('.error-checkbox');
+        checkbox.addEventListener('change', (e) => {
+            e.stopPropagation();
+            this.app.handleCheckboxChange(checkbox, 'error');
+        });
+        
+        return row;
+    }
+}
+
 // バッチ処理マネージャークラス
 class BatchProcessor {
     constructor() {
@@ -261,6 +721,13 @@ class ImageCleanupApp {
         this.selectedErrors = new Set();
         this.batchProcessor = new BatchProcessor();
         
+        // 仮想テーブルのインスタンス
+        this.virtualTables = {
+            blur: null,
+            similar: null,
+            error: null
+        };
+        
         // エクスポート・レポートマネージャー
         this.exportReportManager = new ExportReportManager();
         
@@ -310,6 +777,68 @@ class ImageCleanupApp {
         this.switchLayout('blur');
         
         safeConsoleLog('ImageCleanupApp initialization completed');
+    }
+
+    // 仮想テーブルの初期化
+    initializeVirtualTable(tabName) {
+        const container = document.getElementById(`content${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
+        if (!container) {
+            safeConsoleError(`Container not found for tab: ${tabName}`);
+            return;
+        }
+        
+        // 既存の仮想テーブルを破棄
+        if (this.virtualTables[tabName]) {
+            this.virtualTables[tabName].destroy();
+        }
+        
+        // コンテナの既存コンテンツをクリア
+        container.innerHTML = '';
+        
+        // 新しい仮想テーブルを作成
+        switch (tabName) {
+            case 'blur':
+                this.virtualTables[tabName] = new BlurVirtualTable(container, this);
+                break;
+            case 'similar':
+                this.virtualTables[tabName] = new SimilarVirtualTable(container, this);
+                break;
+            case 'error':
+                this.virtualTables[tabName] = new ErrorVirtualTable(container, this);
+                break;
+        }
+        
+        safeConsoleLog(`Virtual table initialized for tab: ${tabName}`);
+    }
+
+    // 仮想テーブルにデータを設定
+    setVirtualTableData(tabName, data) {
+        if (this.virtualTables[tabName]) {
+            this.virtualTables[tabName].setData(data);
+            safeConsoleLog(`Data set for virtual table ${tabName}: ${data.length} items`);
+        }
+    }
+
+    // 仮想テーブルの全選択機能
+    selectAllVirtualTable(tabName) {
+        if (this.virtualTables[tabName]) {
+            const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+                this.handleCheckboxChange(checkbox, tabName);
+            });
+        }
+    }
+
+    // 仮想テーブルの全選択解除機能
+    deselectAllVirtualTable(tabName) {
+        if (this.virtualTables[tabName]) {
+            const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+                this.handleCheckboxChange(checkbox, tabName);
+            });
+        }
     }
 
     getSettings() {
@@ -602,6 +1131,28 @@ class ImageCleanupApp {
         
         // レイアウトの切り替え
         this.switchLayout(tabName);
+        
+        // 仮想テーブルを初期化
+        this.initializeVirtualTable(tabName);
+        
+        // 現在のタブのデータを仮想テーブルに設定
+        switch (tabName) {
+            case 'blur':
+                if (this.scanResults.blurImages.length > 0) {
+                    this.setVirtualTableData('blur', this.scanResults.blurImages);
+                }
+                break;
+            case 'similar':
+                if (this.scanResults.similarImages.length > 0) {
+                    this.setVirtualTableData('similar', this.scanResults.similarImages);
+                }
+                break;
+            case 'error':
+                if (this.scanResults.errors.length > 0) {
+                    this.setVirtualTableData('error', this.scanResults.errors);
+                }
+                break;
+        }
         
         // 選択状態をクリア
         this.selectedFiles.clear();
@@ -946,12 +1497,6 @@ class ImageCleanupApp {
     displayBlurResults(blurImages) {
         safeConsoleLog('displayBlurResults called with:', blurImages.length, 'images');
         
-        const container = document.getElementById('contentBlur');
-        if (!container) {
-            safeConsoleError('contentBlur container not found');
-            return;
-        }
-        
         // タブのカウント表示を更新
         const countElement = document.getElementById('countBlur');
         if (countElement) {
@@ -960,39 +1505,21 @@ class ImageCleanupApp {
         
         if (blurImages.length === 0) {
             safeConsoleLog('No blur images found, showing empty message');
-            container.innerHTML = '<div class="text-center text-slate-500 py-8">ブレ画像は見つかりませんでした</div>';
+            const container = document.getElementById('contentBlur');
+            if (container) {
+                container.innerHTML = '<div class="text-center text-slate-500 py-8">ブレ画像は見つかりませんでした</div>';
+            }
             return;
         }
         
-        safeConsoleLog('Creating blur table for', blurImages.length, 'images');
-        const table = this.createBlurTable(blurImages);
-        container.innerHTML = '';
-        container.appendChild(table);
-        safeConsoleLog('Blur table created and added to container');
+        // 仮想テーブルにデータを設定
+        this.setVirtualTableData('blur', blurImages);
+        safeConsoleLog('Blur data set to virtual table');
     }
 
     displaySimilarResults(similarImages) {
         safeConsoleLog('displaySimilarResults called with:', similarImages.length, 'similar images');
         safeConsoleLog('Current tab:', this.currentTab);
-        
-        // 現在のタブに応じて適切なコンテナを選択
-        let container;
-        if (this.currentTab === 'similar') {
-            // 類似画像タブの場合、専用のテーブルペインを使用
-            container = document.getElementById('contentSimilarTable');
-            safeConsoleLog('Using dedicated table pane for similar tab');
-        } else {
-            // 他のタブの場合、通常のコンテンツエリアを使用
-            container = document.getElementById('contentSimilar');
-            safeConsoleLog('Using original content area for other tabs');
-        }
-        
-        safeConsoleLog('Selected container:', container);
-        
-        if (!container) {
-            safeConsoleError('Container not found for similar results display');
-            return;
-        }
         
         // タブのカウント表示を更新
         const countElement = document.getElementById('countSimilar');
@@ -1002,23 +1529,20 @@ class ImageCleanupApp {
         }
         
         if (similarImages.length === 0) {
-            container.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像は見つかりませんでした</div>';
             safeConsoleLog('No similar images found, showing empty message');
+            const container = document.getElementById('contentSimilar');
+            if (container) {
+                container.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像は見つかりませんでした</div>';
+            }
             return;
         }
         
-        safeConsoleLog('Creating similar table for', similarImages.length, 'images');
-        const { filterContainer, table } = this.createSimilarTable(similarImages);
-        container.innerHTML = '';
-        container.appendChild(filterContainer);
-        container.appendChild(table);
-        safeConsoleLog('Similar table created and added to container');
+        // 仮想テーブルにデータを設定
+        this.setVirtualTableData('similar', similarImages);
+        safeConsoleLog('Similar data set to virtual table');
     }
 
     displayErrorResults(errors) {
-        const container = document.getElementById('contentError');
-        if (!container) return;
-        
         // タブのカウント表示を更新
         const countElement = document.getElementById('countError');
         if (countElement) {
@@ -1026,13 +1550,16 @@ class ImageCleanupApp {
         }
         
         if (errors.length === 0) {
-            container.innerHTML = '<div class="text-center text-slate-500 py-8">エラーはありません</div>';
+            const container = document.getElementById('contentError');
+            if (container) {
+                container.innerHTML = '<div class="text-center text-slate-500 py-8">エラーはありません</div>';
+            }
             return;
         }
         
-        const table = this.createErrorTable(errors);
-        container.innerHTML = '';
-        container.appendChild(table);
+        // 仮想テーブルにデータを設定
+        this.setVirtualTableData('error', errors);
+        safeConsoleLog('Error data set to virtual table');
     }
 
     clearResults() {
@@ -1861,11 +2388,8 @@ class ImageCleanupApp {
 
     // 選択操作メソッド
     selectAll() {
-        const checkboxes = document.querySelectorAll(`.${this.currentTab}-checkbox`);
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = true;
-            this.handleCheckboxChange(checkbox, this.currentTab);
-        });
+        // 仮想テーブルの全選択機能を使用
+        this.selectAllVirtualTable(this.currentTab);
         
         // 全選択チェックボックスも更新
         const selectAllCheckbox = document.querySelector(`#selectAll${this.currentTab.charAt(0).toUpperCase() + this.currentTab.slice(1)}`);
@@ -1875,11 +2399,8 @@ class ImageCleanupApp {
     }
 
     deselectAll() {
-        const checkboxes = document.querySelectorAll(`.${this.currentTab}-checkbox`);
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = false;
-            this.handleCheckboxChange(checkbox, this.currentTab);
-        });
+        // 仮想テーブルの全選択解除機能を使用
+        this.deselectAllVirtualTable(this.currentTab);
         
         // 全選択チェックボックスも更新
         const selectAllCheckbox = document.querySelector(`#selectAll${this.currentTab.charAt(0).toUpperCase() + this.currentTab.slice(1)}`);
