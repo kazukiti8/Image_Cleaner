@@ -1067,27 +1067,38 @@ class ImageCleanupApp {
             errors: results.errors ? results.errors.length : 0
         });
         
-        // 各タブの結果を表示
-        if (results.blurImages && results.blurImages.length > 0) {
-            safeConsoleLog('Displaying blur results:', results.blurImages.length);
-            this.displayBlurResults(results.blurImages);
-        }
-        
-        if (results.similarImages && results.similarImages.length > 0) {
-            safeConsoleLog('Displaying similar results:', results.similarImages.length);
-            this.displaySimilarResults(results.similarImages);
-        }
-        
-        if (results.errors && results.errors.length > 0) {
-            safeConsoleLog('Displaying error results:', results.errors.length);
-            this.displayErrorResults(results.errors);
-        }
+        // 現在のタブに応じて結果を表示
+        this.displayResultsForCurrentTab();
         
         // 成功メッセージを表示
         const blurCount = results.blurImages ? results.blurImages.length : 0;
         const similarCount = results.similarImages ? results.similarImages.length : 0;
         const errorCount = results.errors ? results.errors.length : 0;
         this.showSuccess(`スキャン完了: ブレ画像${blurCount}件, 類似画像${similarCount}件, エラー${errorCount}件`);
+    }
+    
+    // 現在のタブに応じて結果を表示するメソッド
+    displayResultsForCurrentTab() {
+        switch (this.currentTab) {
+            case 'blur':
+                if (this.scanResults.blurImages.length > 0) {
+                    safeConsoleLog('Displaying blur results for current tab:', this.scanResults.blurImages.length);
+                    this.displayBlurResults(this.scanResults.blurImages);
+                }
+                break;
+            case 'similar':
+                if (this.scanResults.similarImages.length > 0) {
+                    safeConsoleLog('Displaying similar results for current tab:', this.scanResults.similarImages.length);
+                    this.displaySimilarResults(this.scanResults.similarImages);
+                }
+                break;
+            case 'error':
+                if (this.scanResults.errors.length > 0) {
+                    safeConsoleLog('Displaying error results for current tab:', this.scanResults.errors.length);
+                    this.displayErrorResults(this.scanResults.errors);
+                }
+                break;
+        }
     }
 
     handleScanError(error) {
@@ -1136,23 +1147,7 @@ class ImageCleanupApp {
         this.initializeVirtualTable(tabName);
         
         // 現在のタブのデータを仮想テーブルに設定
-        switch (tabName) {
-            case 'blur':
-                if (this.scanResults.blurImages.length > 0) {
-                    this.setVirtualTableData('blur', this.scanResults.blurImages);
-                }
-                break;
-            case 'similar':
-                if (this.scanResults.similarImages.length > 0) {
-                    this.setVirtualTableData('similar', this.scanResults.similarImages);
-                }
-                break;
-            case 'error':
-                if (this.scanResults.errors.length > 0) {
-                    this.setVirtualTableData('error', this.scanResults.errors);
-                }
-                break;
-        }
+        this.displayResultsForCurrentTab();
         
         // 選択状態をクリア
         this.selectedFiles.clear();
