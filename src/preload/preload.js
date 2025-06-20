@@ -21,6 +21,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelScan: () => ipcRenderer.invoke('cancel-scan'),
   retryScanErrors: (filePaths) => ipcRenderer.invoke('retry-scan-errors', filePaths),
   
+  // ファイル監視
+  startFileWatching: (folderPath) => ipcRenderer.invoke('start-file-watching', folderPath),
+  stopFileWatching: () => ipcRenderer.invoke('stop-file-watching'),
+  getWatchedFolders: () => ipcRenderer.invoke('get-watched-folders'),
+  
   // 設定
   getSettings: () => ipcRenderer.invoke('get-settings'),
   loadSettings: () => ipcRenderer.invoke('load-settings'),
@@ -140,6 +145,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
     };
     ipcRenderer.on('file-operation-complete', handler);
     return () => ipcRenderer.removeListener('file-operation-complete', handler);
+  },
+  
+  // ファイルシステム変更イベント
+  onFileSystemChange: (callback) => {
+    console.log('onFileSystemChange called');
+    const handler = (event, data) => {
+      try {
+        if (typeof callback === 'function') {
+          callback(data);
+        } else {
+          console.warn('onFileSystemChange callback is not a function:', typeof callback);
+        }
+      } catch (error) {
+        console.error('ファイルシステム変更コールバックエラー:', error);
+        console.error('エラーの詳細:', {
+          message: error.message,
+          stack: error.stack,
+          callbackType: typeof callback
+        });
+      }
+    };
+    ipcRenderer.on('file-system-change', handler);
+    return () => ipcRenderer.removeListener('file-system-change', handler);
   },
   
   // リスナーの削除

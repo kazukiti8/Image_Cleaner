@@ -716,6 +716,12 @@ class ImageCleanupApp {
         this.cacheTimestamp = null;
         this.cacheValidityHours = 24; // キャッシュの有効期限（時間）
         
+        // ファイル監視関連のプロパティ
+        this.fileWatchingEnabled = true;
+        this.fileWatchingActive = false;
+        this.fileChangeDebounceTimer = null;
+        this.fileChangeDebounceDelay = 3000; // 3秒のデバウンス
+        
         // 仮想テーブルのインスタンス
         this.virtualTables = {
             blur: null,
@@ -741,6 +747,9 @@ class ImageCleanupApp {
         
         // キャッシュの読み込み
         this.loadCache();
+        
+        // ファイル監視機能の初期化
+        this.initializeFileWatching();
     }
 
     init() {
@@ -929,12 +938,26 @@ class ImageCleanupApp {
             const folderPath = await window.electronAPI.selectFolder();
             if (folderPath) {
                 this.targetFolder = folderPath;
-                document.getElementById('targetFolderPathDisplay').textContent = this.getDisplayPath(folderPath);
-                document.getElementById('targetFolderPathDisplay').title = folderPath;
+                
+                // フォルダパスを表示
+                const targetFolderDisplay = document.getElementById('targetFolderPathDisplay');
+                if (targetFolderDisplay) {
+                    targetFolderDisplay.textContent = this.getDisplayPath(folderPath);
+                    targetFolderDisplay.title = folderPath;
+                }
+                
+                // UIを更新
                 this.updateUI();
+                
+                // ファイル監視を開始
+                if (this.fileWatchingEnabled) {
+                    await this.startFileWatching(folderPath);
+                }
+                
+                safeConsoleLog('対象フォルダが選択されました:', folderPath);
             }
         } catch (error) {
-            safeConsoleError('Folder selection error:', error);
+            safeConsoleError('フォルダ選択エラー:', error);
             this.showError('フォルダの選択に失敗しました');
         }
     }
@@ -2701,6 +2724,189 @@ class ImageCleanupApp {
         safeConsoleLog('Cache validity set to:', hours, 'hours');
         this.showSuccess(`キャッシュの有効期限を${hours}時間に設定しました`);
     }
+
+    // ファイル監視機能の初期化
+    initializeFileWatching() {
+        if (!window.electronAPI || !window.electronAPI.onFileSystemChange) {
+            safeConsoleWarn('ファイル監視APIが利用できません');
+            return;
+        }
+
+        // ファイルシステム変更イベントのリスナーを設定
+        this.fileSystemChangeUnsubscribe = window.electronAPI.onFileSystemChange((data) => {
+            this.handleFileSystemChange(data);
+        });
+
+        safeConsoleLog('ファイル監視機能が初期化されました');
+    }
+
+    // ファイルシステム変更の処理
+    handleFileSystemChange(data) {
+        if (!this.fileWatchingEnabled) {
+            return;
+        }
+
+        safeConsoleLog('ファイルシステム変更を検知:', data);
+
+        // デバウンス処理
+        if (this.fileChangeDebounceTimer) {
+            clearTimeout(this.fileChangeDebounceTimer);
+        }
+
+        this.fileChangeDebounceTimer = setTimeout(() => {
+            this.processFileSystemChange(data);
+        }, this.fileChangeDebounceDelay);
+    }
+
+    // ファイルシステム変更の処理（デバウンス後）
+    processFileSystemChange(data) {
+        const { type, filePath } = data;
+
+        // 現在のターゲットフォルダに関連する変更かチェック
+        if (this.targetFolder && filePath.startsWith(this.targetFolder)) {
+            safeConsoleLog(`ターゲットフォルダ内のファイル変更を検知: ${type} - ${filePath}`);
+
+            // キャッシュを無効化
+            this.invalidateCacheForFolder(this.targetFolder);
+
+            // ユーザーに通知
+            this.showFileChangeNotification(type, filePath);
+
+            // 必要に応じて自動再スキャンを提案
+            this.suggestRescan(type);
+        }
+    }
+
+    // フォルダのキャッシュを無効化
+    invalidateCacheForFolder(folderPath) {
+        if (this.cacheData && this.cacheData[folderPath]) {
+            delete this.cacheData[folderPath];
+            this.saveCache();
+            safeConsoleLog(`キャッシュを無効化しました: ${folderPath}`);
+        }
+    }
+
+    // ファイル変更通知の表示
+    showFileChangeNotification(type, filePath) {
+        const fileName = pathBasename(filePath);
+        let message = '';
+
+        switch (type) {
+            case 'added':
+                message = `新しい画像ファイルが追加されました: ${fileName}`;
+                break;
+            case 'changed':
+                message = `画像ファイルが変更されました: ${fileName}`;
+                break;
+            case 'deleted':
+                message = `画像ファイルが削除されました: ${fileName}`;
+                break;
+            default:
+                message = `ファイルが変更されました: ${fileName}`;
+        }
+
+        this.showNotification(message, 'info');
+    }
+
+    // 再スキャンの提案
+    suggestRescan(type) {
+        // 削除の場合は即座に再スキャンを提案
+        if (type === 'deleted') {
+            this.showNotification('ファイルが削除されました。再スキャンを実行することをお勧めします。', 'warning');
+        }
+        // 追加・変更の場合は少し待ってから提案
+        else {
+            setTimeout(() => {
+                this.showNotification('ファイルが変更されました。最新の状態を確認するために再スキャンを実行することをお勧めします。', 'info');
+            }, 5000); // 5秒後に提案
+        }
+    }
+
+    // ファイル監視の開始
+    async startFileWatching(folderPath) {
+        if (!this.fileWatchingEnabled || !folderPath) {
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.startFileWatching(folderPath);
+            if (result.success) {
+                this.fileWatchingActive = true;
+                safeConsoleLog('ファイル監視を開始しました:', folderPath);
+                this.showSuccess('ファイル監視を開始しました');
+            } else {
+                safeConsoleError('ファイル監視の開始に失敗しました:', result.error);
+                this.showError('ファイル監視の開始に失敗しました');
+            }
+        } catch (error) {
+            safeConsoleError('ファイル監視開始エラー:', error);
+            this.showError('ファイル監視の開始に失敗しました');
+        }
+    }
+
+    // ファイル監視の停止
+    async stopFileWatching() {
+        try {
+            const result = await window.electronAPI.stopFileWatching();
+            if (result.success) {
+                this.fileWatchingActive = false;
+                safeConsoleLog('ファイル監視を停止しました');
+                this.showSuccess('ファイル監視を停止しました');
+            } else {
+                safeConsoleError('ファイル監視の停止に失敗しました:', result.error);
+                this.showError('ファイル監視の停止に失敗しました');
+            }
+        } catch (error) {
+            safeConsoleError('ファイル監視停止エラー:', error);
+            this.showError('ファイル監視の停止に失敗しました');
+        }
+    }
+
+    // ファイル監視の有効/無効を切り替え
+    toggleFileWatching() {
+        this.fileWatchingEnabled = !this.fileWatchingEnabled;
+        
+        if (this.fileWatchingEnabled) {
+            this.showSuccess('ファイル監視を有効にしました');
+            if (this.targetFolder) {
+                this.startFileWatching(this.targetFolder);
+            }
+        } else {
+            this.showSuccess('ファイル監視を無効にしました');
+            this.stopFileWatching();
+        }
+        
+        return this.fileWatchingEnabled;
+    }
+
+    // ファイル監視状態の取得
+    getFileWatchingStatus() {
+        return {
+            enabled: this.fileWatchingEnabled,
+            active: this.fileWatchingActive,
+            targetFolder: this.targetFolder
+        };
+    }
+
+    // アプリケーション終了時のクリーンアップ
+    cleanup() {
+        // ファイル監視を停止
+        if (this.fileWatchingActive) {
+            this.stopFileWatching();
+        }
+
+        // イベントリスナーを削除
+        if (this.fileSystemChangeUnsubscribe) {
+            this.fileSystemChangeUnsubscribe();
+        }
+
+        // デバウンスタイマーをクリア
+        if (this.fileChangeDebounceTimer) {
+            clearTimeout(this.fileChangeDebounceTimer);
+        }
+
+        safeConsoleLog('アプリケーションのクリーンアップが完了しました');
+    }
 }
 
 // アプリケーションの初期化
@@ -2727,4 +2933,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         safeConsoleError('SettingsManager class not found');
     }
+    
+    // ページアンロード時のクリーンアップ
+    window.addEventListener('beforeunload', () => {
+        if (window.imageCleanupApp) {
+            window.imageCleanupApp.cleanup();
+        }
+    });
 });

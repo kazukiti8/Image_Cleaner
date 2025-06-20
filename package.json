@@ -47,21 +47,23 @@
   },
   "homepage": "https://github.com/kazukiti8/Image_Cleaner#readme",
   "dependencies": {
-    "sharp": "^0.32.6"
+    "sharp": "^0.32.6",
+    "chokidar": "^3.5.3"
   },
   "build": {
     "appId": "com.example.image-cleanup-assistant",
-    "productName": "イメージクリーンアップアシスタント",
+    "productName": "ImageCleanupAssistant",
     "directories": {
       "output": "dist"
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "src/renderer/assets/icons/app-icon.png"
+      "target": "portable",
+      "artifactName": "${productName}-${version}.${ext}"
     }
   }
 }
