@@ -564,4 +564,6 @@ class ImageAnalyzer {
     }
 }
 
-module.exports = ImageAnalyzer; 
+module.exports = ImageAnalyzer;
+// 追加エクスポート
+module.exports.calculateHammingDistance = ImageAnalyzer.prototype.calculateHammingDistance; 

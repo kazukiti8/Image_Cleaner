@@ -7,7 +7,15 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "test:all": "npm run test && npm run test:e2e",
     "build:css": "tailwindcss -i ./src/renderer/css/style.css -o ./src/renderer/css/output.css --watch",
     "build:css:prod": "tailwindcss -i ./src/renderer/css/style.css -o ./src/renderer/css/output.css --minify"
   },
@@ -21,9 +29,12 @@
   "author": "Your Name",
   "license": "MIT",
   "devDependencies": {
+    "@playwright/test": "^1.53.1",
     "autoprefixer": "^10.4.21",
     "electron": "^28.0.0",
     "electron-builder": "^24.6.4",
+    "jest": "^30.0.2",
+    "jest-environment-jsdom": "^30.0.2",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.10"
   },
@@ -36,21 +47,23 @@
   },
   "homepage": "https://github.com/kazukiti8/Image_Cleaner#readme",
   "dependencies": {
-    "sharp": "^0.32.6"
+    "sharp": "^0.32.6",
+    "chokidar": "^3.5.3"
   },
   "build": {
     "appId": "com.example.image-cleanup-assistant",
-    "productName": "イメージクリーンアップアシスタント",
+    "productName": "ImageCleanupAssistant",
     "directories": {
       "output": "dist"
     },
     "files": [
       "src/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
     ],
     "win": {
-      "target": "nsis",
-      "icon": "src/renderer/assets/icons/app-icon.png"
+      "target": "portable",
+      "artifactName": "${productName}-${version}.${ext}"
     }
   }
 }

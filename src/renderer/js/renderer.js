@@ -762,6 +762,18 @@ class ImageCleanupApp {
         this.selectedErrors = new Set();
         this.batchProcessor = new BatchProcessor();
         
+        // キャッシュ関連のプロパティ
+        this.cacheEnabled = true;
+        this.cacheData = null;
+        this.cacheTimestamp = null;
+        this.cacheValidityHours = 24; // キャッシュの有効期限（時間）
+        
+        // ファイル監視関連のプロパティ
+        this.fileWatchingEnabled = true;
+        this.fileWatchingActive = false;
+        this.fileChangeDebounceTimer = null;
+        this.fileChangeDebounceDelay = 3000; // 3秒のデバウンス
+        
         // 仮想テーブルのインスタンス
         this.virtualTables = {
             blur: null,
@@ -789,6 +801,12 @@ class ImageCleanupApp {
         this.showGuidanceIfNeeded();
         this.startPerformanceMonitoring();
         this.startMemoryCleanup();
+        
+        // キャッシュの読み込み
+        this.loadCache();
+        
+        // ファイル監視機能の初期化
+        this.initializeFileWatching();
     }
 
     init() {
@@ -1005,12 +1023,26 @@ class ImageCleanupApp {
             const folderPath = await window.electronAPI.selectFolder();
             if (folderPath) {
                 this.targetFolder = folderPath;
-                document.getElementById('targetFolderPathDisplay').textContent = this.getDisplayPath(folderPath);
-                document.getElementById('targetFolderPathDisplay').title = folderPath;
+                
+                // フォルダパスを表示
+                const targetFolderDisplay = document.getElementById('targetFolderPathDisplay');
+                if (targetFolderDisplay) {
+                    targetFolderDisplay.textContent = this.getDisplayPath(folderPath);
+                    targetFolderDisplay.title = folderPath;
+                }
+                
+                // UIを更新
                 this.updateUI();
+                
+                // ファイル監視を開始
+                if (this.fileWatchingEnabled) {
+                    await this.startFileWatching(folderPath);
+                }
+                
+                safeConsoleLog('対象フォルダが選択されました:', folderPath);
             }
         } catch (error) {
-            safeConsoleError('Folder selection error:', error);
+            safeConsoleError('フォルダ選択エラー:', error);
             this.showError('フォルダの選択に失敗しました');
         }
     }
@@ -1050,6 +1082,17 @@ class ImageCleanupApp {
         if (this.scanInProgress) {
             // スキャンキャンセル
             await this.cancelScan();
+            return;
+        }
+
+        // キャッシュチェック
+        const cachedResults = this.getCachedResults(this.targetFolder);
+        if (cachedResults) {
+            safeConsoleLog('Using cached results for folder:', this.targetFolder);
+            this.showSuccess('キャッシュから結果を読み込みました');
+            
+            // キャッシュされた結果を表示
+            this.handleScanComplete(cachedResults);
             return;
         }
 
@@ -1133,6 +1176,11 @@ class ImageCleanupApp {
             similarImages: results.similarImages || [],
             errors: results.errors || []
         };
+        
+        // キャッシュを更新
+        if (this.cacheEnabled && this.targetFolder) {
+            this.updateCache(this.targetFolder, results);
+        }
         
         // 結果の件数をログ出力
         safeConsoleLog('Scan results received:', {
@@ -2646,6 +2694,355 @@ class ImageCleanupApp {
         }
     }
 
+    // キャッシュ関連のメソッド
+    loadCache() {
+        try {
+            const cacheKey = 'imageCleanupCache';
+            const cachedData = localStorage.getItem(cacheKey);
+            
+            if (cachedData) {
+                const parsed = JSON.parse(cachedData);
+                this.cacheData = parsed.data;
+                this.cacheTimestamp = parsed.timestamp;
+                
+                safeConsoleLog('Cache loaded:', {
+                    timestamp: this.cacheTimestamp,
+                    dataSize: this.cacheData ? Object.keys(this.cacheData).length : 0
+                });
+            }
+        } catch (error) {
+            safeConsoleError('Cache load error:', error);
+            this.clearCache();
+        }
+    }
+
+    saveCache() {
+        try {
+            const cacheKey = 'imageCleanupCache';
+            const cacheData = {
+                data: this.cacheData,
+                timestamp: Date.now()
+            };
+            
+            localStorage.setItem(cacheKey, JSON.stringify(cacheData));
+            this.cacheTimestamp = cacheData.timestamp;
+            
+            safeConsoleLog('Cache saved:', {
+                timestamp: this.cacheTimestamp,
+                dataSize: this.cacheData ? Object.keys(this.cacheData).length : 0
+            });
+        } catch (error) {
+            safeConsoleError('Cache save error:', error);
+        }
+    }
+
+    isCacheValid(folderPath) {
+        if (!this.cacheEnabled || !this.cacheData || !this.cacheTimestamp) {
+            return false;
+        }
+
+        // キャッシュの有効期限チェック
+        const now = Date.now();
+        const cacheAge = now - this.cacheTimestamp;
+        const maxAge = this.cacheValidityHours * 60 * 60 * 1000; // 時間をミリ秒に変換
+
+        if (cacheAge > maxAge) {
+            safeConsoleLog('Cache expired:', {
+                age: Math.round(cacheAge / (60 * 60 * 1000)),
+                maxAge: this.cacheValidityHours
+            });
+            return false;
+        }
+
+        // フォルダパスのチェック
+        if (!this.cacheData[folderPath]) {
+            safeConsoleLog('No cache data for folder:', folderPath);
+            return false;
+        }
+
+        safeConsoleLog('Cache is valid for folder:', folderPath);
+        return true;
+    }
+
+    getCachedResults(folderPath) {
+        if (this.isCacheValid(folderPath)) {
+            return this.cacheData[folderPath];
+        }
+        return null;
+    }
+
+    updateCache(folderPath, results) {
+        if (!this.cacheData) {
+            this.cacheData = {};
+        }
+        
+        this.cacheData[folderPath] = {
+            blurImages: results.blurImages || [],
+            similarImages: results.similarImages || [],
+            errors: results.errors || [],
+            scanTime: Date.now()
+        };
+        
+        this.saveCache();
+        safeConsoleLog('Cache updated for folder:', folderPath);
+    }
+
+    clearCache() {
+        try {
+            const cacheKey = 'imageCleanupCache';
+            localStorage.removeItem(cacheKey);
+            this.cacheData = null;
+            this.cacheTimestamp = null;
+            safeConsoleLog('Cache cleared');
+        } catch (error) {
+            safeConsoleError('Cache clear error:', error);
+        }
+    }
+
+    // キャッシュ設定の更新
+    updateCacheSettings(enabled, validityHours = 24) {
+        this.cacheEnabled = enabled;
+        this.cacheValidityHours = validityHours;
+        safeConsoleLog('Cache settings updated:', { enabled, validityHours });
+    }
+
+    // キャッシュ情報の取得
+    getCacheInfo() {
+        if (!this.cacheData || !this.cacheTimestamp) {
+            return {
+                enabled: this.cacheEnabled,
+                hasData: false,
+                folderCount: 0,
+                lastUpdate: null,
+                validityHours: this.cacheValidityHours
+            };
+        }
+
+        const now = Date.now();
+        const cacheAge = now - this.cacheTimestamp;
+        const ageHours = Math.round(cacheAge / (60 * 60 * 1000));
+
+        return {
+            enabled: this.cacheEnabled,
+            hasData: true,
+            folderCount: Object.keys(this.cacheData).length,
+            lastUpdate: this.cacheTimestamp,
+            ageHours: ageHours,
+            validityHours: this.cacheValidityHours,
+            isValid: cacheAge < (this.cacheValidityHours * 60 * 60 * 1000)
+        };
+    }
+
+    // キャッシュの有効/無効を切り替え
+    toggleCache() {
+        this.cacheEnabled = !this.cacheEnabled;
+        safeConsoleLog('Cache toggled:', this.cacheEnabled);
+        
+        if (!this.cacheEnabled) {
+            this.showSuccess('キャッシュを無効にしました');
+        } else {
+            this.showSuccess('キャッシュを有効にしました');
+        }
+        
+        return this.cacheEnabled;
+    }
+
+    // キャッシュの強制クリア
+    forceClearCache() {
+        this.clearCache();
+        this.showSuccess('キャッシュをクリアしました');
+    }
+
+    // キャッシュの有効期限を設定
+    setCacheValidity(hours) {
+        this.cacheValidityHours = hours;
+        safeConsoleLog('Cache validity set to:', hours, 'hours');
+        this.showSuccess(`キャッシュの有効期限を${hours}時間に設定しました`);
+    }
+
+    // ファイル監視機能の初期化
+    initializeFileWatching() {
+        if (!window.electronAPI || !window.electronAPI.onFileSystemChange) {
+            safeConsoleWarn('ファイル監視APIが利用できません');
+            return;
+        }
+
+        // ファイルシステム変更イベントのリスナーを設定
+        this.fileSystemChangeUnsubscribe = window.electronAPI.onFileSystemChange((data) => {
+            this.handleFileSystemChange(data);
+        });
+
+        safeConsoleLog('ファイル監視機能が初期化されました');
+    }
+
+    // ファイルシステム変更の処理
+    handleFileSystemChange(data) {
+        if (!this.fileWatchingEnabled) {
+            return;
+        }
+
+        safeConsoleLog('ファイルシステム変更を検知:', data);
+
+        // デバウンス処理
+        if (this.fileChangeDebounceTimer) {
+            clearTimeout(this.fileChangeDebounceTimer);
+        }
+
+        this.fileChangeDebounceTimer = setTimeout(() => {
+            this.processFileSystemChange(data);
+        }, this.fileChangeDebounceDelay);
+    }
+
+    // ファイルシステム変更の処理（デバウンス後）
+    processFileSystemChange(data) {
+        const { type, filePath } = data;
+
+        // 現在のターゲットフォルダに関連する変更かチェック
+        if (this.targetFolder && filePath.startsWith(this.targetFolder)) {
+            safeConsoleLog(`ターゲットフォルダ内のファイル変更を検知: ${type} - ${filePath}`);
+
+            // キャッシュを無効化
+            this.invalidateCacheForFolder(this.targetFolder);
+
+            // ユーザーに通知
+            this.showFileChangeNotification(type, filePath);
+
+            // 必要に応じて自動再スキャンを提案
+            this.suggestRescan(type);
+        }
+    }
+
+    // フォルダのキャッシュを無効化
+    invalidateCacheForFolder(folderPath) {
+        if (this.cacheData && this.cacheData[folderPath]) {
+            delete this.cacheData[folderPath];
+            this.saveCache();
+            safeConsoleLog(`キャッシュを無効化しました: ${folderPath}`);
+        }
+    }
+
+    // ファイル変更通知の表示
+    showFileChangeNotification(type, filePath) {
+        const fileName = pathBasename(filePath);
+        let message = '';
+
+        switch (type) {
+            case 'added':
+                message = `新しい画像ファイルが追加されました: ${fileName}`;
+                break;
+            case 'changed':
+                message = `画像ファイルが変更されました: ${fileName}`;
+                break;
+            case 'deleted':
+                message = `画像ファイルが削除されました: ${fileName}`;
+                break;
+            default:
+                message = `ファイルが変更されました: ${fileName}`;
+        }
+
+        this.showNotification(message, 'info');
+    }
+
+    // 再スキャンの提案
+    suggestRescan(type) {
+        // 削除の場合は即座に再スキャンを提案
+        if (type === 'deleted') {
+            this.showNotification('ファイルが削除されました。再スキャンを実行することをお勧めします。', 'warning');
+        }
+        // 追加・変更の場合は少し待ってから提案
+        else {
+            setTimeout(() => {
+                this.showNotification('ファイルが変更されました。最新の状態を確認するために再スキャンを実行することをお勧めします。', 'info');
+            }, 5000); // 5秒後に提案
+        }
+    }
+
+    // ファイル監視の開始
+    async startFileWatching(folderPath) {
+        if (!this.fileWatchingEnabled || !folderPath) {
+            return;
+        }
+
+        try {
+            const result = await window.electronAPI.startFileWatching(folderPath);
+            if (result.success) {
+                this.fileWatchingActive = true;
+                safeConsoleLog('ファイル監視を開始しました:', folderPath);
+                this.showSuccess('ファイル監視を開始しました');
+            } else {
+                safeConsoleError('ファイル監視の開始に失敗しました:', result.error);
+                this.showError('ファイル監視の開始に失敗しました');
+            }
+        } catch (error) {
+            safeConsoleError('ファイル監視開始エラー:', error);
+            this.showError('ファイル監視の開始に失敗しました');
+        }
+    }
+
+    // ファイル監視の停止
+    async stopFileWatching() {
+        try {
+            const result = await window.electronAPI.stopFileWatching();
+            if (result.success) {
+                this.fileWatchingActive = false;
+                safeConsoleLog('ファイル監視を停止しました');
+                this.showSuccess('ファイル監視を停止しました');
+            } else {
+                safeConsoleError('ファイル監視の停止に失敗しました:', result.error);
+                this.showError('ファイル監視の停止に失敗しました');
+            }
+        } catch (error) {
+            safeConsoleError('ファイル監視停止エラー:', error);
+            this.showError('ファイル監視の停止に失敗しました');
+        }
+    }
+
+    // ファイル監視の有効/無効を切り替え
+    toggleFileWatching() {
+        this.fileWatchingEnabled = !this.fileWatchingEnabled;
+        
+        if (this.fileWatchingEnabled) {
+            this.showSuccess('ファイル監視を有効にしました');
+            if (this.targetFolder) {
+                this.startFileWatching(this.targetFolder);
+            }
+        } else {
+            this.showSuccess('ファイル監視を無効にしました');
+            this.stopFileWatching();
+        }
+        
+        return this.fileWatchingEnabled;
+    }
+
+    // ファイル監視状態の取得
+    getFileWatchingStatus() {
+        return {
+            enabled: this.fileWatchingEnabled,
+            active: this.fileWatchingActive,
+            targetFolder: this.targetFolder
+        };
+    }
+
+    // アプリケーション終了時のクリーンアップ
+    cleanup() {
+        // ファイル監視を停止
+        if (this.fileWatchingActive) {
+            this.stopFileWatching();
+        }
+
+        // イベントリスナーを削除
+        if (this.fileSystemChangeUnsubscribe) {
+            this.fileSystemChangeUnsubscribe();
+        }
+
+        // デバウンスタイマーをクリア
+        if (this.fileChangeDebounceTimer) {
+            clearTimeout(this.fileChangeDebounceTimer);
+        }
+
+        safeConsoleLog('アプリケーションのクリーンアップが完了しました');
+    }
+
     // プレビューナビゲーション機能
     navigatePreview(direction) {
         if (this.currentPreviewIndex === -1 || this.currentPreviewData.length === 0) return;
@@ -2783,4 +3180,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         safeConsoleError('SettingsManager class not found');
     }
+    
+    // ページアンロード時のクリーンアップ
+    window.addEventListener('beforeunload', () => {
+        if (window.imageCleanupApp) {
+            window.imageCleanupApp.cleanup();
+        }
+    });
 });
