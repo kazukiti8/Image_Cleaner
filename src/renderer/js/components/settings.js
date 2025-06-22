@@ -13,9 +13,7 @@ class SettingsManager {
             includeMetadata: true,
             includeStatistics: true,
             includeProcessingHistory: true,
-            fileWatchingEnabled: true,
-            cacheEnabled: true,
-            cacheValidityHours: 24
+            fileWatchingEnabled: true
         };
         this.init();
     }
@@ -117,17 +115,6 @@ class SettingsManager {
         const fileWatchingEnabled = document.getElementById('fileWatchingEnabled');
         if (fileWatchingEnabled) {
             fileWatchingEnabled.checked = this.settings.fileWatchingEnabled;
-        }
-
-        // キャッシュ設定の値を設定
-        const cacheEnabled = document.getElementById('cacheEnabled');
-        if (cacheEnabled) {
-            cacheEnabled.checked = this.settings.cacheEnabled;
-        }
-
-        const cacheValidityHours = document.getElementById('cacheValidityHours');
-        if (cacheValidityHours) {
-            cacheValidityHours.value = this.settings.cacheValidityHours;
         }
     }
 
@@ -287,30 +274,6 @@ class SettingsManager {
                 // メインアプリケーションの設定も更新
                 if (window.imageCleanupApp) {
                     window.imageCleanupApp.fileWatchingEnabled = e.target.checked;
-                }
-            });
-        }
-
-        // キャッシュ設定のイベント
-        const cacheEnabled = document.getElementById('cacheEnabled');
-        if (cacheEnabled) {
-            cacheEnabled.addEventListener('change', (e) => {
-                this.settings.cacheEnabled = e.target.checked;
-                // メインアプリケーションの設定も更新
-                if (window.imageCleanupApp) {
-                    window.imageCleanupApp.cacheEnabled = e.target.checked;
-                }
-            });
-        }
-
-        const cacheValidityHours = document.getElementById('cacheValidityHours');
-        if (cacheValidityHours) {
-            cacheValidityHours.addEventListener('change', (e) => {
-                const hours = parseInt(e.target.value) || 24;
-                this.settings.cacheValidityHours = hours;
-                // メインアプリケーションの設定も更新
-                if (window.imageCleanupApp) {
-                    window.imageCleanupApp.cacheValidityHours = hours;
                 }
             });
         }
