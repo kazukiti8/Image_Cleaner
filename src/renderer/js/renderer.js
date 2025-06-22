@@ -59,6 +59,9 @@ class VirtualTable {
         this.currentScrollTop = 0;
         this.isInitialized = false;
         
+        // チェックボックスの状態を保持するためのマップ
+        this.checkboxStates = new Map();
+        
         this.init();
     }
     
@@ -120,6 +123,8 @@ class VirtualTable {
     
     setData(data) {
         this.data = data;
+        // 新しいデータが設定された時にチェックボックスの状態をクリア
+        this.clearCheckboxStates();
         this.sortData();
         this.updateSpacerHeight();
         this.render();
@@ -185,6 +190,21 @@ class VirtualTable {
         return row;
     }
     
+    // チェックボックスの状態を保存
+    saveCheckboxState(identifier, checked) {
+        this.checkboxStates.set(identifier, checked);
+    }
+    
+    // チェックボックスの状態を取得
+    getCheckboxState(identifier) {
+        return this.checkboxStates.get(identifier) || false;
+    }
+    
+    // チェックボックスの状態をクリア
+    clearCheckboxStates() {
+        this.checkboxStates.clear();
+    }
+    
     scrollToIndex(index) {
         if (index >= 0 && index < this.data.length) {
             const scrollTop = index * this.rowHeight;
@@ -231,6 +251,8 @@ class BlurVirtualTable extends VirtualTable {
             const checkboxes = this.content.querySelectorAll('.blur-checkbox');
             checkboxes.forEach(checkbox => {
                 checkbox.checked = e.target.checked;
+                // チェックボックスの状態を保存
+                this.saveCheckboxState(checkbox.dataset.filepath, e.target.checked);
                 this.app.handleCheckboxChange(checkbox, 'blur');
             });
         });
@@ -262,10 +284,16 @@ class BlurVirtualTable extends VirtualTable {
             </div>
         `;
         
-        // イベントリスナーを設定
+        // チェックボックスの状態を復元
         const checkbox = row.querySelector('.blur-checkbox');
+        const savedState = this.getCheckboxState(image.filePath);
+        checkbox.checked = savedState;
+        
+        // イベントリスナーを設定
         checkbox.addEventListener('change', (e) => {
             e.stopPropagation();
+            // チェックボックスの状態を保存
+            this.saveCheckboxState(image.filePath, e.target.checked);
             this.app.handleCheckboxChange(checkbox, 'blur');
         });
         
@@ -308,6 +336,8 @@ class SimilarVirtualTable extends VirtualTable {
             const checkboxes = this.content.querySelectorAll('.similar-checkbox');
             checkboxes.forEach(checkbox => {
                 checkbox.checked = e.target.checked;
+                // チェックボックスの状態を保存
+                this.saveCheckboxState(checkbox.dataset.pair, e.target.checked);
                 this.app.handleCheckboxChange(checkbox, 'similar');
             });
         });
@@ -394,23 +424,37 @@ class SimilarVirtualTable extends VirtualTable {
     setupRowEventListeners(row, file1, file2, similarity, pairKey) {
         // チェックボックスイベント
         const pairCheckbox = row.querySelector('.similar-checkbox');
+        
+        // ペアチェックボックスの状態を復元
+        const savedPairState = this.getCheckboxState(pairKey);
+        pairCheckbox.checked = savedPairState;
+        
         pairCheckbox.addEventListener('change', (e) => {
             e.stopPropagation();
+            // ペアチェックボックスの状態を保存
+            this.saveCheckboxState(pairKey, e.target.checked);
             this.app.handleCheckboxChange(pairCheckbox, 'similar');
         });
         
         // 個別チェックボックスイベント
         const individualCheckboxes = row.querySelectorAll('.individual-checkbox');
         individualCheckboxes.forEach(checkbox => {
+            // 個別チェックボックスの状態を復元
+            const filePath = checkbox.dataset.filepath;
+            const savedIndividualState = this.getCheckboxState(`individual_${filePath}`);
+            checkbox.checked = savedIndividualState;
+            
             checkbox.addEventListener('change', (e) => {
                 e.stopPropagation();
-                const filePath = checkbox.dataset.filepath;
                 
                 if (checkbox.checked) {
                     this.app.selectedIndividualFiles.add(filePath);
                 } else {
                     this.app.selectedIndividualFiles.delete(filePath);
                 }
+                
+                // 個別チェックボックスの状態を保存
+                this.saveCheckboxState(`individual_${filePath}`, e.target.checked);
                 
                 this.app.updatePairSelectionState(pairKey);
                 this.app.updateSelectedCount();
@@ -461,6 +505,8 @@ class ErrorVirtualTable extends VirtualTable {
             const checkboxes = this.content.querySelectorAll('.error-checkbox');
             checkboxes.forEach(checkbox => {
                 checkbox.checked = e.target.checked;
+                // チェックボックスの状態を保存
+                this.saveCheckboxState(checkbox.dataset.filepath, e.target.checked);
                 this.app.handleCheckboxChange(checkbox, 'error');
             });
         });
@@ -486,10 +532,16 @@ class ErrorVirtualTable extends VirtualTable {
             <div class="flex-1 px-4 py-2 text-red-600 text-sm">${error.error}</div>
         `;
         
-        // イベントリスナーを設定
+        // チェックボックスの状態を復元
         const checkbox = row.querySelector('.error-checkbox');
+        const savedState = this.getCheckboxState(error.filePath);
+        checkbox.checked = savedState;
+        
+        // イベントリスナーを設定
         checkbox.addEventListener('change', (e) => {
             e.stopPropagation();
+            // チェックボックスの状態を保存
+            this.saveCheckboxState(error.filePath, e.target.checked);
             this.app.handleCheckboxChange(checkbox, 'error');
         });
         
@@ -717,6 +769,11 @@ class ImageCleanupApp {
             error: null
         };
         
+        // プレビュー状態管理
+        this.currentPreviewIndex = -1; // 現在プレビュー中の画像のインデックス
+        this.currentPreviewData = []; // 現在のタブの画像データ
+        this.previewMode = 'single'; // 'single' または 'similar'
+        
         // エクスポート・レポートマネージャー
         this.exportReportManager = new ExportReportManager();
         
@@ -814,6 +871,12 @@ class ImageCleanupApp {
             const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
             checkboxes.forEach(checkbox => {
                 checkbox.checked = true;
+                // チェックボックスの状態を保存
+                if (tabName === 'similar') {
+                    this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.pair, true);
+                } else {
+                    this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.filepath, true);
+                }
                 this.handleCheckboxChange(checkbox, tabName);
             });
         }
@@ -825,6 +888,12 @@ class ImageCleanupApp {
             const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
             checkboxes.forEach(checkbox => {
                 checkbox.checked = false;
+                // チェックボックスの状態を保存
+                if (tabName === 'similar') {
+                    this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.pair, false);
+                } else {
+                    this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.filepath, false);
+                }
                 this.handleCheckboxChange(checkbox, tabName);
             });
         }
@@ -851,8 +920,24 @@ class ImageCleanupApp {
         // タブ切り替え
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', (e) => {
-                const tabName = e.target.dataset.tab;
-                this.switchTab(tabName);
+                // クリックされた要素またはその親要素からtabNameを取得
+                let target = e.target;
+                let tabName = null;
+                
+                // クリックされた要素またはその親要素からdata-tab属性を探す
+                while (target && target !== document.body) {
+                    if (target.dataset && target.dataset.tab) {
+                        tabName = target.dataset.tab;
+                        break;
+                    }
+                    target = target.parentElement;
+                }
+                
+                if (tabName) {
+                    this.switchTab(tabName);
+                } else {
+                    safeConsoleError('Tab name not found in clicked element');
+                }
             });
         });
         
@@ -1106,12 +1191,15 @@ class ImageCleanupApp {
     }
 
     switchTab(tabName) {
-        safeConsoleLog(`Switching to tab: ${tabName}`);
+        // tabNameの妥当性チェック
+        if (!tabName || typeof tabName !== 'string') {
+            safeConsoleError('Invalid tabName:', tabName);
+            return;
+        }
         
-        // 現在のタブを更新
         this.currentTab = tabName;
         
-        // タブボタンの状態を更新
+        // タブボタンのアクティブ状態を切り替え
         document.querySelectorAll('.tab-button').forEach(button => {
             button.classList.remove('tab-active');
         });
@@ -1146,7 +1234,7 @@ class ImageCleanupApp {
         this.updateSelectedCount();
         this.updateActionButtons();
         
-        // プレビューエリアをクリア
+        // プレビューエリアをクリア（プレビュー選択状態もクリアされる）
         this.clearPreviewArea();
         
         safeConsoleLog(`Tab switched to: ${tabName}`);
@@ -1174,6 +1262,9 @@ class ImageCleanupApp {
 
     // プレビューエリアをクリア
     clearPreviewArea() {
+        // プレビュー選択状態をクリア
+        this.clearPreviewSelection();
+        
         // 通常のプレビューエリアをクリア
         const previewContainer = document.getElementById('previewAreaContainer');
         if (previewContainer) {
@@ -1622,6 +1713,34 @@ class ImageCleanupApp {
 
     initializeKeyboardShortcuts() {
         // キーボードショートカット
+        document.addEventListener('keydown', (e) => {
+            // プレビュー中でない場合は何もしない
+            if (this.currentPreviewIndex === -1) return;
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                    e.preventDefault();
+                    this.navigatePreview('up');
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    this.navigatePreview('down');
+                    break;
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    this.navigatePreview('left');
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    this.navigatePreview('right');
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    this.clearPreviewSelection();
+                    break;
+            }
+        });
+        
         safeConsoleLog('Keyboard shortcuts initialized');
     }
 
@@ -1657,6 +1776,14 @@ class ImageCleanupApp {
 
     // プレビュー表示
     showImagePreview(image) {
+        // プレビュー状態を設定
+        this.previewMode = 'single';
+        this.currentPreviewData = this.getCurrentTabData();
+        this.currentPreviewIndex = this.findImageIndex(image);
+        
+        // プレビュー選択状態を更新
+        this.updatePreviewSelection();
+        
         const previewContainer = document.getElementById('previewAreaContainer');
         if (!previewContainer) return;
         previewContainer.innerHTML = '';
@@ -1700,6 +1827,14 @@ class ImageCleanupApp {
 
     // 類似画像ペアプレビュー表示
     showSimilarImagePreview(file1, file2, similarity) {
+        // プレビュー状態を設定
+        this.previewMode = 'similar';
+        this.currentPreviewData = this.getCurrentTabData();
+        this.currentPreviewIndex = this.findSimilarPairIndex(file1, file2);
+        
+        // プレビュー選択状態を更新
+        this.updatePreviewSelection();
+        
         const previewContainer = document.getElementById('previewAreaContainer');
         if (!previewContainer) return;
         previewContainer.innerHTML = '';
@@ -2509,6 +2644,118 @@ class ImageCleanupApp {
                 }
             }
         }
+    }
+
+    // プレビューナビゲーション機能
+    navigatePreview(direction) {
+        if (this.currentPreviewIndex === -1 || this.currentPreviewData.length === 0) return;
+        
+        let newIndex = this.currentPreviewIndex;
+        
+        switch (direction) {
+            case 'up':
+            case 'left':
+                newIndex = Math.max(0, this.currentPreviewIndex - 1);
+                break;
+            case 'down':
+            case 'right':
+                newIndex = Math.min(this.currentPreviewData.length - 1, this.currentPreviewIndex + 1);
+                break;
+        }
+        
+        if (newIndex !== this.currentPreviewIndex) {
+            this.currentPreviewIndex = newIndex;
+            this.updatePreviewSelection();
+            
+            // 新しい画像をプレビュー
+            const item = this.currentPreviewData[newIndex];
+            if (this.previewMode === 'single') {
+                this.showImagePreview(item);
+            } else if (this.previewMode === 'similar') {
+                this.showSimilarImagePreview(item.files[0], item.files[1], item.similarity);
+            }
+            
+            // 仮想テーブルで該当の行をスクロールして表示
+            this.scrollToPreviewItem(newIndex);
+        }
+    }
+    
+    // プレビュー選択をクリア
+    clearPreviewSelection() {
+        this.currentPreviewIndex = -1;
+        this.currentPreviewData = [];
+        this.previewMode = 'single';
+        this.clearPreviewArea();
+        
+        // 仮想テーブルの選択状態をクリア
+        if (this.virtualTables[this.currentTab]) {
+            const rows = this.virtualTables[this.currentTab].content.querySelectorAll('[data-index]');
+            rows.forEach(row => {
+                row.classList.remove('preview-selected');
+            });
+        }
+    }
+    
+    // プレビュー選択状態を更新
+    updatePreviewSelection() {
+        if (this.currentPreviewIndex === -1) return;
+        
+        // 仮想テーブルの選択状態を更新
+        if (this.virtualTables[this.currentTab]) {
+            const rows = this.virtualTables[this.currentTab].content.querySelectorAll('[data-index]');
+            rows.forEach((row, index) => {
+                if (index === this.currentPreviewIndex) {
+                    row.classList.add('preview-selected');
+                } else {
+                    row.classList.remove('preview-selected');
+                }
+            });
+        }
+    }
+    
+    // プレビューアイテムまでスクロール
+    scrollToPreviewItem(index) {
+        if (this.virtualTables[this.currentTab]) {
+            this.virtualTables[this.currentTab].scrollToIndex(index);
+        }
+    }
+
+    // 現在のタブのデータを取得
+    getCurrentTabData() {
+        switch (this.currentTab) {
+            case 'blur':
+                return this.scanResults.blurImages || [];
+            case 'similar':
+                return this.scanResults.similarImages || [];
+            case 'error':
+                return this.scanResults.errors || [];
+            default:
+                return [];
+        }
+    }
+    
+    // 画像のインデックスを検索
+    findImageIndex(image) {
+        const data = this.getCurrentTabData();
+        return data.findIndex(item => {
+            if (this.currentTab === 'blur' || this.currentTab === 'error') {
+                return item.filePath === image.filePath;
+            } else if (this.currentTab === 'similar') {
+                return (item.files[0].filePath === image.filePath || item.files[1].filePath === image.filePath);
+            }
+            return false;
+        });
+    }
+    
+    // 類似画像ペアのインデックスを検索
+    findSimilarPairIndex(file1, file2) {
+        if (this.currentTab !== 'similar') return -1;
+        
+        const data = this.getCurrentTabData();
+        return data.findIndex(item => {
+            return (item.files[0].filePath === file1.filePath && item.files[1].filePath === file2.filePath) ||
+                   (item.files[0].filePath === file2.filePath && item.files[1].filePath === file1.filePath);
+        });
     }
 }
 
