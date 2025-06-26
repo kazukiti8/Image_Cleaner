@@ -121,9 +121,14 @@ class VirtualTable {
     }
     
     createHeader() {
-        // サブクラスでオーバーライドされる
         this.header = document.createElement('div');
-        this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm';
+        this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
+        this.header.innerHTML = `
+            <div class="flex-1 px-3">画像1</div>
+            <div class="flex-1 px-3">画像2</div>
+            <div class="w-20 px-2 text-center">類似度</div>
+        `;
+        
         this.container.appendChild(this.header);
     }
     
@@ -271,26 +276,10 @@ class BlurVirtualTable extends VirtualTable {
         this.header = document.createElement('div');
         this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
         this.header.innerHTML = `
-            <div class="flex-1 flex items-center">
-                <input type="checkbox" id="selectAllBlur" class="mr-3">
-                <span>ファイル名</span>
-            </div>
-            <div class="w-20 px-2">サイズ</div>
-            <div class="w-32 px-2">更新日時</div>
-            <div class="w-28 px-2">スコア</div>
+            <div class="flex-1 px-3">画像1</div>
+            <div class="flex-1 px-3">画像2</div>
+            <div class="w-20 px-2 text-center">類似度</div>
         `;
-        
-        // 全選択チェックボックスのイベントリスナー
-        const selectAllCheckbox = this.header.querySelector('#selectAllBlur');
-        selectAllCheckbox.addEventListener('change', (e) => {
-            const checkboxes = this.content.querySelectorAll('.blur-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = e.target.checked;
-                // チェックボックスの状態を保存
-                this.saveCheckboxState(checkbox.dataset.filepath, e.target.checked);
-                this.app.handleCheckboxChange(checkbox, 'blur');
-            });
-        });
         
         this.container.appendChild(this.header);
     }
@@ -357,25 +346,10 @@ class SimilarVirtualTable extends VirtualTable {
         this.header = document.createElement('div');
         this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
         this.header.innerHTML = `
-            <div class="w-8 px-2">
-                <input type="checkbox" id="selectAllSimilar">
-            </div>
             <div class="flex-1 px-3">画像1</div>
             <div class="flex-1 px-3">画像2</div>
             <div class="w-20 px-2 text-center">類似度</div>
         `;
-        
-        // 全選択チェックボックスのイベントリスナー
-        const selectAllCheckbox = this.header.querySelector('#selectAllSimilar');
-        selectAllCheckbox.addEventListener('change', (e) => {
-            const checkboxes = this.content.querySelectorAll('.similar-checkbox');
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = e.target.checked;
-                // チェックボックスの状態を保存
-                this.saveCheckboxState(checkbox.dataset.pair, e.target.checked);
-                this.app.handleCheckboxChange(checkbox, 'similar');
-            });
-        });
         
         this.container.appendChild(this.header);
     }
@@ -417,11 +391,9 @@ class SimilarVirtualTable extends VirtualTable {
             }
             
             row.innerHTML = `
-                <div class="w-8 px-2 py-2">
-                    <input type="checkbox" class="similar-checkbox" data-pair="${pairKey}">
-                </div>
                 <div class="flex-1 px-3 py-2">
                     <div class="flex items-center space-x-2">
+                        <input type="checkbox" class="individual-checkbox" data-filepath="${file1.filePath}" data-pair="${pairKey}">
                         <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
                             <img src="file://${file1.filePath}" alt="${file1.filename}" 
                                  class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
@@ -436,11 +408,11 @@ class SimilarVirtualTable extends VirtualTable {
                             <div class="text-sm font-medium truncate" title="${file1.filename}">${file1.filename}</div>
                             <div class="text-xs text-slate-500">${this.app.formatFileSize(file1.size)}</div>
                         </div>
-                        <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file1.filePath}" data-pair="${pairKey}">
                     </div>
                 </div>
                 <div class="flex-1 px-3 py-2">
                     <div class="flex items-center space-x-2">
+                        <input type="checkbox" class="individual-checkbox" data-filepath="${file2.filePath}" data-pair="${pairKey}">
                         <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
                             <img src="file://${file2.filePath}" alt="${file2.filename}" 
                                  class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
@@ -455,7 +427,6 @@ class SimilarVirtualTable extends VirtualTable {
                             <div class="text-sm font-medium truncate" title="${file2.filename}">${file2.filename}</div>
                             <div class="text-xs text-slate-500">${this.app.formatFileSize(file2.size)}</div>
                         </div>
-                        <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file2.filePath}" data-pair="${pairKey}">
                     </div>
                 </div>
                 <div class="w-20 px-2 py-2 text-center">
@@ -489,20 +460,6 @@ class SimilarVirtualTable extends VirtualTable {
     }
     
     setupRowEventListeners(row, file1, file2, similarity, pairKey) {
-        // チェックボックスイベント
-        const pairCheckbox = row.querySelector('.similar-checkbox');
-        
-        // ペアチェックボックスの状態を復元
-        const savedPairState = this.getCheckboxState(pairKey);
-        pairCheckbox.checked = savedPairState;
-        
-        pairCheckbox.addEventListener('change', (e) => {
-            e.stopPropagation();
-            // ペアチェックボックスの状態を保存
-            this.saveCheckboxState(pairKey, e.target.checked);
-            this.app.handleCheckboxChange(pairCheckbox, 'similar');
-        });
-        
         // 個別チェックボックスイベント
         const individualCheckboxes = row.querySelectorAll('.individual-checkbox');
         individualCheckboxes.forEach(checkbox => {
@@ -514,11 +471,17 @@ class SimilarVirtualTable extends VirtualTable {
             checkbox.addEventListener('change', (e) => {
                 e.stopPropagation();
                 
+                safeConsoleLog('Individual checkbox changed:', filePath, 'checked:', e.target.checked);
+                
                 if (checkbox.checked) {
                     this.app.selectedIndividualFiles.add(filePath);
+                    safeConsoleLog('Added to selectedIndividualFiles:', filePath);
                 } else {
                     this.app.selectedIndividualFiles.delete(filePath);
+                    safeConsoleLog('Removed from selectedIndividualFiles:', filePath);
                 }
+                
+                safeConsoleLog('selectedIndividualFiles size:', this.app.selectedIndividualFiles.size);
                 
                 // 個別チェックボックスの状態を保存
                 this.saveCheckboxState(`individual_${filePath}`, e.target.checked);
@@ -526,6 +489,8 @@ class SimilarVirtualTable extends VirtualTable {
                 this.app.updatePairSelectionState(pairKey);
                 this.app.updateSelectedCount();
                 this.app.updateActionButtons();
+                
+                safeConsoleLog('updateActionButtons called after individual checkbox change');
             });
         });
         
@@ -940,34 +905,52 @@ class ImageCleanupApp {
     // 仮想テーブルの全選択機能
     selectAllVirtualTable(tabName) {
         if (this.virtualTables[tabName]) {
-            const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = true;
-                // チェックボックスの状態を保存
-                if (tabName === 'similar') {
-                    this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.pair, true);
-                } else {
+            if (tabName === 'similar') {
+                // 類似画像タブでは個別チェックボックスのみを対象
+                const checkboxes = this.virtualTables[tabName].content.querySelectorAll('.individual-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                    const filePath = checkbox.dataset.filepath;
+                    this.virtualTables[tabName].saveCheckboxState(`individual_${filePath}`, true);
+                    this.selectedIndividualFiles.add(filePath);
+                });
+                this.updateSelectedCount();
+                this.updateActionButtons();
+            } else {
+                // 他のタブでは従来通り
+                const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = true;
                     this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.filepath, true);
-                }
-                this.handleCheckboxChange(checkbox, tabName);
-            });
+                    this.handleCheckboxChange(checkbox, tabName);
+                });
+            }
         }
     }
 
     // 仮想テーブルの全選択解除機能
     deselectAllVirtualTable(tabName) {
         if (this.virtualTables[tabName]) {
-            const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = false;
-                // チェックボックスの状態を保存
-                if (tabName === 'similar') {
-                    this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.pair, false);
-                } else {
+            if (tabName === 'similar') {
+                // 類似画像タブでは個別チェックボックスのみを対象
+                const checkboxes = this.virtualTables[tabName].content.querySelectorAll('.individual-checkbox');
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                    const filePath = checkbox.dataset.filepath;
+                    this.virtualTables[tabName].saveCheckboxState(`individual_${filePath}`, false);
+                    this.selectedIndividualFiles.delete(filePath);
+                });
+                this.updateSelectedCount();
+                this.updateActionButtons();
+            } else {
+                // 他のタブでは従来通り
+                const checkboxes = this.virtualTables[tabName].content.querySelectorAll(`.${tabName}-checkbox`);
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = false;
                     this.virtualTables[tabName].saveCheckboxState(checkbox.dataset.filepath, false);
-                }
-                this.handleCheckboxChange(checkbox, tabName);
-            });
+                    this.handleCheckboxChange(checkbox, tabName);
+                });
+            }
         }
     }
 
@@ -2187,6 +2170,12 @@ class ImageCleanupApp {
     updatePairSelectionState(pairKey) {
         const pairCheckbox = document.querySelector(`.similar-checkbox[data-pair="${pairKey}"]`);
         const individualCheckboxes = document.querySelectorAll(`.individual-checkbox[data-pair="${pairKey}"]`);
+        
+        // pairCheckboxがnullの場合は処理をスキップ
+        if (!pairCheckbox) {
+            safeConsoleLog('Pair checkbox not found for pairKey:', pairKey);
+            return;
+        }
         
         const checkedCount = Array.from(individualCheckboxes).filter(cb => cb.checked).length;
         
