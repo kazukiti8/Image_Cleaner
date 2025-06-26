@@ -432,130 +432,6 @@
             </div>
         </div>
 
-        <!-- エクスポート・レポートパネル -->
-        <div id="exportReportPanel" class="bg-white border border-gray-200 rounded-lg p-4 mb-4 hidden">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900">エクスポート・レポート</h3>
-                <div class="flex space-x-2">
-                    <button id="generateReport" class="px-3 py-1 text-sm bg-green-500 text-white rounded hover:bg-green-600">
-                        レポート生成
-                    </button>
-                    <button id="closeExportReport" class="text-gray-400 hover:text-gray-600">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- エクスポート設定 -->
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-700">エクスポート形式</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center">
-                            <input type="radio" name="exportFormat" value="csv" checked class="mr-2">
-                            <span class="text-sm">CSV</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="radio" name="exportFormat" value="json" class="mr-2">
-                            <span class="text-sm">JSON</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="radio" name="exportFormat" value="excel" class="mr-2">
-                            <span class="text-sm">Excel</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- エクスポート対象 -->
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-700">エクスポート対象</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center">
-                            <input type="checkbox" id="exportCurrentTab" checked class="mr-2">
-                            <span class="text-sm">現在のタブ</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" id="exportAllTabs" class="mr-2">
-                            <span class="text-sm">全タブ</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" id="exportSelected" class="mr-2">
-                            <span class="text-sm">選択されたアイテムのみ</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- レポート設定 -->
-                <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-700">レポート設定</label>
-                    <div class="space-y-2">
-                        <label class="flex items-center">
-                            <input type="checkbox" id="includeStats" checked class="mr-2">
-                            <span class="text-sm">統計情報を含める</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" id="includeMetadata" checked class="mr-2">
-                            <span class="text-sm">メタデータを含める</span>
-                        </label>
-                        <label class="flex items-center">
-                            <input type="checkbox" id="includeProcessingHistory" class="mr-2">
-                            <span class="text-sm">処理履歴を含める</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
-                <div class="text-sm text-gray-600">
-                    <span id="exportItemCount">0</span>件のアイテムがエクスポートされます
-                </div>
-                <div class="flex space-x-2">
-                    <button id="exportData" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
-                        エクスポート
-                    </button>
-                    <button id="previewReport" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
-                        プレビュー
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- レポートプレビューダイアログ -->
-        <div id="reportPreviewDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-            <div class="bg-white rounded-lg p-6 w-4/5 max-w-6xl mx-4 max-h-5/6 overflow-hidden flex flex-col">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-900">レポートプレビュー</h3>
-                    <div class="flex space-x-2">
-                        <button id="exportFromPreview" class="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600">
-                            エクスポート
-                        </button>
-                        <button id="closeReportPreview" class="text-gray-400 hover:text-gray-600">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex space-x-4 flex-1 overflow-hidden">
-                    <!-- レポートナビゲーション -->
-                    <div class="w-64 bg-gray-50 p-4 rounded-lg overflow-y-auto">
-                        <h4 class="font-medium text-gray-900 mb-3">レポートセクション</h4>
-                        <nav id="reportNavigation" class="space-y-2">
-                            <!-- ナビゲーション項目がここに生成される -->
-                        </nav>
-                    </div>
-
-                    <!-- レポートコンテンツ -->
-                    <div id="reportContent" class="flex-1 overflow-y-auto bg-white border border-gray-200 rounded-lg p-4">
-                        <!-- レポート内容がここに表示される -->
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- 処理ログビューア -->
         <div id="processingLogDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
             <div class="bg-white rounded-lg p-6 w-3/4 max-w-5xl mx-4 max-h-4/5 overflow-hidden flex flex-col">
@@ -748,60 +624,9 @@
                         </div>
                     </div>
 
-                    <!-- エクスポート・レポート設定 -->
-                    <div>
-                        <h3 class="text-lg font-medium text-slate-800 mb-4">エクスポート・レポート設定</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">エクスポート形式</label>
-                                <select id="exportFormat" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="csv">CSV</option>
-                                    <option value="json">JSON</option>
-                                    <option value="excel">Excel</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">エクスポート対象</label>
-                                <select id="exportTarget" class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                                    <option value="current">現在のタブ</option>
-                                    <option value="all">全タブ</option>
-                                    <option value="selected">選択アイテムのみ</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-slate-700 mb-2">含める情報</label>
-                                <div class="space-y-2">
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="includeMetadata" class="mr-2">
-                                        <span class="text-sm">メタデータ</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="includeStatistics" class="mr-2">
-                                        <span class="text-sm">統計情報</span>
-                                    </label>
-                                    <label class="flex items-center">
-                                        <input type="checkbox" id="includeProcessingHistory" class="mr-2">
-                                        <span class="text-sm">処理履歴</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
 
                     <!-- パフォーマンス設定 -->
-                    <div>
-                        <h3 class="text-lg font-medium text-slate-800 mb-4">パフォーマンス設定</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="flex items-center">
-                                    <input type="checkbox" id="fileWatchingEnabled" checked 
-                                           class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
-                                    <span class="ml-2 text-sm text-slate-700">ファイル監視を有効にする</span>
-                                </label>
-                                <p class="text-xs text-slate-500 mt-1 ml-6">フォルダ内のファイル変更を自動的に検知します</p>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- （このブロック全体を削除） -->
                 </div>
                 
                 <!-- フッター -->
@@ -1142,7 +967,6 @@
 
     <!-- スクリプト -->
     <script src="../js/components/settings.js"></script>
-    <script src="../js/components/exportReport.js"></script>
     <script src="../js/renderer.js"></script>
 </body>
 </html> 

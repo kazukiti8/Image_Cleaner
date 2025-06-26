@@ -762,12 +762,6 @@ class ImageCleanupApp {
         this.selectedErrors = new Set();
         this.batchProcessor = new BatchProcessor();
         
-        // ファイル監視関連のプロパティ
-        this.fileWatchingEnabled = true;
-        this.fileWatchingActive = false;
-        this.fileChangeDebounceTimer = null;
-        this.fileChangeDebounceDelay = 3000; // 3秒のデバウンス
-        
         // 仮想テーブルのインスタンス
         this.virtualTables = {
             blur: null,
@@ -779,9 +773,6 @@ class ImageCleanupApp {
         this.currentPreviewIndex = -1; // 現在プレビュー中の画像のインデックス
         this.currentPreviewData = []; // 現在のタブの画像データ
         this.previewMode = 'single'; // 'single' または 'similar'
-        
-        // エクスポート・レポートマネージャー
-        this.exportReportManager = new ExportReportManager();
         
         // イベントリスナーの初期化
         this.initializeEventListeners();
@@ -795,9 +786,6 @@ class ImageCleanupApp {
         this.showGuidanceIfNeeded();
         this.startPerformanceMonitoring();
         this.startMemoryCleanup();
-        
-        // ファイル監視機能の初期化
-        this.initializeFileWatching();
     }
 
     init() {
@@ -974,21 +962,6 @@ class ImageCleanupApp {
             moveBtn.addEventListener('click', () => this.moveFiles());
         }
         
-        // エクスポート・レポート関連のイベントリスナー
-        const showExportReportBtn = document.getElementById('showExportReport');
-        if (showExportReportBtn) {
-            showExportReportBtn.addEventListener('click', () => {
-                this.exportReportManager.showExportReportPanel();
-            });
-        }
-        
-        const showProcessingLogBtn = document.getElementById('showProcessingLog');
-        if (showProcessingLogBtn) {
-            showProcessingLogBtn.addEventListener('click', () => {
-                this.exportReportManager.showProcessingLog();
-            });
-        }
-        
         // スキャン関連のイベントリスナー
         if (window.electronAPI) {
             // スキャン進捗
@@ -1016,18 +989,9 @@ class ImageCleanupApp {
                 this.targetFolder = folderPath;
                 
                 // フォルダパスを表示
-                const targetFolderDisplay = document.getElementById('targetFolderPathDisplay');
-                if (targetFolderDisplay) {
-                    targetFolderDisplay.textContent = this.getDisplayPath(folderPath);
-                    targetFolderDisplay.title = folderPath;
-                }
-                
-                // UIを更新
-                this.updateUI();
-                
-                // ファイル監視を開始
-                if (this.fileWatchingEnabled) {
-                    await this.startFileWatching(folderPath);
+                const folderPathElement = document.getElementById('folderPath');
+                if (folderPathElement) {
+                    folderPathElement.textContent = this.getDisplayPath(folderPath);
                 }
                 
                 safeConsoleLog('対象フォルダが選択されました:', folderPath);
@@ -2705,8 +2669,8 @@ class ImageCleanupApp {
     // ファイルシステム変更の処理（デバウンス後）
     processFileSystemChange(data) {
         const { type, filePath } = data;
-
-        // 現在のターゲットフォルダに関連する変更かチェック
+        
+        // ターゲットフォルダ内のファイル変更のみ処理
         if (this.targetFolder && filePath.startsWith(this.targetFolder)) {
             safeConsoleLog(`ターゲットフォルダ内のファイル変更を検知: ${type} - ${filePath}`);
 
@@ -2715,15 +2679,6 @@ class ImageCleanupApp {
 
             // 必要に応じて自動再スキャンを提案
             this.suggestRescan(type);
-        }
-    }
-
-    // フォルダのキャッシュを無効化
-    invalidateCacheForFolder(folderPath) {
-        if (this.cacheData && this.cacheData[folderPath]) {
-            delete this.cacheData[folderPath];
-            this.saveCache();
-            safeConsoleLog(`キャッシュを無効化しました: ${folderPath}`);
         }
     }
 
@@ -2831,21 +2786,6 @@ class ImageCleanupApp {
 
     // アプリケーション終了時のクリーンアップ
     cleanup() {
-        // ファイル監視を停止
-        if (this.fileWatchingActive) {
-            this.stopFileWatching();
-        }
-
-        // イベントリスナーを削除
-        if (this.fileSystemChangeUnsubscribe) {
-            this.fileSystemChangeUnsubscribe();
-        }
-
-        // デバウンスタイマーをクリア
-        if (this.fileChangeDebounceTimer) {
-            clearTimeout(this.fileChangeDebounceTimer);
-        }
-
         safeConsoleLog('アプリケーションのクリーンアップが完了しました');
     }
 
