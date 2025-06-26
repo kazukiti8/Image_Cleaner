@@ -1,5 +1,11 @@
 // 画像整理アプリ レンダラープロセスメインスクリプト
 
+import { FileUtils } from './utils/FileUtils.js';
+import { UIUtils } from './utils/UIUtils.js';
+import { LogUtils } from './utils/LogUtils.js';
+import { TabManager } from './components/TabManager.js';
+import { FileOperationManager } from './components/FileOperationManager.js';
+
 // 文字化け対策
 function safeConsoleLog(...args) {
     try {
@@ -8,8 +14,8 @@ function safeConsoleLog(...args) {
         if (window.electronAPI && window.electronAPI.writeToLog) {
             window.electronAPI.writeToLog(`LOG: ${message}`);
         }
-        // コンソールには最小限の情報のみ出力
-        console.log('App running...');
+        // コンソールにデバッグ情報を出力
+        console.log(...args);
     } catch (error) {
         // エラーを無視
     }
@@ -43,9 +49,9 @@ function safeConsoleWarn(...args) {
     }
 }
 
-// パス操作のためのユーティリティ関数
+// パス操作のためのユーティリティ関数（後方互換性のため残す）
 function pathBasename(filePath) {
-    return filePath.split(/[\\/]/).pop();
+    return FileUtils.getBasename(filePath);
 }
 
 // 仮想スクロールテーブルクラス
@@ -148,7 +154,16 @@ class VirtualTable {
     }
     
     render() {
-        if (!this.isInitialized || this.data.length === 0) return;
+        if (!this.isInitialized) return;
+        
+        safeConsoleLog('VirtualTable render called, data length:', this.data.length);
+        
+        if (this.data.length === 0) {
+            // データが0件の場合は空のメッセージを表示
+            this.content.innerHTML = '<div class="text-center text-slate-500 py-8">データがありません</div>';
+            safeConsoleLog('Rendered empty message');
+            return;
+        }
         
         const startIndex = Math.floor(this.currentScrollTop / this.rowHeight);
         const endIndex = Math.min(
@@ -158,6 +173,8 @@ class VirtualTable {
         
         // 表示範囲のデータを取得
         const visibleData = this.data.slice(startIndex, endIndex);
+        
+        safeConsoleLog('Rendering visible data:', visibleData.length, 'items from', startIndex, 'to', endIndex);
         
         // オフセットを計算（ヘッダーの高さを考慮）
         const offsetY = startIndex * this.rowHeight;
@@ -174,11 +191,29 @@ class VirtualTable {
         // 既存の行をクリア
         this.content.innerHTML = '';
         
+        safeConsoleLog('Rendering rows for visible data:', visibleData.length, 'items');
+        
         // 新しい行を作成
         visibleData.forEach((item, index) => {
-            const row = this.createRow(item, startIndex + index);
-            this.content.appendChild(row);
+            try {
+                const row = this.createRow(item, startIndex + index);
+                this.content.appendChild(row);
+            } catch (error) {
+                safeConsoleError('Error creating row:', error, 'Item:', item, 'Index:', startIndex + index);
+                const errorRow = document.createElement('div');
+                errorRow.className = 'flex items-center border-b border-red-200 bg-red-50';
+                errorRow.style.height = `${this.rowHeight}px`;
+                errorRow.innerHTML = `
+                    <div class="flex-1 px-4 py-2 text-red-600 text-sm">
+                        <div class="font-medium">Error creating row ${startIndex + index}</div>
+                        <div class="text-xs">${error.message}</div>
+                    </div>
+                `;
+                this.content.appendChild(errorRow);
+            }
         });
+        
+        safeConsoleLog('Finished rendering rows');
     }
     
     createRow(item, index) {
@@ -346,78 +381,110 @@ class SimilarVirtualTable extends VirtualTable {
     }
     
     createRow(group, index) {
-        const file1 = group.files[0];
-        const file2 = group.files[1];
-        const pairKey = `${file1.filePath}|${file2.filePath}`;
-        
-        const row = document.createElement('div');
-        row.className = 'flex items-center hover:bg-slate-50 cursor-pointer border-b border-slate-200';
-        row.style.height = `${this.rowHeight}px`;
-        row.dataset.index = index;
-        row.dataset.pairKey = pairKey;
-        row.dataset.similarity = group.similarity;
-        
-        // 類似度に基づく背景色
-        if (group.similarity >= 90) {
-            row.classList.add('bg-red-50');
-        } else if (group.similarity >= 80) {
-            row.classList.add('bg-yellow-50');
-        } else {
-            row.classList.add('bg-blue-50');
+        try {
+            safeConsoleLog('Creating row for group:', group);
+            
+            // データ構造の検証
+            if (!group.files || !Array.isArray(group.files) || group.files.length < 2) {
+                safeConsoleError('Invalid group structure:', group);
+                return this.createErrorRow(`Invalid data structure: ${JSON.stringify(group)}`, index);
+            }
+            
+            const file1 = group.files[0];
+            const file2 = group.files[1];
+            
+            if (!file1 || !file2) {
+                safeConsoleError('Missing file data:', { file1, file2 });
+                return this.createErrorRow('Missing file data', index);
+            }
+            
+            const pairKey = `${file1.filePath}|${file2.filePath}`;
+            
+            const row = document.createElement('div');
+            row.className = 'flex items-center hover:bg-slate-50 cursor-pointer border-b border-slate-200';
+            row.style.height = `${this.rowHeight}px`;
+            row.dataset.index = index;
+            row.dataset.pairKey = pairKey;
+            row.dataset.similarity = group.similarity;
+            
+            // 類似度に基づく背景色
+            if (group.similarity >= 90) {
+                row.classList.add('bg-red-50');
+            } else if (group.similarity >= 80) {
+                row.classList.add('bg-yellow-50');
+            } else {
+                row.classList.add('bg-blue-50');
+            }
+            
+            row.innerHTML = `
+                <div class="w-8 px-2 py-2">
+                    <input type="checkbox" class="similar-checkbox" data-pair="${pairKey}">
+                </div>
+                <div class="flex-1 px-3 py-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                            <img src="file://${file1.filePath}" alt="${file1.filename}" 
+                                 class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium truncate" title="${file1.filename}">${file1.filename}</div>
+                            <div class="text-xs text-slate-500">${this.app.formatFileSize(file1.size)}</div>
+                        </div>
+                        <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file1.filePath}" data-pair="${pairKey}">
+                    </div>
+                </div>
+                <div class="flex-1 px-3 py-2">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
+                            <img src="file://${file2.filePath}" alt="${file2.filename}" 
+                                 class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                                    <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-medium truncate" title="${file2.filename}">${file2.filename}</div>
+                            <div class="text-xs text-slate-500">${this.app.formatFileSize(file2.size)}</div>
+                        </div>
+                        <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file2.filePath}" data-pair="${pairKey}">
+                    </div>
+                </div>
+                <div class="w-20 px-2 py-2 text-center">
+                    <span class="px-2 py-1 rounded text-sm font-semibold ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
+                        ${group.similarity}%
+                    </span>
+                </div>
+            `;
+            
+            // イベントリスナーを設定
+            this.setupRowEventListeners(row, file1, file2, group.similarity, pairKey);
+            
+            return row;
+        } catch (error) {
+            safeConsoleError('Error creating similar row:', error, 'Group:', group);
+            return this.createErrorRow(`Error: ${error.message}`, index);
         }
-        
+    }
+    
+    createErrorRow(message, index) {
+        const row = document.createElement('div');
+        row.className = 'flex items-center border-b border-red-200 bg-red-50';
+        row.style.height = `${this.rowHeight}px`;
         row.innerHTML = `
-            <div class="w-8 px-2 py-2">
-                <input type="checkbox" class="similar-checkbox" data-pair="${pairKey}">
-            </div>
-            <div class="flex-1 px-3 py-2">
-                <div class="flex items-center space-x-2">
-                    <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
-                        <img src="file://${file1.filePath}" alt="${file1.filename}" 
-                             class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium truncate" title="${file1.filename}">${file1.filename}</div>
-                        <div class="text-xs text-slate-500">${this.app.formatFileSize(file1.size)}</div>
-                    </div>
-                    <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file1.filePath}" data-pair="${pairKey}">
-                </div>
-            </div>
-            <div class="flex-1 px-3 py-2">
-                <div class="flex items-center space-x-2">
-                    <div class="w-12 h-12 bg-slate-200 rounded overflow-hidden flex-shrink-0">
-                        <img src="file://${file2.filePath}" alt="${file2.filename}" 
-                             class="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                        <div class="w-full h-full flex items-center justify-center text-xs text-slate-500" style="display:none;">
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
-                                <path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
-                            </svg>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-medium truncate" title="${file2.filename}">${file2.filename}</div>
-                        <div class="text-xs text-slate-500">${this.app.formatFileSize(file2.size)}</div>
-                    </div>
-                    <input type="checkbox" class="individual-checkbox ml-2" data-filepath="${file2.filePath}" data-pair="${pairKey}">
-                </div>
-            </div>
-            <div class="w-20 px-2 py-2 text-center">
-                <span class="px-2 py-1 rounded text-sm font-semibold ${group.similarity >= 90 ? 'bg-red-100 text-red-800' : group.similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
-                    ${group.similarity}%
-                </span>
+            <div class="flex-1 px-4 py-2 text-red-600 text-sm">
+                <div class="font-medium">Error at index ${index}</div>
+                <div class="text-xs">${message}</div>
             </div>
         `;
-        
-        // イベントリスナーを設定
-        this.setupRowEventListeners(row, file1, file2, group.similarity, pairKey);
-        
         return row;
     }
     
@@ -748,18 +815,26 @@ class BatchProcessor {
 // メインアプリケーションクラス
 class ImageCleanupApp {
     constructor() {
+        // 基本設定
         this.targetFolder = null;
+        this.outputFolder = null;
         this.scanInProgress = false;
+        this.currentTab = 'blur';
+        
+        // スキャン結果
         this.scanResults = {
             blurImages: [],
             similarImages: [],
             errors: []
         };
-        this.currentTab = 'blur';
+        
+        // 選択状態管理
         this.selectedFiles = new Set();
         this.selectedSimilarPairs = new Set();
         this.selectedIndividualFiles = new Set(); // 個別ファイル選択用
         this.selectedErrors = new Set();
+        
+        // バッチ処理
         this.batchProcessor = new BatchProcessor();
         
         // 仮想テーブルのインスタンス
@@ -774,6 +849,10 @@ class ImageCleanupApp {
         this.currentPreviewData = []; // 現在のタブの画像データ
         this.previewMode = 'single'; // 'single' または 'similar'
         
+        // マネージャークラスの初期化
+        this.tabManager = new TabManager(this);
+        this.fileOperationManager = new FileOperationManager(this);
+        
         // イベントリスナーの初期化
         this.initializeEventListeners();
         
@@ -782,39 +861,24 @@ class ImageCleanupApp {
         this.initializeKeyboardShortcuts();
         this.initializeBatchEventListeners();
         this.initializeAdvancedFiltering();
-        this.updateFilterUI();
-        this.showGuidanceIfNeeded();
-        this.startPerformanceMonitoring();
-        this.startMemoryCleanup();
-    }
-
-    init() {
-        safeConsoleLog('ImageCleanupApp initialization started');
         
-        // イベントリスナーの設定
-        this.initializeEventListeners();
-        
-        // フィルター関連のイベントリスナー
-        this.initializeFilterEvents();
-        
-        // キーボードショートカットの初期化
-        this.initializeKeyboardShortcuts();
-        
-        // バッチ処理関連のイベントリスナー
-        this.initializeBatchEventListeners();
-        
-        // 高度なフィルタリング機能の初期化
-        this.initializeAdvancedFiltering();
-        
-        // 初期UIの設定
-        this.updateFilterUI();
+        // 設定の読み込み
+        this.getSettings();
         
         // ガイダンスの表示
         this.showGuidanceIfNeeded();
         
         // パフォーマンス監視の開始
         this.startPerformanceMonitoring();
+        
+        // メモリクリーンアップの開始
         this.startMemoryCleanup();
+        
+        LogUtils.log('ImageCleanupApp initialized');
+    }
+
+    init() {
+        safeConsoleLog('ImageCleanupApp initialization started');
         
         // 初期レイアウトの設定（デフォルトはブレタブ）
         this.switchLayout('blur');
@@ -824,14 +888,19 @@ class ImageCleanupApp {
 
     // 仮想テーブルの初期化
     initializeVirtualTable(tabName) {
+        safeConsoleLog('initializeVirtualTable called for tab:', tabName);
+        
         const container = document.getElementById(`content${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
         if (!container) {
             safeConsoleError(`Container not found for tab: ${tabName}`);
             return;
         }
         
+        safeConsoleLog('Container found:', container);
+        
         // 既存の仮想テーブルを破棄
         if (this.virtualTables[tabName]) {
+            safeConsoleLog('Destroying existing virtual table for tab:', tabName);
             this.virtualTables[tabName].destroy();
         }
         
@@ -851,14 +920,20 @@ class ImageCleanupApp {
                 break;
         }
         
-        safeConsoleLog(`Virtual table initialized for tab: ${tabName}`);
+        safeConsoleLog(`Virtual table initialized for tab: ${tabName}`, this.virtualTables[tabName]);
     }
 
     // 仮想テーブルにデータを設定
     setVirtualTableData(tabName, data) {
+        safeConsoleLog('setVirtualTableData called:', tabName, 'data length:', data.length);
+        safeConsoleLog('virtualTables:', this.virtualTables);
+        
         if (this.virtualTables[tabName]) {
+            safeConsoleLog('Setting data for virtual table:', tabName);
             this.virtualTables[tabName].setData(data);
             safeConsoleLog(`Data set for virtual table ${tabName}: ${data.length} items`);
+        } else {
+            safeConsoleError('Virtual table not found for tab:', tabName);
         }
     }
 
@@ -917,6 +992,8 @@ class ImageCleanupApp {
         // タブ切り替え
         document.querySelectorAll('.tab-button').forEach(button => {
             button.addEventListener('click', (e) => {
+                safeConsoleLog('Tab button clicked:', e.target);
+                
                 // クリックされた要素またはその親要素からtabNameを取得
                 let target = e.target;
                 let tabName = null;
@@ -930,7 +1007,10 @@ class ImageCleanupApp {
                     target = target.parentElement;
                 }
                 
+                safeConsoleLog('Found tabName:', tabName);
+                
                 if (tabName) {
+                    safeConsoleLog('Calling switchTab with:', tabName);
                     this.switchTab(tabName);
                 } else {
                     safeConsoleError('Tab name not found in clicked element');
@@ -1140,24 +1220,21 @@ class ImageCleanupApp {
     
     // 現在のタブに応じて結果を表示するメソッド
     displayResultsForCurrentTab() {
+        safeConsoleLog('displayResultsForCurrentTab called, currentTab:', this.currentTab);
+        safeConsoleLog('scanResults:', this.scanResults);
+        
         switch (this.currentTab) {
             case 'blur':
-                if (this.scanResults.blurImages.length > 0) {
-                    safeConsoleLog('Displaying blur results for current tab:', this.scanResults.blurImages.length);
-                    this.displayBlurResults(this.scanResults.blurImages);
-                }
+                safeConsoleLog('Displaying blur results for current tab:', this.scanResults.blurImages.length);
+                this.displayBlurResults(this.scanResults.blurImages);
                 break;
             case 'similar':
-                if (this.scanResults.similarImages.length > 0) {
-                    safeConsoleLog('Displaying similar results for current tab:', this.scanResults.similarImages.length);
-                    this.displaySimilarResults(this.scanResults.similarImages);
-                }
+                safeConsoleLog('Displaying similar results for current tab:', this.scanResults.similarImages.length);
+                this.displaySimilarResults(this.scanResults.similarImages);
                 break;
             case 'error':
-                if (this.scanResults.errors.length > 0) {
-                    safeConsoleLog('Displaying error results for current tab:', this.scanResults.errors.length);
-                    this.displayErrorResults(this.scanResults.errors);
-                }
+                safeConsoleLog('Displaying error results for current tab:', this.scanResults.errors.length);
+                this.displayErrorResults(this.scanResults.errors);
                 break;
         }
     }
@@ -1178,53 +1255,7 @@ class ImageCleanupApp {
     }
 
     switchTab(tabName) {
-        // tabNameの妥当性チェック
-        if (!tabName || typeof tabName !== 'string') {
-            safeConsoleError('Invalid tabName:', tabName);
-            return;
-        }
-        
-        this.currentTab = tabName;
-        
-        // タブボタンのアクティブ状態を切り替え
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.classList.remove('tab-active');
-        });
-        const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
-        if (activeButton) {
-            activeButton.classList.add('tab-active');
-        }
-        
-        // タブコンテンツの表示/非表示を切り替え
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.style.display = 'none';
-        });
-        const activeContent = document.getElementById(`content${tabName.charAt(0).toUpperCase() + tabName.slice(1)}`);
-        if (activeContent) {
-            activeContent.style.display = 'block';
-        }
-        
-        // レイアウトの切り替え
-        this.switchLayout(tabName);
-        
-        // 仮想テーブルを初期化
-        this.initializeVirtualTable(tabName);
-        
-        // 現在のタブのデータを仮想テーブルに設定
-        this.displayResultsForCurrentTab();
-        
-        // 選択状態をクリア
-        this.selectedFiles.clear();
-        this.selectedSimilarPairs.clear();
-        this.selectedIndividualFiles.clear();
-        this.selectedErrors.clear();
-        this.updateSelectedCount();
-        this.updateActionButtons();
-        
-        // プレビューエリアをクリア（プレビュー選択状態もクリアされる）
-        this.clearPreviewArea();
-        
-        safeConsoleLog(`Tab switched to: ${tabName}`);
+        this.tabManager.switchTab(tabName);
     }
 
     // レイアウト切り替え機能
@@ -1283,10 +1314,13 @@ class ImageCleanupApp {
     }
 
     updateUI() {
-        // フォルダパスの表示を更新
+        // フォルダパスを表示
         if (this.targetFolder) {
-            document.getElementById('targetFolderPathDisplay').textContent = this.getDisplayPath(this.targetFolder);
-            document.getElementById('targetFolderPathDisplay').title = this.targetFolder;
+            const folderPathElement = document.getElementById('targetFolderPathDisplay');
+            if (folderPathElement) {
+                folderPathElement.textContent = FileUtils.getDisplayPath(this.targetFolder);
+                folderPathElement.title = this.targetFolder;
+            }
         }
         
         this.updateScanButton();
@@ -1414,23 +1448,19 @@ class ImageCleanupApp {
             countElement.textContent = blurImages.length;
         }
         
-        if (blurImages.length === 0) {
-            safeConsoleLog('No blur images found, showing empty message');
-            const container = document.getElementById('contentBlur');
-            if (container) {
-                container.innerHTML = '<div class="text-center text-slate-500 py-8">ブレ画像は見つかりませんでした</div>';
-            }
-            return;
-        }
-        
-        // 仮想テーブルにデータを設定
+        // 仮想テーブルにデータを設定（0件の場合も含む）
         this.setVirtualTableData('blur', blurImages);
-        safeConsoleLog('Blur data set to virtual table');
+        safeConsoleLog('Blur data set to virtual table:', blurImages.length, 'items');
     }
 
     displaySimilarResults(similarImages) {
         safeConsoleLog('displaySimilarResults called with:', similarImages.length, 'similar images');
         safeConsoleLog('Current tab:', this.currentTab);
+        
+        // データ構造のデバッグ
+        if (similarImages.length > 0) {
+            safeConsoleLog('Sample similar image data:', similarImages[0]);
+        }
         
         // タブのカウント表示を更新
         const countElement = document.getElementById('countSimilar');
@@ -1439,18 +1469,9 @@ class ImageCleanupApp {
             safeConsoleLog('Updated similar count:', similarImages.length);
         }
         
-        if (similarImages.length === 0) {
-            safeConsoleLog('No similar images found, showing empty message');
-            const container = document.getElementById('contentSimilar');
-            if (container) {
-                container.innerHTML = '<div class="text-center text-slate-500 py-8">類似画像は見つかりませんでした</div>';
-            }
-            return;
-        }
-        
-        // 仮想テーブルにデータを設定
+        // 仮想テーブルにデータを設定（0件の場合も含む）
         this.setVirtualTableData('similar', similarImages);
-        safeConsoleLog('Similar data set to virtual table');
+        safeConsoleLog('Similar data set to virtual table:', similarImages.length, 'items');
     }
 
     displayErrorResults(errors) {
@@ -1460,17 +1481,9 @@ class ImageCleanupApp {
             countElement.textContent = errors.length;
         }
         
-        if (errors.length === 0) {
-            const container = document.getElementById('contentError');
-            if (container) {
-                container.innerHTML = '<div class="text-center text-slate-500 py-8">エラーはありません</div>';
-            }
-            return;
-        }
-        
-        // 仮想テーブルにデータを設定
+        // 仮想テーブルにデータを設定（0件の場合も含む）
         this.setVirtualTableData('error', errors);
-        safeConsoleLog('Error data set to virtual table');
+        safeConsoleLog('Error data set to virtual table:', errors.length, 'items');
     }
 
     clearResults() {
@@ -1507,27 +1520,19 @@ class ImageCleanupApp {
 
     // 基本的なファイル操作メソッド
     moveToTrash() {
-        this.performFileOperation('trash');
+        this.fileOperationManager.performFileOperation('delete');
     }
 
     deletePermanently() {
-        // 設定に応じて削除操作を決定
-        const settings = this.getSettings();
-        if (settings && settings.deleteOperation === 'recycleBin') {
-            // 設定でゴミ箱へ移動が選択されている場合
-            this.performFileOperation('trash');
-        } else {
-            // 設定で完全削除が選択されている場合、または設定がない場合
-            this.performFileOperation('delete');
-        }
+        this.fileOperationManager.performFileOperation('delete');
     }
 
     moveFiles() {
-        this.performFileOperation('move');
+        this.fileOperationManager.performFileOperation('move');
     }
 
     copyFiles() {
-        this.performFileOperation('copy');
+        this.fileOperationManager.performFileOperation('copy');
     }
 
     async performFileOperation(operation) {
