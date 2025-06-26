@@ -1831,17 +1831,6 @@ class ImageCleanupApp {
         if (!previewContainer) return;
         previewContainer.innerHTML = '';
         
-        // 類似度表示
-        const similarityDiv = document.createElement('div');
-        similarityDiv.className = 'text-center mb-2 p-2 bg-slate-100 rounded';
-        similarityDiv.innerHTML = `
-            <span class="text-sm font-medium text-slate-700">類似度: </span>
-            <span class="px-2 py-1 rounded text-sm font-bold ${similarity >= 90 ? 'bg-red-100 text-red-800' : similarity >= 80 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}">
-                ${similarity}%
-            </span>
-        `;
-        previewContainer.appendChild(similarityDiv);
-        
         // 2つの画像を横に並べて表示
         const imagesContainer = document.createElement('div');
         imagesContainer.className = 'flex space-x-2';
