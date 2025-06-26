@@ -4,6 +4,10 @@ const fs = require('fs').promises;
 const chokidar = require('chokidar');
 const ImageAnalyzer = require('./imageAnalyzer');
 
+// 環境設定
+const isDev = process.argv.includes('--dev') || process.env.NODE_ENV === 'development';
+const isProduction = !isDev;
+
 // 文字エンコーディング設定
 process.env.LANG = 'en_US.UTF-8';
 process.env.LC_ALL = 'en_US.UTF-8';
@@ -49,8 +53,12 @@ function safeConsoleLog(...args) {
     try {
         const message = args.join(' ');
         writeToLog(`LOG: ${message}`);
-        // コンソールには最小限の情報のみ出力
-        console.log('App running...');
+        // 本番環境では最小限の情報のみ出力
+        if (isDev) {
+            console.log(...args);
+        } else {
+            console.log('App running...');
+        }
     } catch (error) {
         // エラーを無視
     }
@@ -60,8 +68,12 @@ function safeConsoleError(...args) {
     try {
         const message = args.join(' ');
         writeToLog(`ERROR: ${message}`);
-        // コンソールには最小限の情報のみ出力
-        console.log('Error occurred. Check log file.');
+        // 本番環境では最小限の情報のみ出力
+        if (isDev) {
+            console.error(...args);
+        } else {
+            console.log('Error occurred. Check log file.');
+        }
     } catch (error) {
         // エラーを無視
     }
@@ -71,8 +83,12 @@ function safeConsoleWarn(...args) {
     try {
         const message = args.join(' ');
         writeToLog(`WARN: ${message}`);
-        // コンソールには最小限の情報のみ出力
-        console.log('Warning occurred. Check log file.');
+        // 本番環境では最小限の情報のみ出力
+        if (isDev) {
+            console.warn(...args);
+        } else {
+            console.log('Warning occurred. Check log file.');
+        }
     } catch (error) {
         // エラーを無視
     }
@@ -133,31 +149,56 @@ function createWindow() {
       enableRemoteModule: false,
       preload: path.join(__dirname, '../preload/preload.js'),
       webSecurity: true,
-      allowRunningInsecureContent: false
+      allowRunningInsecureContent: false,
+      // 本番環境でのセキュリティ強化
+      ...(isProduction && {
+        devTools: false,
+        webSecurity: true,
+        allowRunningInsecureContent: false
+      })
     },
     icon: path.join(__dirname, '../renderer/assets/icons/app-icon.png'), // アイコンファイルが存在する場合
     title: 'イメージクリーンアップアシスタント',
     show: false, // 準備が整ってから表示
-    autoHideMenuBar: true // メニューバーを自動非表示
+    autoHideMenuBar: isProduction, // 本番環境ではメニューバーを自動非表示
+    // 本番環境での追加設定
+    ...(isProduction && {
+      resizable: true,
+      maximizable: true,
+      minimizable: true,
+      fullscreenable: true,
+      skipTaskbar: false,
+      alwaysOnTop: false
+    })
   });
 
   // メインウィンドウのHTMLファイルを読み込み
   mainWindow.loadFile(path.join(__dirname, '../renderer/html/index.html'));
 
   // 開発モードの場合はDevToolsを開く
-  if (process.argv.includes('--dev')) {
+  if (isDev) {
     mainWindow.webContents.openDevTools();
   }
 
   // ウィンドウが準備できたときに表示
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    safeConsoleLog('Main window created and shown');
   });
 
   // ウィンドウが閉じられたときの処理
   mainWindow.on('closed', () => {
     mainWindow = null;
+    safeConsoleLog('Main window closed');
   });
+
+  // 本番環境でのセキュリティ強化
+  if (isProduction) {
+    // 新規ウィンドウ作成を防ぐ
+    mainWindow.webContents.setWindowOpenHandler(() => {
+      return { action: 'deny' };
+    });
+  }
 }
 
 // アプリが準備できたときにウィンドウを作成

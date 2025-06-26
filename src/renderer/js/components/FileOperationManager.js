@@ -43,13 +43,26 @@ export class FileOperationManager {
                 count = filePaths.length;
                 break;
             case 'similar':
-                // 類似画像の場合は、選択されたペアの両方のファイルを取得
-                filePaths = [];
-                this.app.selectedSimilarPairs.forEach(pairValue => {
-                    const [file1, file2] = pairValue.split('|');
-                    filePaths.push(file1, file2);
-                });
-                count = this.app.selectedSimilarPairs.size;
+                // 個別ファイル選択を取得
+                const individualFiles = Array.from(this.app.selectedIndividualFiles || new Set());
+                
+                // ペア全体の選択で追加されるファイルを取得（個別選択と重複しないように）
+                const pairFiles = [];
+                if (this.app.selectedSimilarPairs && this.app.selectedSimilarPairs.size > 0) {
+                    this.app.selectedSimilarPairs.forEach(pairValue => {
+                        const [file1, file2] = pairValue.split('|');
+                        if (!this.app.selectedIndividualFiles.has(file1)) {
+                            pairFiles.push(file1);
+                        }
+                        if (!this.app.selectedIndividualFiles.has(file2)) {
+                            pairFiles.push(file2);
+                        }
+                    });
+                }
+                
+                // 個別ファイルとペアファイルを結合
+                filePaths = [...individualFiles, ...pairFiles];
+                count = filePaths.length;
                 break;
             case 'error':
                 filePaths = Array.from(this.app.selectedErrors);

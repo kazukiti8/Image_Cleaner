@@ -1399,19 +1399,46 @@ class ImageCleanupApp {
                 });
                 break;
             case 'similar':
-                count = this.selectedSimilarPairs.size + this.selectedIndividualFiles.size;
-                // 選択されたペアと個別ファイルのサイズを計算
+                // 個別ファイル選択のカウント
+                const individualCount = this.selectedIndividualFiles ? this.selectedIndividualFiles.size : 0;
+                
+                // ペア全体の選択で追加されるファイル数をカウント（個別選択と重複しないように）
+                let pairCount = 0;
+                if (this.selectedSimilarPairs && this.selectedSimilarPairs.size > 0) {
+                    this.selectedSimilarPairs.forEach(pairValue => {
+                        const [file1, file2] = pairValue.split('|');
+                        if (!this.selectedIndividualFiles.has(file1)) {
+                            pairCount++;
+                        }
+                        if (!this.selectedIndividualFiles.has(file2)) {
+                            pairCount++;
+                        }
+                    });
+                }
+                
+                count = individualCount + pairCount;
+                
+                // 選択されたファイルのサイズを計算
                 this.scanResults.similarImages.forEach(group => {
-                    const pairKey = `${group.files[0].filePath}|${group.files[1].filePath}`;
+                    const file1 = group.files[0];
+                    const file2 = group.files[1];
+                    const pairKey = `${file1.filePath}|${file2.filePath}`;
+                    
+                    // ペア全体が選択されている場合
                     if (this.selectedSimilarPairs.has(pairKey)) {
-                        totalSize += group.files[0].size + group.files[1].size;
+                        if (!this.selectedIndividualFiles.has(file1.filePath)) {
+                            totalSize += file1.size;
+                        }
+                        if (!this.selectedIndividualFiles.has(file2.filePath)) {
+                            totalSize += file2.size;
+                        }
                     } else {
                         // 個別ファイルの選択をチェック
-                        if (this.selectedIndividualFiles.has(group.files[0].filePath)) {
-                            totalSize += group.files[0].size;
+                        if (this.selectedIndividualFiles.has(file1.filePath)) {
+                            totalSize += file1.size;
                         }
-                        if (this.selectedIndividualFiles.has(group.files[1].filePath)) {
-                            totalSize += group.files[1].size;
+                        if (this.selectedIndividualFiles.has(file2.filePath)) {
+                            totalSize += file2.size;
                         }
                     }
                 });
@@ -1586,13 +1613,30 @@ class ImageCleanupApp {
                 count = filePaths.length;
                 break;
             case 'similar':
-                // 類似画像の場合は、選択されたペアの両方のファイルを取得
+                // 類似画像の場合は、個別ファイル選択とペア選択の両方を考慮
                 filePaths = [];
-                this.selectedSimilarPairs.forEach(pairValue => {
-                    const [file1, file2] = pairValue.split('|');
-                    filePaths.push(file1, file2);
-                });
-                count = this.selectedSimilarPairs.size;
+                
+                // 個別ファイル選択を追加
+                if (this.selectedIndividualFiles && this.selectedIndividualFiles.size > 0) {
+                    filePaths.push(...Array.from(this.selectedIndividualFiles));
+                    count += this.selectedIndividualFiles.size;
+                }
+                
+                // ペア全体の選択を追加（個別選択と重複しないように）
+                if (this.selectedSimilarPairs && this.selectedSimilarPairs.size > 0) {
+                    this.selectedSimilarPairs.forEach(pairValue => {
+                        const [file1, file2] = pairValue.split('|');
+                        // 個別選択に含まれていないファイルのみ追加
+                        if (!this.selectedIndividualFiles.has(file1)) {
+                            filePaths.push(file1);
+                            count++;
+                        }
+                        if (!this.selectedIndividualFiles.has(file2)) {
+                            filePaths.push(file2);
+                            count++;
+                        }
+                    });
+                }
                 break;
             case 'error':
                 filePaths = Array.from(this.selectedErrors);
@@ -2568,7 +2612,24 @@ class ImageCleanupApp {
                 count = this.selectedFiles.size;
                 break;
             case 'similar':
-                count = this.selectedSimilarPairs.size + this.selectedIndividualFiles.size;
+                // 個別ファイル選択のカウント
+                const individualCount = this.selectedIndividualFiles ? this.selectedIndividualFiles.size : 0;
+                
+                // ペア全体の選択で追加されるファイル数をカウント（個別選択と重複しないように）
+                let pairCount = 0;
+                if (this.selectedSimilarPairs && this.selectedSimilarPairs.size > 0) {
+                    this.selectedSimilarPairs.forEach(pairValue => {
+                        const [file1, file2] = pairValue.split('|');
+                        if (!this.selectedIndividualFiles.has(file1)) {
+                            pairCount++;
+                        }
+                        if (!this.selectedIndividualFiles.has(file2)) {
+                            pairCount++;
+                        }
+                    });
+                }
+                
+                count = individualCount + pairCount;
                 break;
             case 'error':
                 count = this.selectedErrors.size;

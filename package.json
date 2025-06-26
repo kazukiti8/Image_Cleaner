@@ -8,6 +8,15 @@
     "dev": "powershell -Command \"chcp 65001; electron . --dev\"",
     "dev:ps": "powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; electron . --dev\"",
     "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:win-portable": "electron-builder --win portable",
+    "build:win-installer": "electron-builder --win nsis",
+    "dist": "electron-builder --publish=never",
+    "dist:win": "electron-builder --win --publish=never",
+    "build:prod": "node scripts/build-production.js",
+    "build:prod:win": "node scripts/build-production.js win",
+    "build:prod:win-portable": "node scripts/build-production.js win-portable",
+    "build:prod:win-installer": "node scripts/build-production.js win-installer",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
@@ -18,16 +27,21 @@
     "test:e2e:report": "playwright show-report",
     "test:all": "npm run test && npm run test:e2e",
     "build:css": "tailwindcss -i ./src/renderer/css/style.css -o ./src/renderer/css/output.css --watch",
-    "build:css:prod": "tailwindcss -i ./src/renderer/css/style.css -o ./src/renderer/css/output.css --minify"
+    "build:css:prod": "tailwindcss -i ./src/renderer/css/style.css -o ./src/renderer/css/output.css --minify",
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [
     "image",
     "cleanup",
     "blur",
     "similar",
-    "electron"
+    "electron",
+    "desktop",
+    "photo",
+    "organization"
   ],
-  "author": "Your Name",
+  "author": "Image Cleanup Assistant Team",
   "license": "MIT",
   "devDependencies": {
     "@playwright/test": "^1.53.1",
@@ -48,23 +62,52 @@
   },
   "homepage": "https://github.com/kazukiti8/Image_Cleaner#readme",
   "dependencies": {
-    "sharp": "^0.32.6",
-    "chokidar": "^3.5.3"
+    "chokidar": "^3.5.3",
+    "sharp": "^0.32.6"
   },
   "build": {
-    "appId": "com.example.image-cleanup-assistant",
-    "productName": "ImageCleanupAssistant",
+    "appId": "com.imagecleanup.assistant",
+    "productName": "Image Cleanup Assistant",
+    "copyright": "Copyright © 2024 Image Cleanup Assistant Team",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "src/**/*",
       "package.json",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/sharp/vendor/**/*.md",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/*.test.js",
+      "!**/*.spec.js",
+      "!e2e/**/*",
+      "!docs/**/*",
+      "!mockups/**/*",
+      "!scripts/**/*",
+      "!test-results/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "src/renderer/assets",
+        "to": "assets"
+      }
     ],
     "win": {
       "target": "portable",
-      "artifactName": "${productName}-${version}.${ext}"
-    }
+      "artifactName": "${productName}-${version}-portable.${ext}",
+      "sign": false,
+      "signAndEditExecutable": false,
+      "certificateFile": null,
+      "certificatePassword": null,
+      "publisherName": null,
+      "verifyUpdateCodeSignature": false,
+      "forceCodeSigning": false
+    },
+    "compression": "maximum",
+    "removePackageScripts": true,
+    "removePackageKeywords": true,
+    "forceCodeSigning": false
   }
 }

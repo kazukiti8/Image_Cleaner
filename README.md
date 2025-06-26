@@ -20,26 +20,59 @@ PC内の画像ファイルを自動的に分析し、不要な画像（ブレ画
 ## システム要件
 
 - Windows 10 (64bit) 以降
-- Node.js 16.0.0 以降
 - 推奨環境: Intel Core i5相当、8GB RAM、SATA SSD
 
-## セットアップ
+## インストール方法
 
-### 1. 依存関係のインストール
+### 方法1: インストーラー版（推奨）
+
+1. [Releases](https://github.com/kazukiti8/Image_Cleaner/releases) ページから最新版のインストーラー（.exe）をダウンロード
+2. ダウンロードしたファイルを実行
+3. インストールウィザードの指示に従ってインストール
+4. デスクトップまたはスタートメニューからアプリを起動
+
+### 方法2: ポータブル版
+
+1. [Releases](https://github.com/kazukiti8/Image_Cleaner/releases) ページからポータブル版（.exe）をダウンロード
+2. 任意のフォルダに解凍
+3. `Image Cleanup Assistant.exe` を実行
+
+## 開発環境のセットアップ
+
+### 前提条件
+
+- Node.js 16.0.0 以降
+- npm または yarn
+
+### 1. リポジトリのクローン
+
+```bash
+git clone https://github.com/kazukiti8/Image_Cleaner.git
+cd Image_Cleaner
+```
+
+### 2. 依存関係のインストール
 
 ```bash
 npm install
 ```
 
-### 2. 開発モードでの起動
+### 3. 開発モードでの起動
 
 ```bash
 npm run dev
 ```
 
-### 3. 本番ビルド
+### 4. 本番ビルド
 
 ```bash
+# Windows用ポータブル版
+npm run build:win-portable
+
+# Windows用インストーラー版
+npm run build:win-installer
+
+# 全プラットフォーム用
 npm run build
 ```
 
@@ -72,7 +105,8 @@ ImageCleanupAssistant/
 │   └── common/         # 共通モジュール
 ├── docs/               # ドキュメント
 ├── mockups/            # UIモックアップ
-├── build/              # ビルド成果物
+├── build/              # ビルド設定
+├── dist/               # ビルド成果物
 └── tests/              # テストコード
 ```
 
@@ -92,9 +126,50 @@ ImageCleanupAssistant/
 - コードは `docs/アプリケーション詳細設計書.txt` の仕様に従う
 - 新機能追加時は要件定義書を確認する
 
+### テスト
+
+```bash
+# 単体テスト
+npm run test
+
+# E2Eテスト
+npm run test:e2e
+
+# 全テスト実行
+npm run test:all
+```
+
+## 配布
+
+### リリース作成
+
+1. バージョンを更新（package.json）
+2. 本番ビルドを実行
+3. GitHub Releasesで配布ファイルをアップロード
+
+### 配布ファイル
+
+- `Image Cleanup Assistant-{version}-x64.exe` - Windows用インストーラー
+- `Image Cleanup Assistant-{version}-portable.exe` - Windows用ポータブル版
+
+## トラブルシューティング
+
+### よくある問題
+
+1. **アプリが起動しない**
+   - Windows Defenderの除外設定を確認
+   - 管理者権限で実行を試行
+
+2. **画像分析が遅い**
+   - 対象フォルダの画像数を確認
+   - 他のアプリケーションを終了してメモリを確保
+
+3. **エラーが発生する**
+   - ログファイル（%APPDATA%/Image Cleanup Assistant/app.log）を確認
+
 ## ライセンス
 
-ISC License
+MIT License
 
 ## 貢献
 
