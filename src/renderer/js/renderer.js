@@ -58,8 +58,8 @@ function pathBasename(filePath) {
 class VirtualTable {
     constructor(container, options = {}) {
         this.container = container;
-        this.rowHeight = options.rowHeight || 60;
-        this.visibleRows = options.visibleRows || 15;
+        this.rowHeight = options.rowHeight || 50;
+        this.visibleRows = options.visibleRows || 20;
         this.bufferRows = options.bufferRows || 5;
         this.data = [];
         this.currentScrollTop = 0;
@@ -116,18 +116,42 @@ class VirtualTable {
         this.container.addEventListener('scroll', this.handleScroll.bind(this));
         
         // ヘッダーの高さを取得してコンテンツの位置を調整
-        this.headerHeight = this.header.offsetHeight;
-        this.content.style.top = `${this.headerHeight}px`;
+        // DOMが更新されるのを待ってから高さを取得
+        setTimeout(() => {
+            this.headerHeight = this.header ? this.header.offsetHeight : 0;
+            this.content.style.top = `${this.headerHeight}px`;
+            safeConsoleLog('Header height set to:', this.headerHeight);
+            
+            // 初期化完了をマーク
+            this.isInitialized = true;
+            safeConsoleLog('VirtualTable initialization completed');
+        }, 0);
     }
     
     createHeader() {
         this.header = document.createElement('div');
         this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
         this.header.innerHTML = `
-            <div class="flex-1 px-3">画像1</div>
-            <div class="flex-1 px-3">画像2</div>
-            <div class="w-20 px-2 text-center">類似度</div>
+            <div class="flex-1 flex items-center">
+                <input type="checkbox" id="selectAllBlur" class="mr-3">
+                <span>ファイル名</span>
+            </div>
+            <div class="w-20 px-2">サイズ</div>
+            <div class="w-32 px-2">更新日時</div>
+            <div class="w-28 px-2">スコア</div>
         `;
+        
+        // 全選択チェックボックスのイベントリスナー
+        const selectAllCheckbox = this.header.querySelector('#selectAllBlur');
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = this.content.querySelectorAll('.blur-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                // チェックボックスの状態を保存
+                this.saveCheckboxState(checkbox.dataset.filepath, e.target.checked);
+                this.app.handleCheckboxChange(checkbox, 'blur');
+            });
+        });
         
         this.container.appendChild(this.header);
     }
@@ -138,7 +162,17 @@ class VirtualTable {
         this.clearCheckboxStates();
         this.sortData();
         this.updateSpacerHeight();
-        this.render();
+        
+        // ヘッダーの高さが設定されるまで待ってからレンダリング
+        if (this.headerHeight === undefined) {
+            setTimeout(() => {
+                this.headerHeight = this.header ? this.header.offsetHeight : 0;
+                safeConsoleLog('Header height set in setData:', this.headerHeight);
+                this.render();
+            }, 0);
+        } else {
+            this.render();
+        }
     }
     
     sortData() {
@@ -170,7 +204,9 @@ class VirtualTable {
             return;
         }
         
-        const startIndex = Math.floor(this.currentScrollTop / this.rowHeight);
+        // ヘッダーの高さを考慮してstartIndexを計算
+        const adjustedScrollTop = Math.max(0, this.currentScrollTop - this.headerHeight);
+        const startIndex = Math.floor(adjustedScrollTop / this.rowHeight);
         const endIndex = Math.min(
             startIndex + this.visibleRows + this.bufferRows * 2,
             this.data.length
@@ -247,7 +283,7 @@ class VirtualTable {
     
     scrollToIndex(index) {
         if (index >= 0 && index < this.data.length) {
-            const scrollTop = index * this.rowHeight;
+            const scrollTop = (index * this.rowHeight) + this.headerHeight;
             this.container.scrollTop = scrollTop;
         }
     }
@@ -276,10 +312,26 @@ class BlurVirtualTable extends VirtualTable {
         this.header = document.createElement('div');
         this.header.className = 'bg-slate-100 border-b border-slate-300 px-4 py-2 font-medium text-sm flex items-center';
         this.header.innerHTML = `
-            <div class="flex-1 px-3">画像1</div>
-            <div class="flex-1 px-3">画像2</div>
-            <div class="w-20 px-2 text-center">類似度</div>
+            <div class="flex-1 flex items-center">
+                <input type="checkbox" id="selectAllBlur" class="mr-3">
+                <span>ファイル名</span>
+            </div>
+            <div class="w-20 px-2">サイズ</div>
+            <div class="w-32 px-2">更新日時</div>
+            <div class="w-28 px-2">スコア</div>
         `;
+        
+        // 全選択チェックボックスのイベントリスナー
+        const selectAllCheckbox = this.header.querySelector('#selectAllBlur');
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = this.content.querySelectorAll('.blur-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+                // チェックボックスの状態を保存
+                this.saveCheckboxState(checkbox.dataset.filepath, e.target.checked);
+                this.app.handleCheckboxChange(checkbox, 'blur');
+            });
+        });
         
         this.container.appendChild(this.header);
     }
@@ -885,7 +937,13 @@ class ImageCleanupApp {
                 break;
         }
         
-        safeConsoleLog(`Virtual table initialized for tab: ${tabName}`, this.virtualTables[tabName]);
+        // 仮想テーブルの初期化を確認
+        if (this.virtualTables[tabName]) {
+            safeConsoleLog(`Virtual table initialized for tab: ${tabName}`, this.virtualTables[tabName]);
+            safeConsoleLog('Virtual table isInitialized:', this.virtualTables[tabName].isInitialized);
+        } else {
+            safeConsoleError('Failed to create virtual table for tab:', tabName);
+        }
     }
 
     // 仮想テーブルにデータを設定
