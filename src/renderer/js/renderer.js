@@ -2828,8 +2828,7 @@ class ImageCleanupApp {
         this.currentPreviewIndex = -1;
         this.currentPreviewData = [];
         this.previewMode = 'single';
-        this.clearPreviewArea();
-        
+        // this.clearPreviewArea(); ← 削除
         // 仮想テーブルの選択状態をクリア
         if (this.virtualTables[this.currentTab]) {
             const rows = this.virtualTables[this.currentTab].content.querySelectorAll('[data-index]');
